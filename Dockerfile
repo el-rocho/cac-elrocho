@@ -7,10 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Instalar dependencias de sistema mínimas para compresión y PDFs
+# Instalar dependencias mínimas de sistema (curl para diagnósticos de red)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar dependencias de Python

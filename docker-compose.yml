@@ -10,12 +10,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./inbox:/app/inbox
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+
 
   # Proxy inverso Caddy opcional para gestión automática de certificados SSL/HTTPS
   # Descomentar si deseas que Caddy exponga los puertos 80 y 443 en tu VM Debian 13
