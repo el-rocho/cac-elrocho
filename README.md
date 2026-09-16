@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.2.0`
+# cac-elrocho 🩺 `v0.3.0`
 
 > **Cuadro de Mando Clínico Autónomo y Autoalojable con Validación por Inteligencia Artificial (LLM)**
 
@@ -18,12 +18,15 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
   * Ingesta inteligente de documentos PDF clínicos.
   * **Auditoría de Rangos de Referencia**: Detecta si un laboratorio ha actualizado sus límites de normalidad (por ejemplo, el dintel de LDL de 130 a 116 mg/dL según guías SEA 2023) y explica el motivo clínico.
   * Detección de prediabetes (HbA1c ≥ 5.7%) y semaforización clínica rigurosa.
+* 🛡️ **Detección y Control de Analíticas Duplicadas**:
+  * Verificación criptográfica por hash **SHA-256** de los archivos PDF subidos y comprobación de colisión por fecha/laboratorio.
+  * Banner informativo y selector de acción inteligente: opción de **sobrescribir/actualizar** el informe existente o guardarlo como nueva analítica independiente.
 * 🛡️ **Validación de Identidad Flexible (Human-in-the-Loop)**:
   * Comprobación tolerante de identidad entre el informe PDF y el paciente configurado (ignora orden de apellidos/nombre, tildes, mayúsculas y ceros a la izquierda en el DNI).
   * En caso de discrepancia real (por ejemplo, si se sube por error el informe de otra persona), emite una advertencia previa no bloqueante en el modal de revisión.
 * 🔐 **Panel de Gestión y Respaldo de Datos**:
-  * **Exportación Segura**: Descarga copias de seguridad completas en JSON con **cifrado simétrico AES-256-GCM** protegido por contraseña.
-  * **Importación y Restauración**: Restaura copias de seguridad (planas o cifradas) en un solo clic.
+  * **Exportación con Marca Temporal**: Descarga copias de seguridad completas en JSON con fecha y hora (`cac-elrocho-backup-YYYYMMDD_HHMMSS.json`) y soporte para **cifrado simétrico AES-256-GCM**.
+  * **Importación y Restauración Completa**: Restaura copias de seguridad (planas o cifradas) con sustitución limpia y sin duplicidades.
   * **Purga y Modo Demo**: Posibilidad de vaciar la base de datos para empezar de cero o cargar datos sintéticos de prueba.
 * 📁 **Buzón Desatendido (`/inbox`)**: Monitor de carpetas en segundo plano para procesar PDFs subidos vía SFTP, Samba o Nextcloud.
 * 🔒 **Privacidad Total**: Documentos originales, bases de datos SQLite y claves de API estrictamente excluidos del control de versiones (`.gitignore`).
@@ -88,7 +91,7 @@ http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máqui
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.2.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.3.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho

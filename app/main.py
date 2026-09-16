@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import init_db
 from app.seed_data import run_seed
 from app.services.watcher import inbox_watcher
+from app.services.backup_service import backfill_informe_hashes
 from app.api.router import api_router
 
 # Configuración de logging
@@ -28,6 +29,9 @@ async def lifespan(app: FastAPI):
     if settings.APP_ENV == "demo":
         run_seed()
     
+    # Backfill de hashes SHA-256 para informes existentes
+    backfill_informe_hashes()
+
     # Iniciar monitor de buzón en segundo plano
     inbox_watcher.start()
     
@@ -40,7 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="cac-elrocho",
     description="Panel Clínico Autónomo y Cuadro de Mando de Analíticas con Validación LLM",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan
 )
 

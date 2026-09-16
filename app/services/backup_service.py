@@ -65,7 +65,7 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
 
     backup = {
         "app": "cac-elrocho",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "paciente": {
             "nombre_completo": paciente.nombre_completo if paciente else "",
             "fecha_nacimiento": paciente.fecha_nacimiento if paciente else "",
@@ -98,6 +98,8 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
             "dictamen_global": inf.dictamen_global,
             "observaciones_ia": inf.observaciones_ia,
             "estado": inf.estado,
+            "sha256": inf.sha256,
+            "archivo_pdf": inf.archivo_pdf,
             "mediciones": [
                 {
                     "analito_codigo": m.analito.codigo if m.analito else "",
@@ -176,7 +178,9 @@ def import_database_from_dict(db: Session, data: Dict[str, Any]):
             facultativo=inf_data.get("facultativo"),
             dictamen_global=inf_data.get("dictamen_global"),
             observaciones_ia=inf_data.get("observaciones_ia"),
-            estado=inf_data.get("estado", "confirmado")
+            estado=inf_data.get("estado", "confirmado"),
+            sha256=inf_data.get("sha256"),
+            archivo_pdf=inf_data.get("archivo_pdf")
         )
         db.add(inf)
         db.flush()
@@ -222,4 +226,35 @@ def restore_demo_data(db: Session):
     from app.seed_data import run_seed
     wipe_database(db)
     run_seed(db)
+
+def backfill_informe_hashes():
+    """Calcula y rellena el hash SHA-256 de los informes existentes si tienen archivo PDF en disco."""
+    import hashlib
+    import logging
+    from app.database import SessionLocal
+    from app.models import Informe
+    from app.config import settings
+
+    logger = logging.getLogger("cac-elrocho")
+    db = SessionLocal()
+    try:
+        informes = db.query(Informe).filter(Informe.sha256.is_(None)).all()
+        updated = 0
+        for inf in informes:
+            if inf.archivo_pdf:
+                pdf_path = settings.DATA_DIR / "uploads" / inf.archivo_pdf
+                if pdf_path.exists():
+                    try:
+                        with open(pdf_path, "rb") as f:
+                            inf.sha256 = hashlib.sha256(f.read()).hexdigest()
+                        updated += 1
+                    except Exception as e:
+                        logger.warning(f"No se pudo calcular hash para {pdf_path}: {e}")
+        if updated > 0:
+            db.commit()
+            logger.info(f"Se actualizaron {updated} informes existentes con su hash SHA-256.")
+    except Exception as e:
+        logger.error(f"Error en backfill_informe_hashes: {e}")
+    finally:
+        db.close()
 

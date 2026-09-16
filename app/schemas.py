@@ -96,6 +96,12 @@ class AnaliticaPreviewResponse(BaseModel):
     paciente_detectado: Optional[str] = None
     dni_detectado: Optional[str] = None
     aviso_discrepancia_paciente: Optional[str] = None
+    sha256: Optional[str] = None
+    es_duplicado: Optional[bool] = False
+    tipo_duplicado: Optional[str] = None # 'exacto_archivo' | 'misma_fecha_lab' | None
+    informe_existente_id: Optional[int] = None
+    informe_existente_info: Optional[str] = None
+    aviso_duplicado: Optional[str] = None
 
 class ConfirmacionRequest(BaseModel):
     temp_id: str
@@ -104,6 +110,9 @@ class ConfirmacionRequest(BaseModel):
     facultativo: Optional[str] = None
     mediciones: List[MedicionExtraida]
     dictamen_global: Optional[str] = None
+    sha256: Optional[str] = None
+    sobrescribir_existente: Optional[bool] = False
+    informe_id_a_reemplazar: Optional[int] = None
 
 class AuditFileItem(BaseModel):
     id: int

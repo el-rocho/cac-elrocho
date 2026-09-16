@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from fastapi.responses import JSONResponse
@@ -19,15 +20,16 @@ router = APIRouter(prefix="/backup", tags=["Gestión y Respaldo de Datos"])
 @router.get("/export")
 def export_backup(passphrase: Optional[str] = None, db: Session = Depends(get_db)):
     """
-    Descarga una copia completa de la base de datos en formato JSON.
+    Descarga una copia completa de la base de datos en formato JSON con fecha y hora en el nombre.
     Si se proporciona una contraseña ('passphrase'), la copia se cifra con AES-256-GCM.
     """
     data = export_database_to_dict(db)
-    filename = "cac-elrocho-backup.json"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"cac-elrocho-backup-{timestamp}.json"
 
     if passphrase and passphrase.strip():
         data = encrypt_backup(data, passphrase.strip())
-        filename = "cac-elrocho-backup.enc.json"
+        filename = f"cac-elrocho-backup-{timestamp}.enc.json"
 
     json_str = json.dumps(data, ensure_ascii=False, indent=2)
     return Response(

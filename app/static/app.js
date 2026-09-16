@@ -556,6 +556,27 @@ function renderUploadPreview(data) {
 
   const alertsContainer = document.getElementById('previewAlerts');
   alertsContainer.innerHTML = '';
+
+  // Control de analítica duplicada
+  const dupContainer = document.getElementById('previewDuplicateWarning');
+  const dupTitle = document.getElementById('previewDuplicateTitle');
+  const dupMsg = document.getElementById('previewDuplicateMessage');
+  const overwriteRadio = document.getElementById('duplicateActionOverwrite');
+
+  if (data.es_duplicado && data.aviso_duplicado) {
+    if (dupContainer) dupContainer.classList.remove('hidden');
+    if (dupTitle) {
+      dupTitle.innerHTML = data.tipo_duplicado === 'exacto_archivo'
+        ? '📄 <strong>Documento PDF idéntico detectado en el historial</strong>'
+        : '📅 <strong>Analítica con misma fecha registrada previamente</strong>';
+    }
+    if (dupMsg) {
+      dupMsg.textContent = `${data.aviso_duplicado} Elige a continuación si deseas actualizar el registro existente o guardarlo como una nueva analítica independiente.`;
+    }
+    if (overwriteRadio) overwriteRadio.checked = true;
+  } else {
+    if (dupContainer) dupContainer.classList.add('hidden');
+  }
   
   if (data.aviso_discrepancia_paciente) {
     const mismatchDiv = document.createElement('div');
@@ -567,6 +588,7 @@ function renderUploadPreview(data) {
   if (data.alertas_ia && data.alertas_ia.length > 0) {
     data.alertas_ia.forEach(al => {
       if (data.aviso_discrepancia_paciente && al.includes(data.aviso_discrepancia_paciente)) return;
+      if (data.aviso_duplicado && al.includes(data.aviso_duplicado)) return;
       const div = document.createElement('div');
       div.className = 'flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded-lg text-amber-900';
       div.innerHTML = `<span>⚠️</span> <span>${escapeHtml(al)}</span>`;
@@ -699,6 +721,9 @@ async function confirmUploadData() {
   btn.disabled = true;
   btn.innerHTML = '<span>⏳</span> Guardando en base de datos...';
 
+  const overwriteRadio = document.getElementById('duplicateActionOverwrite');
+  const sobrescribir = (currentPreviewData.es_duplicado && overwriteRadio && overwriteRadio.checked) ? true : false;
+
   try {
     const payload = {
       temp_id: currentPreviewData.temp_id,
@@ -706,7 +731,10 @@ async function confirmUploadData() {
       laboratorio: laboratorio || 'Laboratorio Clínico',
       facultativo: facultativo || 'No especificado',
       mediciones: mediciones,
-      dictamen_global: dictamen || 'Control favorable'
+      dictamen_global: dictamen || 'Control favorable',
+      sha256: currentPreviewData.sha256 || null,
+      sobrescribir_existente: sobrescribir,
+      informe_id_a_reemplazar: currentPreviewData.informe_existente_id || null
     };
 
     const res = await fetch('/api/v1/upload/confirm', {
@@ -720,7 +748,8 @@ async function confirmUploadData() {
       throw new Error(errMsg);
     }
 
-    alert('¡Analítica incorporada con éxito al historial!');
+    const resData = await res.json();
+    alert(resData.message || '¡Analítica procesada con éxito en el historial!');
     closeUploadModal();
     
     // Recargar componentes dinámicamente
@@ -1155,10 +1184,16 @@ async function savePatientConfig(event) {
 }
 
 async function downloadBackup() {
+  const btn = document.getElementById('btnExportBackup');
   const pass = document.getElementById('exportPassphrase').value.trim();
   let url = '/api/v1/backup/export';
   if (pass) {
     url += '?passphrase=' + encodeURIComponent(pass);
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Generando copia de seguridad...';
   }
 
   try {
@@ -1167,11 +1202,50 @@ async function downloadBackup() {
 
     const blob = await res.blob();
     const disposition = res.headers.get('Content-Disposition');
-    let filename = pass ? 'cac-elrocho-backup.enc.json' : 'cac-elrocho-backup.json';
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    let filename = pass ? `cac-elrocho-backup-${ts}.enc.json` : `cac-elrocho-backup-${ts}.json`;
     if (disposition && disposition.includes('filename=')) {
-      filename = disposition.split('filename=')[1].replace(/"/g, '');
+      filename = disposition.split('filename=')[1].replace(/["']/g, '').trim();
     }
 
+    // 1. Si el navegador soporta el selector nativo de guardado de archivos
+    if (window.showSaveFilePicker) {
+      try {
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'Copia de seguridad JSON',
+            accept: { 'application/json': ['.json'] }
+          }]
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+
+        if (btn) {
+          btn.innerHTML = '<span>✅</span> ¡Copia guardada con éxito!';
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<span>💾</span> Generar y Descargar Respaldo JSON';
+          }, 2500);
+        }
+        return;
+      } catch (pickerErr) {
+        if (pickerErr.name === 'AbortError') {
+          // El usuario canceló la ventana de guardado: restaurar botón sin mensaje de éxito erróneo
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>💾</span> Generar y Descargar Respaldo JSON';
+          }
+          return;
+        }
+        // Si ocurrió otro tipo de error, continuar con el método de descarga por enlace
+      }
+    }
+
+    // 2. Método estándar para navegadores tradicionales
     const downloadUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = downloadUrl;
@@ -1181,9 +1255,19 @@ async function downloadBackup() {
     a.remove();
     window.URL.revokeObjectURL(downloadUrl);
 
-    alert(`¡Copia de seguridad descargada correctamente! (${filename})`);
+    if (btn) {
+      btn.innerHTML = '<span>✅</span> Descarga iniciada';
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾</span> Generar y Descargar Respaldo JSON';
+      }, 2500);
+    }
   } catch (err) {
     alert(`Error: ${err.message}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>💾</span> Generar y Descargar Respaldo JSON';
+    }
   }
 }
 
@@ -1193,6 +1277,15 @@ async function uploadBackupFile() {
 
   if (!fileInput.files || fileInput.files.length === 0) {
     alert('Por favor, selecciona un archivo JSON de copia de seguridad.');
+    return;
+  }
+
+  const confirmMsg = "⚠️ ATENCIÓN: La importación de una copia de seguridad realiza una RESTAURACIÓN COMPLETA.\n\n" +
+    "• Se sustituirán todos los datos actuales de la base de datos por los datos contenidos en el archivo de respaldo seleccionado.\n" +
+    "• No se producirá duplicación de analíticas, pero cualquier informe o cambio posterior que no esté en este archivo se perderá.\n\n" +
+    "¿Deseas continuar con la restauración?";
+
+  if (!confirm(confirmMsg)) {
     return;
   }
 

@@ -8,7 +8,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 @api_router.get("/health")
 def health_check():
-    return {"status": "ok", "app": "cac-elrocho", "version": "0.2.0"}
+    return {"status": "ok", "app": "cac-elrocho", "version": "0.3.0"}
 
 api_router.include_router(analiticas_router)
 api_router.include_router(upload_router)

@@ -96,6 +96,62 @@ def verificar_coincidencia_flexible(paciente_cfg, paciente_pdf: Optional[str], d
 
     return None
 
+def verificar_duplicidad_informe(db: Optional[Any], sha256: Optional[str] = None, fecha: Optional[str] = None, laboratorio: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Comprueba si existe duplicidad por hash SHA-256 idéntico o por fecha y laboratorio en la base de datos.
+    """
+    resultado = {
+        "es_duplicado": False,
+        "tipo_duplicado": None,
+        "informe_existente_id": None,
+        "informe_existente_info": None,
+        "aviso_duplicado": None
+    }
+    if not db:
+        return resultado
+
+    try:
+        from app.models import Informe
+
+        # 1. Comprobación por SHA-256 (duplicado exacto de archivo)
+        if sha256:
+            inf_sha = db.query(Informe).filter(Informe.sha256 == sha256).first()
+            if inf_sha:
+                fecha_str = inf_sha.fecha or "Fecha no especificada"
+                lab_str = inf_sha.laboratorio or "Laboratorio no especificado"
+                return {
+                    "es_duplicado": True,
+                    "tipo_duplicado": "exacto_archivo",
+                    "informe_existente_id": inf_sha.id,
+                    "informe_existente_info": f"Analítica del {fecha_str} ({lab_str})",
+                    "aviso_duplicado": f"Este archivo PDF ya fue registrado previamente en la analítica del {fecha_str} ({lab_str})."
+                }
+
+        # 2. Comprobación por Fecha y Laboratorio (o coincidencia de fecha)
+        if fecha:
+            query = db.query(Informe).filter(Informe.fecha == fecha)
+            inf_fecha = None
+            if laboratorio and laboratorio.strip() and laboratorio not in ("Laboratorio Clínico Central", "Desconocido"):
+                lab_part = laboratorio.strip()[:15]
+                inf_fecha = query.filter(Informe.laboratorio.ilike(f"%{lab_part}%")).first()
+            if not inf_fecha:
+                inf_fecha = query.first()
+
+            if inf_fecha:
+                fecha_str = inf_fecha.fecha
+                lab_str = inf_fecha.laboratorio or "Laboratorio"
+                return {
+                    "es_duplicado": True,
+                    "tipo_duplicado": "misma_fecha_lab",
+                    "informe_existente_id": inf_fecha.id,
+                    "informe_existente_info": f"Analítica del {fecha_str} ({lab_str})",
+                    "aviso_duplicado": f"Ya existe una analítica en el historial con fecha {fecha_str} ({lab_str})."
+                }
+    except Exception as e:
+        logger.error(f"Error al verificar duplicidad de informe: {e}")
+
+    return resultado
+
 async def call_gemini_with_retry(prompt_content: str, model_name: str) -> str:
     """
     Invoca la API de Gemini con reintentos automáticos y backoff exponencial
@@ -223,16 +279,22 @@ RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
 }
 """
 
-async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str, paciente_db: Optional[Any] = None) -> AnaliticaPreviewResponse:
+async def analyze_pdf_with_llm(
+    pdf_path: Path,
+    temp_id: str,
+    paciente_db: Optional[Any] = None,
+    db: Optional[Any] = None,
+    sha256: Optional[str] = None
+) -> AnaliticaPreviewResponse:
     """
     Procesa un PDF clínico mediante Google Gemini API para extraer mediciones,
-    detectar cambios de rango y emitir recomendaciones.
+    detectar cambios de rango, verificar duplicidad y emitir recomendaciones.
     """
     text = extract_text_from_pdf(pdf_path)
     
     if not settings.GEMINI_API_KEY or settings.LLM_PROVIDER == "mock":
         logger.warning("No hay GEMINI_API_KEY configurada o LLM_PROVIDER es mock. Usando extractor simulado inteligente.")
-        return generate_mock_extraction(text, temp_id, paciente_db=paciente_db)
+        return generate_mock_extraction(text, temp_id, paciente_db=paciente_db, db=db, sha256=sha256)
 
     try:
         model = settings.GEMINI_MODEL
@@ -284,18 +346,31 @@ async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str, paciente_db: Option
             for r in parsed.get("rangos_modificados", [])
         ]
 
+        fecha_extraida = parsed.get("fecha", "2026-06-13")
+        lab_extraido = parsed.get("laboratorio", "Laboratorio Clínico Central")
         paciente_det = parsed.get("paciente_detectado")
         dni_det = parsed.get("dni_detectado")
         alertas = parsed.get("alertas_ia", [])
 
+        # 1. Comprobación de identidad de paciente
         aviso_disc = verificar_coincidencia_flexible(paciente_db, paciente_det, dni_det)
         if aviso_disc:
             alertas.insert(0, f"⚠️ Aviso de identidad: {aviso_disc}")
 
+        # 2. Comprobación de analítica repetida o ya existente
+        dup_info = verificar_duplicidad_informe(
+            db=db,
+            sha256=sha256,
+            fecha=fecha_extraida,
+            laboratorio=lab_extraido
+        )
+        if dup_info["es_duplicado"] and dup_info["aviso_duplicado"]:
+            alertas.insert(0, f"⚠️ Alerta de duplicidad: {dup_info['aviso_duplicado']}")
+
         return AnaliticaPreviewResponse(
             temp_id=temp_id,
-            fecha=parsed.get("fecha", "2026-06-13"),
-            laboratorio=parsed.get("laboratorio", "Laboratorio Clínico Central"),
+            fecha=fecha_extraida,
+            laboratorio=lab_extraido,
             facultativo=parsed.get("facultativo", "No especificado"),
             total_parametros=len(mediciones),
             mediciones=mediciones,
@@ -304,14 +379,27 @@ async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str, paciente_db: Option
             dictamen_preliminar=parsed.get("dictamen_preliminar", "Dictamen pendiente de confirmación"),
             paciente_detectado=paciente_det,
             dni_detectado=dni_det,
-            aviso_discrepancia_paciente=aviso_disc
+            aviso_discrepancia_paciente=aviso_disc,
+            sha256=sha256,
+            es_duplicado=dup_info["es_duplicado"],
+            tipo_duplicado=dup_info["tipo_duplicado"],
+            informe_existente_id=dup_info["informe_existente_id"],
+            informe_existente_info=dup_info["informe_existente_info"],
+            aviso_duplicado=dup_info["aviso_duplicado"]
         )
 
     except Exception as e:
         logger.error(f"Fallo en llamada a Gemini API: {e}. Activando fallback de contingencia.")
-        return generate_mock_extraction(text, temp_id, error_note=str(e), paciente_db=paciente_db)
+        return generate_mock_extraction(text, temp_id, error_note=str(e), paciente_db=paciente_db, db=db, sha256=sha256)
 
-def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] = None, paciente_db: Optional[Any] = None) -> AnaliticaPreviewResponse:
+def generate_mock_extraction(
+    text: str,
+    temp_id: str,
+    error_note: Optional[str] = None,
+    paciente_db: Optional[Any] = None,
+    db: Optional[Any] = None,
+    sha256: Optional[str] = None
+) -> AnaliticaPreviewResponse:
     """
     Extractor de contingencia que analiza patrones comunes en informes clínicos españoles.
     """
@@ -379,12 +467,23 @@ def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] 
         )
     ]
 
+    fecha_meta = meta["fecha"] or "2026-06-13"
+    lab_meta = meta["laboratorio"] or "Laboratorio Clínico Central"
     aviso_disc = verificar_coincidencia_flexible(paciente_db, None, None)
+
+    dup_info = verificar_duplicidad_informe(
+        db=db,
+        sha256=sha256,
+        fecha=fecha_meta,
+        laboratorio=lab_meta
+    )
+    if dup_info["es_duplicado"] and dup_info["aviso_duplicado"]:
+        alertas.insert(0, f"⚠️ Alerta de duplicidad: {dup_info['aviso_duplicado']}")
 
     return AnaliticaPreviewResponse(
         temp_id=temp_id,
-        fecha=meta["fecha"] or "2026-06-13",
-        laboratorio=meta["laboratorio"] or "Laboratorio Clínico Central",
+        fecha=fecha_meta,
+        laboratorio=lab_meta,
         facultativo=meta["facultativo"],
         total_parametros=len(mediciones),
         mediciones=mediciones,
@@ -393,5 +492,11 @@ def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] 
         dictamen_preliminar="Favorable con Puntos de Atención (Vigilancia en glucosa y LDL).",
         paciente_detectado=None,
         dni_detectado=None,
-        aviso_discrepancia_paciente=aviso_disc
+        aviso_discrepancia_paciente=aviso_disc,
+        sha256=sha256,
+        es_duplicado=dup_info["es_duplicado"],
+        tipo_duplicado=dup_info["tipo_duplicado"],
+        informe_existente_id=dup_info["informe_existente_id"],
+        informe_existente_info=dup_info["informe_existente_info"],
+        aviso_duplicado=dup_info["aviso_duplicado"]
     )

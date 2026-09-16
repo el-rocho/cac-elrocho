@@ -1,6 +1,7 @@
 import re
 import uuid
 import shutil
+import hashlib
 import logging
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
@@ -27,8 +28,8 @@ router = APIRouter(prefix="/upload", tags=["Carga de Analíticas"])
 @router.post("", response_model=AnaliticaPreviewResponse)
 async def upload_pdf_for_analysis(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Recibe un documento PDF, lo analiza mediante el LLM (Gemini) y genera
-    un borrador estructurado para confirmación previa por el usuario.
+    Recibe un documento PDF, calcula su hash SHA-256 para prevenir duplicados,
+    lo analiza mediante el LLM (Gemini) y genera un borrador estructurado para confirmación previa por el usuario.
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se admiten documentos en formato PDF.")
@@ -39,30 +40,49 @@ async def upload_pdf_for_analysis(file: UploadFile = File(...), db: Session = De
     temp_path = upload_dir / f"temp_{temp_id}.pdf"
 
     try:
+        content = await file.read()
+        file_sha256 = hashlib.sha256(content).hexdigest()
+
         with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content)
 
         paciente = db.query(Paciente).first()
-        # Analizar el archivo con el servicio LLM y validar discrepancias con el paciente configurado
-        preview = await analyze_pdf_with_llm(temp_path, temp_id, paciente_db=paciente)
+        # Analizar el archivo con el servicio LLM, validar discrepancias de paciente y comprobar duplicidad
+        preview = await analyze_pdf_with_llm(
+            temp_path,
+            temp_id,
+            paciente_db=paciente,
+            db=db,
+            sha256=file_sha256
+        )
         return preview
 
     except Exception as e:
         if temp_path.exists():
             temp_path.unlink()
+        logger.error(f"Error al procesar el archivo subido: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al procesar el archivo: {str(e)}")
 
 @router.post("/confirm")
 def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
     """
     Consolida e inserta de forma definitiva en la base de datos la analítica
-    revisada y aprobada por el usuario.
+    revisada y aprobada por el usuario. Permite actualizar y sobrescribir si ya existía.
     """
     try:
         upload_dir = settings.DATA_DIR / "uploads"
         upload_dir.mkdir(parents=True, exist_ok=True)
         temp_path = upload_dir / f"temp_{req.temp_id}.pdf"
         
+        # Calcular SHA-256 si no venía en la petición
+        file_sha256 = req.sha256
+        if not file_sha256 and temp_path.exists():
+            try:
+                with open(temp_path, "rb") as f:
+                    file_sha256 = hashlib.sha256(f.read()).hexdigest()
+            except Exception as e:
+                logger.warning(f"No se pudo calcular SHA-256 de {temp_path}: {e}")
+
         # 1. Obtener o crear paciente sin pre-rellenar datos falsos
         paciente = db.query(Paciente).first()
         if not paciente:
@@ -94,19 +114,47 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
             except Exception as e:
                 logger.warning(f"Aviso al archivar PDF definitivo: {e}")
 
-        # 4. Crear registro de Informe
-        informe = Informe(
-            paciente_id=paciente.id,
-            fecha=req.fecha,
-            etiqueta_corta=etiq_corta,
-            laboratorio=req.laboratorio,
-            facultativo=req.facultativo or "No especificado",
-            archivo_pdf=nombre_archivo,
-            dictamen_global=req.dictamen_global or "Control favorable",
-            estado="confirmado"
-        )
-        db.add(informe)
-        db.flush()
+        # 4. Determinar si se actualiza un informe existente o se crea uno nuevo
+        informe = None
+        es_sobrescritura = False
+
+        if req.sobrescribir_existente:
+            if req.informe_id_a_reemplazar:
+                informe = db.query(Informe).filter_by(id=req.informe_id_a_reemplazar).first()
+            if not informe and file_sha256:
+                informe = db.query(Informe).filter_by(sha256=file_sha256).first()
+            if not informe and req.fecha:
+                informe = db.query(Informe).filter(Informe.fecha == req.fecha).first()
+
+        if informe:
+            es_sobrescritura = True
+            informe.fecha = req.fecha
+            informe.etiqueta_corta = etiq_corta
+            informe.laboratorio = req.laboratorio
+            informe.facultativo = req.facultativo or "No especificado"
+            informe.archivo_pdf = nombre_archivo
+            informe.sha256 = file_sha256
+            informe.dictamen_global = req.dictamen_global or "Control favorable"
+            informe.estado = "confirmado"
+
+            # Vaciar mediciones anteriores para reescribirlas limpias
+            db.query(Medicion).filter_by(informe_id=informe.id).delete()
+            db.query(AuditoriaRango).filter_by(informe_id=informe.id).delete()
+            db.flush()
+        else:
+            informe = Informe(
+                paciente_id=paciente.id,
+                fecha=req.fecha,
+                etiqueta_corta=etiq_corta,
+                laboratorio=req.laboratorio,
+                facultativo=req.facultativo or "No especificado",
+                archivo_pdf=nombre_archivo,
+                sha256=file_sha256,
+                dictamen_global=req.dictamen_global or "Control favorable",
+                estado="confirmado"
+            )
+            db.add(informe)
+            db.flush()
 
         # 5. Insertar mediciones y calcular ratios
         mediciones_dict = {}
@@ -210,10 +258,12 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
             db.add(med_ratio)
 
         db.commit()
+        msg = f"Analítica del {req.fecha} actualizada y sobrescrita con éxito en el historial." if es_sobrescritura else f"Analítica del {req.fecha} incorporada con éxito al historial."
         return {
             "status": "success",
-            "message": f"Analítica del {req.fecha} incorporada con éxito al historial.",
-            "informe_id": informe.id
+            "message": msg,
+            "informe_id": informe.id,
+            "es_sobrescritura": es_sobrescritura
         }
     except Exception as e:
         db.rollback()
