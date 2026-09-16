@@ -65,7 +65,7 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
 
     backup = {
         "app": "cac-elrocho",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "paciente": {
             "nombre_completo": paciente.nombre_completo if paciente else "",
             "fecha_nacimiento": paciente.fecha_nacimiento if paciente else "",
@@ -121,7 +121,9 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
             "analito_codigo": aud.analito.codigo if aud.analito else "",
             "rango_anterior": aud.rango_anterior,
             "rango_nuevo": aud.rango_nuevo,
-            "explicacion_ia": aud.explicacion_ia
+            "explicacion_ia": aud.explicacion_ia,
+            "aplicado_en_historico": aud.aplicado_en_historico,
+            "fecha_aplicacion": aud.fecha_aplicacion.isoformat() if aud.fecha_aplicacion else None
         })
 
     return backup
@@ -210,12 +212,22 @@ def import_database_from_dict(db: Session, data: Dict[str, Any]):
         analito_obj = analitos_map.get(a_cod)
         if analito_obj and informes_map:
             ultimo_inf = list(informes_map.values())[-1]
+            f_app_raw = aud_data.get("fecha_aplicacion")
+            f_app = None
+            if f_app_raw:
+                try:
+                    f_app = datetime.fromisoformat(f_app_raw)
+                except Exception:
+                    f_app = None
+
             aud = AuditoriaRango(
                 analito_id=analito_obj.id,
                 informe_id=ultimo_inf.id,
                 rango_anterior=aud_data.get("rango_anterior"),
                 rango_nuevo=aud_data.get("rango_nuevo", ""),
-                explicacion_ia=aud_data.get("explicacion_ia")
+                explicacion_ia=aud_data.get("explicacion_ia"),
+                aplicado_en_historico=bool(aud_data.get("aplicado_en_historico", False)),
+                fecha_aplicacion=f_app
             )
             db.add(aud)
 

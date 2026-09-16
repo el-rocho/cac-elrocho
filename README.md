@@ -1,18 +1,19 @@
-# cac-elrocho 🩺 `v0.3.0`
+# cac-elrocho 🩺 `v0.4.0`
 
 > **Cuadro de Mando Clínico Autónomo y Autoalojable con Validación por Inteligencia Artificial (LLM)**
 
 `cac-elrocho` es una aplicación web integral y soberana diseñada para la digitalización, seguimiento evolutivo y supervisión longitudinal de analíticas médicas y controles de laboratorio. 
 
-Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows** con Docker Desktop, **Linux** como Debian 13 / Ubuntu en servidores o máquinas virtuales, y **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza un modelo LLM multimodal (**Google Gemini API**) para procesar nuevos informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
+Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows** con Docker Desktop, **Linux** como Debian 13 / Ubuntu en servidores o máquinas virtuales, y **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza modelos LLM multimodales (**Google Gemini API**) para procesar nuevos informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
 
 ---
 
-## ✨ Novedades de la Versión `v0.3.0`
-* 🛡️ **Prevención Activa de Duplicados**: Indexación criptográfica **SHA-256** por cada archivo PDF subido y detección por fecha/laboratorio, con opción en la interfaz de **sobrescribir/actualizar** datos de forma atómica o registrar como analítica adicional.
-* 💾 **Respaldos con Marca Temporal**: Generación automática de archivos con fecha y hora (`cac-elrocho-backup-YYYYMMDD_HHMMSS.json`) y cifrado opcional `AES-256-GCM`.
-* 🖥️ **Integración Nativa de Guardado**: Soporte para `window.showSaveFilePicker` en navegadores modernos, con control preciso de cancelación y sin alertas bloqueantes intrusivas.
-* 🔄 **Restauración Segura y Transparente**: Diálogos informativos y de confirmación que clarifican el proceso de restauración completa (*Wipe & Restore* limpia sin duplicidades).
+## ✨ Novedades de la Versión `v0.4.0`
+* 🤖 **Arquitectura Multi-Modelo LLM (3 Slots)**: Control soberano desde `.env` para configurar hasta 3 modelos con sus respectivas claves (`LLM_PROVIDER1..3`, `API_KEY1..3`, `MODEL1..3`).
+* 🔄 **Failover Secuencial y Contingencia RegEx**: Conmutación automática e inmediata ante límites de cuota (`429 ResourceExhausted`), modelos discontinuados (`404`) o sobrecargas transitorias (`503`). Si todos fallan, conmuta de forma segura al extractor local por patrones RegEx.
+* 🏷️ **Transparencia en la Interfaz (UI)**: Etiqueta dinámica en cabecera (`✨ Motor LLM Activo (N mod.)` o `⚠️ Extractor RegEx (Sin LLM)`) y banner de previsualización que identifica el slot y modelo exacto utilizado o la contingencia activa.
+* 🩺 **Sanitización Clínica de Metadatos**: Desacoplamiento estricto del médico solicitante (facultativo) respecto a motivos de consulta / revisiones y separación limpia del nombre del laboratorio emisor.
+* 📏 **Auditoría Simplificada**: Interfaz renovada para "Auditoría de los rangos de referencia aplicados", con tarjetas a 3 líneas y criterios desplegables en acordeón.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
 
 ---
@@ -76,11 +77,20 @@ copy .env.example .env
 ```
 Edita el archivo `.env` con tu editor preferido (`nano .env`, Bloc de notas, VS Code, etc.) y define tus parámetros esenciales:
 ```ini
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=tu_clave_de_gemini_api_aqui
-GEMINI_MODEL=gemini-2.5-flash
+# Configuración multi-modelo LLM (hasta 3 modelos configurables con alternancia por fallo)
+LLM_PROVIDER1=gemini
+API_KEY1=tu_clave_de_gemini_api_aqui
+MODEL1=gemini-flash-lite-latest
+
+LLM_PROVIDER2=gemini
+API_KEY2=tu_clave_de_gemini_api_aqui
+MODEL2=gemini-2.5-flash
+
+LLM_PROVIDER3=gemini
+API_KEY3=tu_clave_de_gemini_api_aqui
+MODEL3=gemini-2.5-flash-lite
 ```
-*(Nota: Si dejas `GEMINI_API_KEY` vacío o usas `LLM_PROVIDER=mock`, la aplicación utilizará un motor de extracción inteligente local con patrones clínicos sin requerir conexión a internet ni consumo de API).*
+*(Nota: Puedes configurar 1, 2 o los 3 modelos. Si dejas las claves vacías, los modelos fallan o no hay conexión a internet, la aplicación utilizará automáticamente el extractor local inteligente basado en expresiones regulares sin interrumpir el servicio).*
 
 ### 3. Levantar los Contenedores
 Descarga la imagen precompilada en GitHub Actions y levanta el servicio sin consumir recursos de compilación en tu máquina:
@@ -100,7 +110,7 @@ http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máqui
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.3.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.4.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho

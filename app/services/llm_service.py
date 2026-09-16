@@ -152,51 +152,97 @@ def verificar_duplicidad_informe(db: Optional[Any], sha256: Optional[str] = None
 
     return resultado
 
-async def call_gemini_with_retry(prompt_content: str, model_name: str) -> str:
+def sanitizar_facultativo_y_laboratorio(raw_fac: Optional[str], raw_lab: Optional[str], text: str) -> tuple[str, str]:
     """
-    Invoca la API de Gemini con reintentos automáticos y backoff exponencial
-    ante sobrecargas temporales de servicio (503), límites de tasa (429) o microcaídas.
-    Si el modelo principal está temporalmente saturado, recurre a un modelo alternativo.
+    Garantiza que 'facultativo' contenga el nombre del doctor (y no el tipo de revisión),
+    y que 'laboratorio' no contenga el nombre del médico entre paréntesis.
     """
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
-    models_to_try = [model_name]
-    if model_name != "gemini-3.7-flash":
-        models_to_try.append("gemini-3.7-flash")
+    fac = (raw_fac or "").strip()
+    lab = (raw_lab or "").strip()
 
+    # 1. Si en el texto del informe figura 'Doctor: NOMBRE', 'Facultativo: NOMBRE', etc., extraerlo
+    doc_match = re.search(r'(?:Doctor|Facultativo|Médico|Dr\.|Dra\.)\s*:\s*([A-ZÁÉÍÓÚÑa-záéíóúñ\s,.-]+)', text, re.IGNORECASE)
+    doc_en_texto = None
+    if doc_match:
+        cand = doc_match.group(1).strip()
+        cand = re.split(r'(\n|\r|Procedencia|Entidad|F\.|DNI|Nacimiento|Pasaporte|Fecha)', cand, flags=re.IGNORECASE)[0].strip()
+        cand = cand.strip(' ,.-')
+        if len(cand) > 3 and not any(k in cand.lower() for k in ['control', 'seguimiento', 'revision', 'revisión', 'rutinario', 'anual', 'semestral', 'trimestral', 'preventiva', 'chequeo', 'integral']):
+            doc_en_texto = cand
+
+    # 2. Comprobar si el facultativo devuelto es un tipo de revisión en lugar de un nombre de persona
+    palabras_revision = ['control', 'seguimiento', 'revision', 'revisión', 'rutinario', 'anual', 'semestral', 'trimestral', 'preventiva', 'chequeo', 'integral', 'general', 'especialista']
+    es_tipo_revision = any(p in fac.lower() for p in palabras_revision)
+
+    if (es_tipo_revision or not fac or fac == "No especificado") and doc_en_texto:
+        fac = doc_en_texto
+
+    # 3. Comprobar si el laboratorio tiene el médico entre paréntesis (ej: 'Recoletas Cuenca (Quiñones)' o '(Urología)')
+    m_parentesis = re.search(r'\(([^)]+)\)', lab)
+    if m_parentesis:
+        contenido_parentesis = m_parentesis.group(1).strip()
+        if (not fac or fac == "No especificado" or es_tipo_revision) and not doc_en_texto:
+            fac = contenido_parentesis
+        lab = re.sub(r'\s*\([^)]*\)', '', lab).strip()
+
+    if not fac or es_tipo_revision:
+        fac = doc_en_texto or "No especificado"
+
+    if not lab or lab in ("Laboratorio Clínico Central", "Desconocido"):
+        if "RECOLETAS" in text.upper():
+            lab = "Hospital Recoletas Cuenca"
+        elif "MEGALAB" in text.upper() or "CLINICA ALMED" in text.upper():
+            lab = "Megalab"
+        elif "QFISIO" in text.upper():
+            lab = "Laboratorio Qfisio"
+        elif not lab:
+            lab = "Hospital Recoletas Cuenca"
+
+    return fac, lab
+
+async def call_gemini_model(prompt_content: str, model_name: str, api_key: str) -> str:
+    """
+    Invoca un modelo específico de Gemini con su clave API.
+    Aplica reintentos transitorios (503, timeout) para el modelo seleccionado.
+    Si se detecta cuota agotada o modelo no disponible, eleva excepción inmediatamente
+    para que el orquestador pruebe el siguiente slot configurado en .env.
+    """
+    client = genai.Client(api_key=api_key)
+    max_retries = 2
     last_error = None
-    for current_model in models_to_try:
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = await client.aio.models.generate_content(
-                    model=current_model,
-                    contents=prompt_content,
-                    config=types.GenerateContentConfig(
-                        temperature=0.1,
-                        response_mime_type="application/json",
-                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
-                    )
+    for attempt in range(max_retries):
+        try:
+            response = await client.aio.models.generate_content(
+                model=model_name,
+                contents=prompt_content,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
                 )
-                if response and response.text:
-                    return response.text
-                raise ValueError("Respuesta vacía de Gemini API")
-            except Exception as e:
-                last_error = e
-                err_str = str(e)
-                is_transient = any(code in err_str for code in [
-                    "503", "429", "500", "502", "504", "UNAVAILABLE",
-                    "ResourceExhausted", "overloaded", "timeout", "timed out"
-                ])
-                if is_transient and attempt < max_retries - 1:
-                    wait_sec = (1.5 ** attempt) + random.uniform(0.5, 1.2)
-                    logger.warning(
-                        f"Aviso transitorio de Google Gemini en {current_model} ({e}). "
-                        f"Reintentando en {wait_sec:.1f}s (intento {attempt + 1}/{max_retries})..."
-                    )
-                    await asyncio.sleep(wait_sec)
-                else:
-                    logger.warning(f"Intento con modelo {current_model} no pudo completarse: {e}")
-                    break
+            )
+            if response and response.text:
+                return response.text
+            raise ValueError("Respuesta vacía de Gemini API")
+        except Exception as e:
+            last_error = e
+            err_str = str(e)
+            if "quota" in err_str.lower() or "resourceexhausted" in err_str.lower() or "404" in err_str:
+                logger.warning(f"Modelo {model_name} sin cuota o no disponible ({e}). Pasando al siguiente slot...")
+                raise e
+
+            is_transient = any(code in err_str for code in [
+                "503", "429", "500", "502", "504", "UNAVAILABLE", "overloaded", "timeout"
+            ])
+            if is_transient and attempt < max_retries - 1:
+                wait_sec = 1.0 + random.uniform(0.3, 0.8)
+                logger.warning(
+                    f"Aviso transitorio en {model_name} ({e}). "
+                    f"Reintentando en {wait_sec:.1f}s..."
+                )
+                await asyncio.sleep(wait_sec)
+            else:
+                raise e
 
     raise last_error
 
@@ -230,6 +276,14 @@ NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
    - GOT_AST, GPT_ALT, GGT, FOSFATASA_ALCALINA, AMILASA, SODIO, POTASIO, CALCIO_TOTAL, FOSFORO, MAGNESIO, BILIRRUBINA_TOTAL
    - HEMATIES, HEMOGLOBINA, HEMATOCRITO, VCM, HCM, CHCM, RDW, PLAQUETAS, LEUCOCITOS, NEUTROFILOS_ABS, LINFOCITOS_ABS, MONOCITOS_ABS, EOSINOFILOS_ABS, BASOFILOS_ABS, VSG_1H, VSG_2H, KATZ_INDEX
    - GLUCOSE_URINE, PROTEIN_URINE, DENSIDAD_URINE, PH_URINE, SEDIMENTO_URINARIO
+
+5. EXTRACCIÓN ESTRICTA DE FACULTATIVO (MÉDICO) Y LABORATORIO:
+   - "facultativo": Debe ser el NOMBRE Y APELLIDOS DEL MÉDICO / DOCTOR solicitante que figure explícitamente en el informe (ej: "Dr. ALVAREZ VIEITEZ, ANTONIO", "Dr. QUIÑONES PEREZ, MIGUEL A.", "Dr. SAMBLAS GARCIA, RAMON J.", "Dr. DE BENITO CORDON, LUIS", etc.).
+     ¡BAJO NINGÚN CONCEPTO pongas aquí el motivo de consulta o tipo de revisión (como "Control anual", "Seguimiento cardiológico", "Revisión especialista", "Control rutinario", "Último control integral")!
+     Si no aparece ningún nombre de doctor o facultativo en el documento, pon "No especificado".
+   - "laboratorio": Debe ser exclusivamente el NOMBRE DEL CENTRO O LABORATORIO emisor (ej: "Hospital Recoletas Cuenca", "Recoletas Laboratorios Clínicos", "Laboratorio Megalab", "Clínica Almed").
+     ¡NUNCA incluyas el nombre del médico ni su especialidad entre paréntesis dentro del laboratorio (ej: NUNCA pongas "Recoletas Cuenca (Quiñones)", sino "Hospital Recoletas Cuenca")!
+   - "dictamen_preliminar": Aquí es donde debes colocar cualquier resumen, comentario clínico o tipo de revisión médica si procede.
 
 RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
 {
@@ -287,110 +341,149 @@ async def analyze_pdf_with_llm(
     sha256: Optional[str] = None
 ) -> AnaliticaPreviewResponse:
     """
-    Procesa un PDF clínico mediante Google Gemini API para extraer mediciones,
-    detectar cambios de rango, verificar duplicidad y emitir recomendaciones.
+    Procesa un PDF clínico mediante los slots de LLM configurados por el usuario en .env.
+    Prueba sucesivamente cada slot (Slot 1 -> Slot 2 -> Slot 3) en caso de fallo o agotamiento de cuota.
+    Si todos los modelos configurados fallan (o si solo se configuró extractor local/mock),
+    conmuta de forma segura al extractor basado en expresiones regulares (mock).
     """
     text = extract_text_from_pdf(pdf_path)
-    
-    if not settings.GEMINI_API_KEY or settings.LLM_PROVIDER == "mock":
-        logger.warning("No hay GEMINI_API_KEY configurada o LLM_PROVIDER es mock. Usando extractor simulado inteligente.")
-        return generate_mock_extraction(text, temp_id, paciente_db=paciente_db, db=db, sha256=sha256)
+    prompt_content = f"{SYSTEM_PROMPT}\n\nDOCUMENTO A ANALIZAR:\n{text[:25000]}"
 
-    try:
-        model = settings.GEMINI_MODEL
-        prompt_content = f"{SYSTEM_PROMPT}\n\nDOCUMENTO A ANALIZAR:\n{text[:25000]}"
-        
-        raw_text = await call_gemini_with_retry(prompt_content, model)
-        
-        # Limpiar bloques markdown si vinieran incluidos
-        cleaned = raw_text.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        elif cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        parsed = json.loads(cleaned.strip())
+    slots = settings.get_configured_llm_slots()
+    llm_slots = [
+        s for s in slots
+        if s.get("provider") != "mock" and s.get("api_key") and s.get("model")
+    ]
 
-        mediciones = []
-        for m in parsed.get("mediciones", []):
-            raw_nom = m.get("nombre", "Analito")
-            raw_val = str(m.get("valor", "")).strip()
-            raw_uni = m.get("unidad", "")
-            raw_ref = m.get("rango_referencia", "")
-            raw_est = m.get("estado_estimado", "Normal")
-            raw_cod = m.get("codigo")
+    if not llm_slots:
+        logger.warning("No hay ningún slot de LLM configurado con API key y modelo. Usando extractor RegEx (mock).")
+        return generate_mock_extraction(
+            text, temp_id,
+            error_note="No se han configurado modelos LLM activos en el archivo .env",
+            paciente_db=paciente_db, db=db, sha256=sha256
+        )
 
-            norm_cod, norm_nom, norm_cat, norm_uni = normalize_analito(
-                raw_nom, raw_uni, raw_val, raw_cod
-            )
+    last_error = None
+    for slot in llm_slots:
+        slot_num = slot["slot"]
+        model_name = slot["model"]
+        api_key = slot["api_key"]
+        logger.info(f"Iniciando extracción con Slot {slot_num}: modelo '{model_name}'...")
 
-            mediciones.append(
-                MedicionExtraida(
-                    codigo=norm_cod,
-                    nombre=norm_nom,
-                    valor=raw_val,
-                    unidad=raw_uni or norm_uni,
-                    rango_referencia=raw_ref,
-                    estado_estimado=raw_est
+        try:
+            raw_text = await call_gemini_model(prompt_content, model_name, api_key)
+
+            # Limpiar bloques markdown si vinieran incluidos
+            cleaned = raw_text.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            elif cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            parsed = json.loads(cleaned.strip())
+
+            mediciones = []
+            for m in parsed.get("mediciones", []):
+                raw_nom = m.get("nombre", "Analito")
+                raw_val = str(m.get("valor", "")).strip()
+                raw_uni = m.get("unidad", "")
+                raw_ref = m.get("rango_referencia", "")
+                raw_est = m.get("estado_estimado", "Normal")
+                raw_cod = m.get("codigo")
+
+                norm_cod, norm_nom, norm_cat, norm_uni = normalize_analito(
+                    raw_nom, raw_uni, raw_val, raw_cod
                 )
+
+                mediciones.append(
+                    MedicionExtraida(
+                        codigo=norm_cod,
+                        nombre=norm_nom,
+                        valor=raw_val,
+                        unidad=raw_uni or norm_uni,
+                        rango_referencia=raw_ref,
+                        estado_estimado=raw_est
+                    )
+                )
+
+            rangos = [
+                RangoDetectado(
+                    analito=r.get("analito", ""),
+                    rango_anterior=r.get("rango_anterior"),
+                    rango_nuevo=r.get("rango_nuevo", ""),
+                    explicacion=r.get("explicacion", "")
+                )
+                for r in parsed.get("rangos_modificados", [])
+            ]
+
+            fecha_extraida = parsed.get("fecha", "2026-06-13")
+            lab_extraido = parsed.get("laboratorio", "Laboratorio Clínico Central")
+            fac_extraido = parsed.get("facultativo", "No especificado")
+
+            # Sanitizar facultativo y laboratorio con el texto del documento para evitar tipos de revisión o médicos en el laboratorio
+            fac_extraido, lab_extraido = sanitizar_facultativo_y_laboratorio(fac_extraido, lab_extraido, text)
+
+            paciente_det = parsed.get("paciente_detectado")
+            dni_det = parsed.get("dni_detectado")
+            alertas = parsed.get("alertas_ia", [])
+
+            # 1. Comprobación de identidad de paciente
+            aviso_disc = verificar_coincidencia_flexible(paciente_db, paciente_det, dni_det)
+            if aviso_disc:
+                alertas.insert(0, f"⚠️ Aviso de identidad: {aviso_disc}")
+
+            # 2. Comprobación de analítica repetida o ya existente
+            dup_info = verificar_duplicidad_informe(
+                db=db,
+                sha256=sha256,
+                fecha=fecha_extraida,
+                laboratorio=lab_extraido
+            )
+            if dup_info["es_duplicado"] and dup_info["aviso_duplicado"]:
+                alertas.insert(0, f"⚠️ Alerta de duplicidad: {dup_info['aviso_duplicado']}")
+
+            logger.info(f"Extracción completada con éxito usando Slot {slot_num} ({model_name}). {len(mediciones)} parámetros extraídos.")
+
+            return AnaliticaPreviewResponse(
+                temp_id=temp_id,
+                fecha=fecha_extraida,
+                laboratorio=lab_extraido,
+                facultativo=fac_extraido,
+                total_parametros=len(mediciones),
+                mediciones=mediciones,
+                alertas_ia=alertas,
+                rangos_modificados=rangos,
+                dictamen_preliminar=parsed.get("dictamen_preliminar", "Dictamen pendiente de confirmación"),
+                paciente_detectado=paciente_det,
+                dni_detectado=dni_det,
+                aviso_discrepancia_paciente=aviso_disc,
+                sha256=sha256,
+                es_duplicado=dup_info["es_duplicado"],
+                tipo_duplicado=dup_info["tipo_duplicado"],
+                informe_existente_id=dup_info["informe_existente_id"],
+                informe_existente_info=dup_info["informe_existente_info"],
+                aviso_duplicado=dup_info["aviso_duplicado"],
+                motor_extraccion="llm",
+                modelo_utilizado=model_name,
+                slot_utilizado=slot_num
             )
 
-        rangos = [
-            RangoDetectado(
-                analito=r.get("analito", ""),
-                rango_anterior=r.get("rango_anterior"),
-                rango_nuevo=r.get("rango_nuevo", ""),
-                explicacion=r.get("explicacion", "")
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                f"Fallo al procesar con Slot {slot_num} ({model_name}): {e}. "
+                f"Evaluando siguiente opción de alternancia..."
             )
-            for r in parsed.get("rangos_modificados", [])
-        ]
 
-        fecha_extraida = parsed.get("fecha", "2026-06-13")
-        lab_extraido = parsed.get("laboratorio", "Laboratorio Clínico Central")
-        paciente_det = parsed.get("paciente_detectado")
-        dni_det = parsed.get("dni_detectado")
-        alertas = parsed.get("alertas_ia", [])
-
-        # 1. Comprobación de identidad de paciente
-        aviso_disc = verificar_coincidencia_flexible(paciente_db, paciente_det, dni_det)
-        if aviso_disc:
-            alertas.insert(0, f"⚠️ Aviso de identidad: {aviso_disc}")
-
-        # 2. Comprobación de analítica repetida o ya existente
-        dup_info = verificar_duplicidad_informe(
-            db=db,
-            sha256=sha256,
-            fecha=fecha_extraida,
-            laboratorio=lab_extraido
-        )
-        if dup_info["es_duplicado"] and dup_info["aviso_duplicado"]:
-            alertas.insert(0, f"⚠️ Alerta de duplicidad: {dup_info['aviso_duplicado']}")
-
-        return AnaliticaPreviewResponse(
-            temp_id=temp_id,
-            fecha=fecha_extraida,
-            laboratorio=lab_extraido,
-            facultativo=parsed.get("facultativo", "No especificado"),
-            total_parametros=len(mediciones),
-            mediciones=mediciones,
-            alertas_ia=alertas,
-            rangos_modificados=rangos,
-            dictamen_preliminar=parsed.get("dictamen_preliminar", "Dictamen pendiente de confirmación"),
-            paciente_detectado=paciente_det,
-            dni_detectado=dni_det,
-            aviso_discrepancia_paciente=aviso_disc,
-            sha256=sha256,
-            es_duplicado=dup_info["es_duplicado"],
-            tipo_duplicado=dup_info["tipo_duplicado"],
-            informe_existente_id=dup_info["informe_existente_id"],
-            informe_existente_info=dup_info["informe_existente_info"],
-            aviso_duplicado=dup_info["aviso_duplicado"]
-        )
-
-    except Exception as e:
-        logger.error(f"Fallo en llamada a Gemini API: {e}. Activando fallback de contingencia.")
-        return generate_mock_extraction(text, temp_id, error_note=str(e), paciente_db=paciente_db, db=db, sha256=sha256)
+    # Si todos los slots han fallado
+    error_summary = f"Los {len(llm_slots)} modelo(s) configurados fallaron. Último error: {last_error}"
+    logger.error(f"{error_summary}. Activando extractor basado en expresiones regulares (mock).")
+    return generate_mock_extraction(
+        text, temp_id,
+        error_note=error_summary,
+        paciente_db=paciente_db, db=db, sha256=sha256
+    )
 
 def generate_mock_extraction(
     text: str,
@@ -401,7 +494,7 @@ def generate_mock_extraction(
     sha256: Optional[str] = None
 ) -> AnaliticaPreviewResponse:
     """
-    Extractor de contingencia que analiza patrones comunes en informes clínicos españoles.
+    Extractor de contingencia que analiza patrones comunes en informes clínicos españoles mediante expresiones regulares.
     """
     meta = extract_metadata_fallback(text)
     
@@ -456,7 +549,7 @@ def generate_mock_extraction(
         "LDL-Colesterol en 118 mg/dL: sobrepasa el nuevo rango <116 mg/dL según directrices SEA."
     ]
     if error_note:
-        alertas.append(f"Nota técnica: {error_note}")
+        alertas.insert(0, f"⚠️ Modo contingencia (RegEx): No se pudo conectar con los modelos LLM ({error_note[:120]}).")
 
     rangos = [
         RangoDetectado(
@@ -467,8 +560,8 @@ def generate_mock_extraction(
         )
     ]
 
-    fecha_meta = meta["fecha"] or "2026-06-13"
-    lab_meta = meta["laboratorio"] or "Laboratorio Clínico Central"
+    fecha_meta = meta.get("fecha") or "2026-06-13"
+    fac_meta, lab_meta = sanitizar_facultativo_y_laboratorio(meta.get("facultativo"), meta.get("laboratorio"), text)
     aviso_disc = verificar_coincidencia_flexible(paciente_db, None, None)
 
     dup_info = verificar_duplicidad_informe(
@@ -484,7 +577,7 @@ def generate_mock_extraction(
         temp_id=temp_id,
         fecha=fecha_meta,
         laboratorio=lab_meta,
-        facultativo=meta["facultativo"],
+        facultativo=fac_meta,
         total_parametros=len(mediciones),
         mediciones=mediciones,
         alertas_ia=alertas,
@@ -498,5 +591,8 @@ def generate_mock_extraction(
         tipo_duplicado=dup_info["tipo_duplicado"],
         informe_existente_id=dup_info["informe_existente_id"],
         informe_existente_info=dup_info["informe_existente_info"],
-        aviso_duplicado=dup_info["aviso_duplicado"]
+        aviso_duplicado=dup_info["aviso_duplicado"],
+        motor_extraccion="mock",
+        modelo_utilizado="Extractor RegEx (Sin LLM)",
+        slot_utilizado=None
     )

@@ -22,6 +22,7 @@ class DashboardSummaryResponse(BaseModel):
     dictamen_global: str
     dictamen_subtitulo: str
     kpis: List[KpiCard]
+    motor_llm_info: Optional[Dict[str, Any]] = None
 
 class TableRow(BaseModel):
     name: str
@@ -102,6 +103,9 @@ class AnaliticaPreviewResponse(BaseModel):
     informe_existente_id: Optional[int] = None
     informe_existente_info: Optional[str] = None
     aviso_duplicado: Optional[str] = None
+    motor_extraccion: Optional[str] = "llm" # 'llm' o 'mock'
+    modelo_utilizado: Optional[str] = None
+    slot_utilizado: Optional[int] = None
 
 class ConfirmacionRequest(BaseModel):
     temp_id: str

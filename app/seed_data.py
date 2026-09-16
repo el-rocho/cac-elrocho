@@ -31,11 +31,11 @@ def run_seed(db: Session = None):
 
         # 2. Controles Demostrativos (5 controles cronológicos sintéticos)
         controles_meta = [
-            ("2023-01-15", "15/01/23", "Laboratorio Central Demo", "Chequeo inicial"),
-            ("2023-09-20", "20/09/23", "Laboratorio Central Demo", "Seguimiento semestral"),
-            ("2024-06-10", "10/06/24", "Laboratorio Central Demo", "Control anual"),
-            ("2025-03-05", "05/03/25", "Laboratorio Central Demo", "Revisión preventiva"),
-            ("2026-06-15", "15/06/26", "Laboratorio Central Demo", "Control más reciente")
+            ("2023-01-15", "15/01/23", "Laboratorio Central Demo", "Dra. Elena Ramos"),
+            ("2023-09-20", "20/09/23", "Laboratorio Central Demo", "Dr. Carlos Mendoza"),
+            ("2024-06-10", "10/06/24", "Laboratorio Central Demo", "Dra. Elena Ramos"),
+            ("2025-03-05", "05/03/25", "Laboratorio Central Demo", "Dr. Antonio Álvarez"),
+            ("2026-06-15", "15/06/26", "Laboratorio Central Demo", "Dr. Miguel Quiñones")
         ]
 
         informes_map = {}

@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="cac-elrocho",
     description="Panel Clínico Autónomo y Cuadro de Mando de Analíticas con Validación LLM",
-    version="0.3.0",
+    version="0.4.0",
     lifespan=lifespan
 )
 

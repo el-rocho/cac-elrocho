@@ -85,6 +85,8 @@ class AuditoriaRango(Base):
     rango_nuevo = Column(String(100), nullable=False)
     explicacion_ia = Column(Text, nullable=True)
     fecha_deteccion = Column(DateTime, default=datetime.utcnow)
+    aplicado_en_historico = Column(Boolean, default=False)
+    fecha_aplicacion = Column(DateTime, nullable=True)
 
     analito = relationship("Analito", back_populates="auditorias")
     informe = relationship("Informe", back_populates="auditorias_rango")

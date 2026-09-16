@@ -1,5 +1,29 @@
-# Registro de Cambios (Changelog) - \cac-elrocho
+# Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
+
+---
+
+## [v0.4.0] - 2026-09-16
+
+### 🤖 Arquitectura Multi-Modelo LLM y Failover Secuencial
+* **Configuración de hasta 3 slots en `.env`**: El usuario controla con total soberanía hasta 3 modelos independientes (`LLM_PROVIDER1..3`, `API_KEY1..3`, `MODEL1..3`) con sus respectivas claves de API.
+* **Alternancia automática por fallo o cuota agotada**:
+  * Intento prioritario en **Slot 1**.
+  * Si el modelo agota su cuota diaria (`429 RESOURCE_EXHAUSTED`), es discontinuado (`404`) o sufre caídas de servicio (`503`), conmuta automáticamente al **Slot 2**, y sucesivamente al **Slot 3**.
+  * Detección flexible: Si el usuario solo define 1 o 2 modelos, el sistema opera con normalidad sin errores.
+* **Extractor de contingencia RegEx (Sin LLM)**: Si todos los modelos configurados fallan o no se ha configurado ninguno, conmuta transparentemente a un extractor local basado en patrones de expresiones regulares.
+* **Transparencia en la interfaz de usuario (UI)**:
+  * Etiqueta dinámica en la cabecera: muestra `✨ Motor LLM Activo (N mod.)` con tooltip detallado, o `⚠️ Extractor RegEx (Sin LLM)` / `⚠️ Extractor RegEx (Contingencia Activa)` en caso de fallback.
+  * Banner informativo en la ventana modal de previsualización: identifica con precisión el slot y modelo utilizado (`[Slot 1: gemini-flash-lite-latest]`) o avisa explícitamente del uso de expresiones regulares.
+
+### 🩺 Precisión Clínica y Sanitización de Metadatos
+* **Diferenciación estricta Facultativo vs. Tipo de Revisión**: El extractor no confunde motivos de consulta ("Control anual", "Revisión especialista", etc.) con el nombre del médico solicitante.
+* **Desacoplamiento Médico / Laboratorio**: El nombre del médico solicitante ya no se concatena ni se incluye entre paréntesis dentro del nombre del laboratorio o centro emisor.
+* **Simplificación y homologación de la sección Auditoría**: Título simplificado a "Auditoría de los rangos de referencia aplicados", tarjetas condensadas a 3 líneas con información limpia y criterios aplicados desplegables mediante acordeón.
+
+### 🧹 Refactorización de Interfaz y Textos
+* **Limpieza de textos en Exportar / Importar Respaldo**: Eliminación de textos superfluos y clarificación de la advertencia de reemplazo total en la restauración.
+* **Puesta a punto (Modo Demo)**: Texto clarificado sobre la sustitución de datos de prueba y botón renombrado a "Cargar datos del modo Demo".
 
 ---
 

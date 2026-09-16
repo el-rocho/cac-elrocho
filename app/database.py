@@ -36,13 +36,22 @@ def init_db():
     import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
-    # Migración automática si la columna 'sexo' no existe en 'pacientes' (SQLite)
+    # Migración automática si las columnas no existen en SQLite
     try:
         with engine.connect() as conn:
-            columns_info = conn.execute(text("PRAGMA table_info(pacientes)")).fetchall()
-            col_names = [col[1] for col in columns_info]
-            if columns_info and "sexo" not in col_names:
+            columns_pacientes = conn.execute(text("PRAGMA table_info(pacientes)")).fetchall()
+            col_pacientes = [col[1] for col in columns_pacientes]
+            if columns_pacientes and "sexo" not in col_pacientes:
                 conn.execute(text("ALTER TABLE pacientes ADD COLUMN sexo VARCHAR(20)"))
+                conn.commit()
+
+            columns_auditorias = conn.execute(text("PRAGMA table_info(auditorias_rango)")).fetchall()
+            col_auditorias = [col[1] for col in columns_auditorias]
+            if columns_auditorias:
+                if "aplicado_en_historico" not in col_auditorias:
+                    conn.execute(text("ALTER TABLE auditorias_rango ADD COLUMN aplicado_en_historico BOOLEAN DEFAULT 0"))
+                if "fecha_aplicacion" not in col_auditorias:
+                    conn.execute(text("ALTER TABLE auditorias_rango ADD COLUMN fecha_aplicacion DATETIME"))
                 conn.commit()
     except Exception:
         pass

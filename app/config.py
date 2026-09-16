@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -17,10 +18,58 @@ class Settings(BaseSettings):
     # Base de Datos
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/analiticas.db")
     
-    # Inteligencia Artificial (LLM Gemini)
+    # Inteligencia Artificial (LLM) - Multi-modelo (hasta 3 slots configurables)
+    LLM_PROVIDER1: Optional[str] = None
+    API_KEY1: Optional[str] = None
+    MODEL1: Optional[str] = None
+
+    LLM_PROVIDER2: Optional[str] = None
+    API_KEY2: Optional[str] = None
+    MODEL2: Optional[str] = None
+
+    LLM_PROVIDER3: Optional[str] = None
+    API_KEY3: Optional[str] = None
+    MODEL3: Optional[str] = None
+
+    # Parámetros heredados (retrocompatibilidad)
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini") # 'gemini' o 'mock'
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+
+    def get_configured_llm_slots(self) -> list:
+        """
+        Retorna la lista de slots LLM configurados por el usuario (del 1 al 3).
+        Permite configurar 1, 2 o 3 modelos independientes con sus respectivas claves.
+        """
+        slots = []
+        for i in (1, 2, 3):
+            p = getattr(self, f"LLM_PROVIDER{i}", None)
+            k = getattr(self, f"API_KEY{i}", None)
+            m = getattr(self, f"MODEL{i}", None)
+
+            p = (p or "").strip()
+            k = (k or "").strip()
+            m = (m or "").strip()
+
+            if p or m or k:
+                if not p:
+                    p = "mock" if m.lower() == "mock" else "gemini"
+                slots.append({
+                    "slot": i,
+                    "provider": p.lower(),
+                    "api_key": k,
+                    "model": m
+                })
+
+        # Retrocompatibilidad si no se configuró ningún slot 1, 2 o 3
+        if not slots and (self.GEMINI_API_KEY or self.LLM_PROVIDER):
+            slots.append({
+                "slot": 1,
+                "provider": (self.LLM_PROVIDER or "gemini").lower(),
+                "api_key": self.GEMINI_API_KEY or "",
+                "model": self.GEMINI_MODEL or "gemini-flash-lite-latest"
+            })
+        return slots
     
     # Seguridad básica opcional
     AUTH_ENABLED: bool = False

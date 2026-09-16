@@ -32,7 +32,7 @@
           <span class="px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-lg uppercase tracking-wider">Historial Clínico Integral</span>
           <span id="badge-total-controles" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">Cargando controles...</span>
           <span id="badge-ultima-fecha" class="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg">Última analítica: -</span>
-          <span class="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1">
+          <span id="badge-motor-llm" class="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1">
             ✨ Motor LLM Activo
           </span>
         </div>
@@ -336,18 +336,27 @@
 
       <!-- Fila 1: Auditoría IA y Cambios de Rango -->
       <div class="bg-white border border-purple-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-3">
-            <div class="p-2.5 bg-purple-100 text-purple-800 rounded-xl font-bold text-lg">🤖</div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Auditoría IA y Rangos de Referencia</h3>
-              <p class="text-xs text-slate-500">Supervisión automática de variaciones y cambios en criterios de normalidad de los laboratorios.</p>
+            <div class="p-2.5 bg-purple-100 text-purple-800 rounded-xl font-bold text-lg">📏</div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-base font-bold text-slate-900">Auditoría de los rangos de referencia aplicados</h3>
+              <span id="ai-auditorias-badge-status" class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full hidden sm:inline-flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Al día
+              </span>
             </div>
           </div>
-          <button onclick="loadAiAuditorias()" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-semibold flex items-center gap-1">
-            🔄 Actualizar
-          </button>
+          <div class="flex flex-wrap sm:flex-nowrap items-center sm:justify-end gap-2">
+            <span id="ai-auditorias-last-check" class="text-[11px] text-slate-500 font-medium bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+              Última comprobación: --
+            </span>
+            <button id="btn-sync-auditorias" onclick="loadAiAuditorias(true)" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-700 border border-purple-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm">
+              <span id="btn-sync-icon" class="inline-block">🔍</span> <span>Detectar nuevos rangos</span>
+            </button>
+          </div>
         </div>
+
+        <div id="ai-auditorias-alert" class="hidden p-3 rounded-xl text-xs font-medium border"></div>
         <div id="ai-auditorias-list" class="space-y-3"></div>
       </div>
 
@@ -365,7 +374,6 @@
           <div class="space-y-2 text-xs">
             <label class="block font-semibold text-slate-700">Contraseña de Cifrado (Opcional pero recomendado):</label>
             <input type="password" id="exportPassphrase" placeholder="Introduce una contraseña para cifrar con AES-256-GCM..." class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            <p class="text-[11px] text-slate-400">Si dejas la contraseña en blanco, se descargará un archivo JSON estándar sin cifrar.</p>
           </div>
           <button id="btnExportBackup" onclick="downloadBackup()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2">
             <span>💾</span> Generar y Descargar Respaldo JSON
@@ -394,10 +402,10 @@
 
           <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
             <div class="font-bold flex items-center gap-1.5 text-amber-950 text-[11px]">
-              <span>ℹ️</span> <span>Restauración completa (Sustitución total de datos)</span>
+              <span>ℹ️</span> <span>Restauración completa:</span>
             </div>
             <p class="text-[11px] text-amber-800 leading-relaxed">
-              La importación <strong>reemplaza por completo</strong> la información actual de la base de datos por la contenida en este archivo (sin duplicar datos). Si tienes analíticas recientes que no estén en este archivo, descárgate un respaldo antes de continuar.
+              La importación reemplaza por completo la información actual de la base de datos.<br>Los registros no incluidos en la copia de datos que va a restaurar se perderán.
             </p>
           </div>
 
@@ -414,18 +422,17 @@
           <div class="p-2.5 bg-rose-100 text-rose-800 rounded-xl font-bold text-lg">🗑️</div>
           <div>
             <h3 class="text-base font-bold text-slate-900">Zona de Limpieza y Puesta a Punto</h3>
-            <p class="text-xs text-slate-500">Gestiona el estado inicial de la aplicación o vacía los datos para comenzar de cero.</p>
           </div>
         </div>
         <p class="text-xs text-slate-600 leading-relaxed">
-          Si la aplicación se encuentra en <strong>Modo Demostración</strong>, pulsa el botón de limpieza para vaciar todos los análisis sintéticos antes de comenzar a subir tus analíticas médicas personales o importar tu copia de seguridad.
+          Aplicar los datos de demostración (modo Demo) elimina cualquier dato previamente existente en la base de datos.
         </p>
         <div class="flex flex-wrap gap-3 pt-2">
           <button onclick="confirmWipeDatabase()" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2">
             <span>⚠️</span> Limpiar Base de Datos (Comenzar de Cero)
           </button>
           <button onclick="confirmResetDemo()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors border border-slate-300 flex items-center gap-2">
-            <span>🔄</span> Restablecer Datos de Demostración (Demo)
+            <span>🔄</span> Cargar datos del modo Demo
           </button>
         </div>
       </div>
@@ -472,8 +479,8 @@
 
       <!-- PASO 3: REVISIÓN / CONFIRMACIÓN INTERACTIVA (PRE-INGESTA) -->
       <div id="uploadStep3" class="space-y-4 hidden">
-        <div class="p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs space-y-3">
-          <div class="font-bold text-purple-900 flex flex-wrap items-center justify-between gap-2">
+        <div id="previewBannerContainer" class="p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs space-y-3">
+          <div id="previewBannerHeader" class="font-bold text-purple-900 flex flex-wrap items-center justify-between gap-2">
             <span class="flex items-center gap-1.5"><span>✨</span> Datos Extraídos por la IA (Revisión Previa):</span>
             <span class="text-[11px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">Revisa y modifica antes de incorporar a la base de datos</span>
           </div>

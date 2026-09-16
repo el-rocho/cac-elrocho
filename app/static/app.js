@@ -80,6 +80,22 @@ async function loadSummary() {
     document.getElementById('badge-total-controles').textContent = `${data.total_controles} Controles (${data.periodo_historico})`;
     document.getElementById('badge-ultima-fecha').textContent = `Última analítica: ${data.ultima_fecha}`;
 
+    const badgeMotor = document.getElementById('badge-motor-llm');
+    if (badgeMotor && data.motor_llm_info) {
+      const mInfo = data.motor_llm_info;
+      if (mInfo.activo) {
+        badgeMotor.className = 'px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
+        const modCount = mInfo.slots_llm || 1;
+        const modNames = (mInfo.modelos || []).join(', ');
+        badgeMotor.innerHTML = `✨ Motor LLM Activo (${modCount} mod.)`;
+        badgeMotor.title = `Modelos configurados en .env: ${modNames}`;
+      } else {
+        badgeMotor.className = 'px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
+        badgeMotor.innerHTML = `⚠️ Extractor RegEx (Sin LLM)`;
+        badgeMotor.title = 'No hay modelos LLM activos configurados en .env. La aplicación operará con el extractor basado en expresiones regulares.';
+      }
+    }
+
     const p = data.paciente || {};
     const nombre = (p.nombre || '').trim();
     document.getElementById('paciente-nombre').textContent = 'Control de analíticas clínicas: ' + (nombre || 'Paciente');
@@ -409,51 +425,216 @@ async function loadCharts() {
   }
 }
 
-// 6. Cargar Auditorías de Rango con IA
-async function loadAiAuditorias() {
+// 6. Cargar Auditorías de Rango con IA y Gestión de Trazabilidad
+let lastAuditCheckTime = null;
+
+function showAiAuditoriaAlert(message, type = 'success') {
+  const alertEl = document.getElementById('ai-auditorias-alert');
+  if (!alertEl) return;
+  alertEl.className = type === 'success'
+    ? 'p-3 rounded-xl text-xs font-medium border bg-emerald-50 text-emerald-800 border-emerald-200 block'
+    : 'p-3 rounded-xl text-xs font-medium border bg-rose-50 text-rose-800 border-rose-200 block';
+  alertEl.textContent = message;
+  setTimeout(() => {
+    alertEl.className = 'hidden';
+  }, 6000);
+}
+
+async function loadAiAuditorias(manualTrigger = false) {
   const list = document.getElementById('ai-auditorias-list');
-  list.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">Cargando registros de auditoría de rangos...</div>';
+  const syncBtn = document.getElementById('btn-sync-auditorias');
+  const syncIcon = document.getElementById('btn-sync-icon');
+  const lastCheckEl = document.getElementById('ai-auditorias-last-check');
+  const badgeStatus = document.getElementById('ai-auditorias-badge-status');
+
+  if (syncIcon) syncIcon.classList.add('animate-spin');
+  if (syncBtn) syncBtn.disabled = true;
+
+  if (!list.hasChildNodes() || manualTrigger) {
+    list.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">Consultando registros de auditoría y rangos de referencia...</div>';
+  }
 
   try {
     const res = await fetch('/api/v1/ai/auditorias');
     if (!res.ok) throw new Error('Error al obtener auditorías');
     const items = await res.json();
 
+    const now = new Date();
+    lastAuditCheckTime = now;
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
+    
+    if (lastCheckEl) {
+      lastCheckEl.textContent = `Última comprobación: ${dateStr} ${timeStr}`;
+    }
+    if (badgeStatus) {
+      badgeStatus.classList.remove('hidden');
+    }
+
     if (items.length === 0) {
       list.innerHTML = '<div class="text-xs text-slate-500 py-4">No se han registrado modificaciones de rangos de laboratorio todavía.</div>';
+      if (manualTrigger) {
+        showAiAuditoriaAlert('✓ Comprobación completada: No hay nuevos criterios pendientes de laboratorio.', 'success');
+      }
       return;
     }
 
     list.innerHTML = '';
-    items.forEach(aud => {
-      const card = document.createElement('div');
-      card.className = 'p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2';
-      card.innerHTML = `
-        <div class="flex justify-between items-center">
-          <div class="font-bold text-slate-900 text-sm flex items-center gap-2">
-            <span>🔬</span> ${aud.analito}
-            <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold rounded-full">Auditoría IA</span>
+
+    const pendientes = items.filter(a => !a.aplicado_en_historico);
+    const aplicados = items.filter(a => a.aplicado_en_historico);
+
+    function createCardHtml(aud) {
+      const safeAnalito = String(aud.analito).replace(/'/g, "\\'");
+      const safeRangoNuevo = String(aud.rango_nuevo).replace(/'/g, "\\'");
+
+      // Limpieza de referencias personales del paciente en la explicación clínica
+      let expLimpia = aud.explicacion || 'El laboratorio ha actualizado el criterio de referencia.';
+      if (expLimpia.includes('El valor de')) {
+        expLimpia = expLimpia.split('El valor de')[0].trim();
+      }
+
+      const statusBadge = aud.aplicado_en_historico
+        ? `
+          <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-medium">
+            <span>✓</span>
+            <span>Criterio homologado y aplicado al historial clínico (${aud.fecha_aplicacion || 'Activo'})</span>
           </div>
-          <span class="text-slate-400 text-[11px]">${aud.fecha_analitica}</span>
+        `
+        : `
+          <div class="flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-medium">
+            <span>ℹ️</span>
+            <span>Criterio registrado (Vigente en informes desde ${aud.fecha_analitica})</span>
+          </div>
+        `;
+
+      const actionBtnText = aud.aplicado_en_historico
+        ? 'Volver a aplicar a todo el historial'
+        : 'Aplicar a todo el historial';
+
+      const actionBtnClass = aud.aplicado_en_historico
+        ? 'px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1'
+        : 'px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-sm';
+
+      const actionBtnIcon = aud.aplicado_en_historico ? '🔄' : '⚡';
+
+      return `
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
+          <!-- Línea 1: Información básica unificada en una única fila -->
+          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-slate-800 text-xs">
+            <span class="font-bold text-slate-900">${aud.analito}</span>
+            <span class="text-slate-300">-</span>
+            <span class="text-slate-600"><span class="font-medium text-slate-500">Rango Anterior:</span> ${aud.rango_anterior || 'No especificado'}</span>
+            <span class="text-slate-300">-</span>
+            <span class="text-purple-800 font-semibold"><span class="font-medium text-slate-500">Nuevo Rango:</span> ${aud.rango_nuevo}</span>
+            <span class="text-slate-300">-</span>
+            <span class="text-slate-500 text-[11px] font-medium">📄 Origen: ${aud.fecha_analitica}</span>
+          </div>
+
+          <!-- Línea 2: Criterio clínico simplificado sin datos personales -->
+          <div class="text-[11px] text-slate-600 leading-relaxed">
+            💡 <strong>Criterio Clínico:</strong> ${expLimpia}
+          </div>
+
+          <!-- Línea 3: Tarjeta informativa inferior con estado y botón -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/60">
+            ${statusBadge}
+            <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="${actionBtnClass}">
+              <span>${actionBtnIcon}</span> <span>${actionBtnText}</span>
+            </button>
+          </div>
         </div>
-        <div class="grid grid-cols-2 gap-3 pt-1">
-          <div class="bg-white p-2 rounded-xl border border-slate-200">
-            <span class="text-slate-400 block text-[10px] uppercase">Rango Anterior:</span>
-            <span class="font-semibold text-slate-700">${aud.rango_anterior || 'No especificado'}</span>
-          </div>
-          <div class="bg-purple-50 p-2 rounded-xl border border-purple-200">
-            <span class="text-purple-600 block text-[10px] uppercase font-bold">Nuevo Rango Detectado:</span>
-            <span class="font-bold text-purple-900">${aud.rango_nuevo}</span>
-          </div>
-        </div>
-        <p class="text-slate-600 leading-relaxed pt-1 bg-white p-2.5 rounded-xl border border-slate-100">
-          💡 <strong>Criterio Clínico IA:</strong> ${aud.explicacion}
-        </p>
       `;
-      list.appendChild(card);
-    });
+    }
+
+    // 1. Mostrar rangos pendientes (no aplicados) directamente
+    if (pendientes.length > 0) {
+      pendientes.forEach(aud => {
+        const div = document.createElement('div');
+        div.innerHTML = createCardHtml(aud);
+        list.appendChild(div.firstElementChild);
+      });
+    }
+
+    // 2. Colapsar rangos ya aplicados en un acordeón desplegable
+    if (aplicados.length > 0) {
+      const details = document.createElement('details');
+      details.className = 'group bg-white border border-slate-200 rounded-xl overflow-hidden transition-all';
+      
+      const summary = document.createElement('summary');
+      summary.className = 'p-3 cursor-pointer text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-between transition-colors select-none';
+      summary.innerHTML = `
+        <span class="flex items-center gap-2">
+          <span class="text-slate-400 group-open:rotate-90 transition-transform inline-block text-[10px]">▶</span>
+          <span>${aplicados.length} rango(s) de referencia ya aplicado(s) al historial</span>
+        </span>
+        <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">Aplicados</span>
+      `;
+      details.appendChild(summary);
+
+      const content = document.createElement('div');
+      content.className = 'p-3 pt-0 space-y-2.5 border-t border-slate-100 mt-2';
+      aplicados.forEach(aud => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = createCardHtml(aud);
+        content.appendChild(wrapper.firstElementChild);
+      });
+      details.appendChild(content);
+
+      list.appendChild(details);
+    }
+
+    if (manualTrigger) {
+      showAiAuditoriaAlert(`✓ Detección completada: ${items.length} registro(s) de rangos supervisados.`, 'success');
+    }
   } catch (err) {
     list.innerHTML = `<div class="text-xs text-rose-600 py-2">Error al consultar auditorías: ${err.message}</div>`;
+    showAiAuditoriaAlert(`Error al actualizar auditorías: ${err.message}`, 'error');
+  } finally {
+    if (syncIcon) syncIcon.classList.remove('animate-spin');
+    if (syncBtn) syncBtn.disabled = false;
+  }
+}
+
+// Opción 3: Aplicar criterio individual al histórico
+async function applyAuditCriteria(auditId, analitoName, newRange) {
+  const confirmMsg = `¿Deseas aplicar el criterio "${newRange}" a todas las analíticas históricas de ${analitoName}?\n\nEsta acción homologará los rangos de referencia en las mediciones anteriores para que los semáforos y tablas reflejen el nuevo criterio.`;
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch(`/api/v1/ai/aplicar-criterio/${auditId}`, { method: 'POST' });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Error al aplicar criterio');
+    }
+    const data = await res.json();
+    showAiAuditoriaAlert(`✓ ${data.message}`, 'success');
+    await loadAiAuditorias(false);
+    if (typeof loadSummary === 'function') loadSummary();
+    if (typeof loadAllCategories === 'function') loadAllCategories();
+  } catch (err) {
+    alert(`Error al aplicar criterio: ${err.message}`);
+  }
+}
+
+// Opción 3: Aplicar todos los criterios al histórico
+async function applyAllAuditCriteria() {
+  const confirmMsg = '¿Deseas homologar TODOS los criterios de auditoría de rango a todo tu historial de analíticas pasadas?\\n\\nEsto actualizará los rangos de referencia de los analitos en todas las mediciones previas.';
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch('/api/v1/ai/aplicar-todos', { method: 'POST' });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Error al homologar criterios');
+    }
+    const data = await res.json();
+    showAiAuditoriaAlert(`✓ ${data.message}`, 'success');
+    await loadAiAuditorias(false);
+    if (typeof loadSummary === 'function') loadSummary();
+    if (typeof loadAllCategories === 'function') loadAllCategories();
+  } catch (err) {
+    alert(`Error al homologar criterios: ${err.message}`);
   }
 }
 
@@ -540,6 +721,53 @@ async function uploadPdfFile(file) {
 function renderUploadPreview(data) {
   document.getElementById('uploadStep2').classList.add('hidden');
   document.getElementById('uploadStep3').classList.remove('hidden');
+
+  // Actualizar banner y etiqueta de motor según el resultado de extracción
+  const badgeMotor = document.getElementById('badge-motor-llm');
+  const bannerContainer = document.getElementById('previewBannerContainer');
+  const bannerHeader = document.getElementById('previewBannerHeader');
+
+  if (data.motor_extraccion === 'mock') {
+    if (badgeMotor) {
+      badgeMotor.className = 'px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
+      badgeMotor.innerHTML = '⚠️ Extractor RegEx (Contingencia Activa)';
+      badgeMotor.title = 'Los modelos LLM configurados no respondieron o no están activos. Se ha utilizado el extractor de contingencia basado en expresiones regulares.';
+    }
+    if (bannerContainer) {
+      bannerContainer.className = 'p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs space-y-3';
+    }
+    if (bannerHeader) {
+      bannerHeader.innerHTML = `
+        <span class="flex items-center gap-1.5 text-amber-900 font-extrabold">
+          <span>⚠️</span> Extractor de Contingencia por RegEx (Sin LLM):
+        </span>
+        <span class="text-[11px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-medium">
+          Modelos LLM inaccesibles o sin cuota. Extraídos ${data.total_parametros} parámetros con patrones estándar.
+        </span>
+      `;
+    }
+  } else {
+    if (badgeMotor) {
+      badgeMotor.className = 'px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
+      const slotText = data.slot_utilizado ? `Slot ${data.slot_utilizado}: ` : '';
+      badgeMotor.innerHTML = `✨ Motor LLM (${slotText}${escapeHtml(data.modelo_utilizado || 'Activo')})`;
+      badgeMotor.title = `Extraído con éxito mediante ${data.modelo_utilizado || 'modelo LLM'}`;
+    }
+    if (bannerContainer) {
+      bannerContainer.className = 'p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs space-y-3';
+    }
+    if (bannerHeader) {
+      const slotBadge = data.slot_utilizado ? `<span class="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">Slot ${data.slot_utilizado}: ${escapeHtml(data.modelo_utilizado || '')}</span>` : '';
+      bannerHeader.innerHTML = `
+        <span class="flex items-center gap-1.5 text-purple-900 font-bold">
+          <span>✨</span> Datos Extraídos por Inteligencia Artificial ${slotBadge}:
+        </span>
+        <span class="text-[11px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
+          Revisa y modifica antes de incorporar a la base de datos
+        </span>
+      `;
+    }
+  }
 
   // Metadatos editables
   const fechaEl = document.getElementById('previewFechaInput');
@@ -1344,7 +1572,7 @@ async function confirmWipeDatabase() {
 }
 
 async function confirmResetDemo() {
-  const confirm1 = confirm('¿Deseas restaurar los datos demostrativos sintéticos de prueba?');
+  const confirm1 = confirm('¿Deseas cargar los datos del modo Demo? Esta acción eliminará cualquier dato previamente existente en la base de datos.');
   if (!confirm1) return;
 
   try {

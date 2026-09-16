@@ -40,6 +40,19 @@ def calcular_edad(fecha_nacimiento: str) -> str:
         pass
     return "-"
 
+def get_motor_llm_summary() -> Dict[str, Any]:
+    """Retorna información del estado de los modelos LLM configurados."""
+    slots = settings.get_configured_llm_slots()
+    llm_slots = [s for s in slots if s.get("provider") != "mock" and s.get("api_key") and s.get("model")]
+    return {
+        "activo": len(llm_slots) > 0,
+        "tipo": "llm" if len(llm_slots) > 0 else "mock",
+        "slots_totales": len(slots),
+        "slots_llm": len(llm_slots),
+        "modelos": [s["model"] for s in llm_slots],
+        "descripcion": f"{len(llm_slots)} modelo(s) configurado(s)" if len(llm_slots) > 0 else "Extractor RegEx (Sin LLM)"
+    }
+
 @router.get("/summary", response_model=DashboardSummaryResponse)
 def get_dashboard_summary(db: Session = Depends(get_db)):
     """
@@ -47,6 +60,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     """
     paciente = db.query(Paciente).first()
     informes = db.query(Informe).order_by(Informe.fecha.asc()).all()
+    motor_info = get_motor_llm_summary()
     
     if not informes:
         return DashboardSummaryResponse(
@@ -62,7 +76,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             ultima_fecha="Ninguna",
             dictamen_global="Base de Datos Vacía",
             dictamen_subtitulo="Carga un PDF o importa un respaldo para iniciar el seguimiento",
-            kpis=[]
+            kpis=[],
+            motor_llm_info=motor_info
         )
 
     ultimo_informe = informes[-1]
@@ -176,7 +191,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         ultima_fecha=ultima_fecha,
         dictamen_global=ultimo_informe.dictamen_global or "Favorable",
         dictamen_subtitulo=ultimo_informe.observaciones_ia or "Parámetros analizados por el sistema",
-        kpis=kpis
+        kpis=kpis,
+        motor_llm_info=motor_info
     )
 
 @router.get("/paciente", response_model=PacienteInfo)
