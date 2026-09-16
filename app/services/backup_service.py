@@ -65,11 +65,12 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
 
     backup = {
         "app": "cac-elrocho",
-        "version": "1.0.0",
+        "version": "0.1.0",
         "paciente": {
             "nombre_completo": paciente.nombre_completo if paciente else "",
             "fecha_nacimiento": paciente.fecha_nacimiento if paciente else "",
             "dni": paciente.dni if paciente else "",
+            "sexo": paciente.sexo if paciente else "",
             "centro_referencia": paciente.centro_referencia if paciente else ""
         },
         "analitos": [
@@ -145,6 +146,7 @@ def import_database_from_dict(db: Session, data: Dict[str, Any]):
     paciente.nombre_completo = p_data.get("nombre_completo", "Usuario")
     paciente.fecha_nacimiento = p_data.get("fecha_nacimiento", "")
     paciente.dni = p_data.get("dni", "")
+    paciente.sexo = p_data.get("sexo", "")
     paciente.centro_referencia = p_data.get("centro_referencia", "")
     db.flush()
 

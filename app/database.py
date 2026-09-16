@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from app.config import settings
 
@@ -35,3 +35,14 @@ def init_db():
     # Importar modelos para que Base.metadata los reconozca
     import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+    # Migración automática si la columna 'sexo' no existe en 'pacientes' (SQLite)
+    try:
+        with engine.connect() as conn:
+            columns_info = conn.execute(text("PRAGMA table_info(pacientes)")).fetchall()
+            col_names = [col[1] for col in columns_info]
+            if columns_info and "sexo" not in col_names:
+                conn.execute(text("ALTER TABLE pacientes ADD COLUMN sexo VARCHAR(20)"))
+                conn.commit()
+    except Exception:
+        pass

@@ -30,9 +30,11 @@ class TableRow(BaseModel):
     vals: List[Any] # Floats, strings or None
     recentAvg: str
     avg: str
+    group: Optional[str] = None
 
 class TablesResponse(BaseModel):
     dates: List[str] # ['07/09/22', '01/12/22', ...]
+    informes: Optional[List[Dict[str, Any]]] = None # Listado con id, fecha, etiqueta_corta y lab
     bioquimica: List[TableRow]
     hemograma: List[List[str]]
     coagulacion: List[List[str]]
@@ -47,6 +49,9 @@ class ChartDataset(BaseModel):
     tension: Optional[float] = 0.2
     fill: Optional[bool] = False
     yAxisID: Optional[str] = None
+    spanGaps: Optional[bool] = True
+    pointRadius: Optional[float] = 4.0
+    pointHoverRadius: Optional[float] = 6.0
 
 class ChartConfig(BaseModel):
     labels: List[str]
@@ -65,6 +70,7 @@ class ChartsResponse(BaseModel):
 # --- Esquemas para Extracción e IA ---
 
 class MedicionExtraida(BaseModel):
+    codigo: Optional[str] = Field(default=None, description="Código canónico del analito (ej: CHOLESTEROL_TOTAL, HDL, RATIO_COL_HDL, GLUCOSE)")
     nombre: str = Field(description="Nombre del analito encontrado en el informe")
     valor: str = Field(description="Valor numérico o textual (ej: '96.7' o '< 1.7')")
     unidad: str = Field(description="Unidad de medida (ej: 'mg/dL', '%', 'ng/mL')")
@@ -87,6 +93,9 @@ class AnaliticaPreviewResponse(BaseModel):
     alertas_ia: List[str]
     rangos_modificados: List[RangoDetectado]
     dictamen_preliminar: str
+    paciente_detectado: Optional[str] = None
+    dni_detectado: Optional[str] = None
+    aviso_discrepancia_paciente: Optional[str] = None
 
 class ConfirmacionRequest(BaseModel):
     temp_id: str
@@ -95,3 +104,61 @@ class ConfirmacionRequest(BaseModel):
     facultativo: Optional[str] = None
     mediciones: List[MedicionExtraida]
     dictamen_global: Optional[str] = None
+
+class AuditFileItem(BaseModel):
+    id: int
+    fecha: str
+    etiqueta_corta: str
+    laboratorio: str
+    facultativo: Optional[str] = "No especificado"
+    archivo_pdf: Optional[str] = None
+    total_mediciones: int
+    dictamen_global: Optional[str] = None
+    created_at: Optional[str] = None
+
+class MedicionDetail(BaseModel):
+    id: Optional[int] = None
+    codigo: Optional[str] = None
+    nombre: str
+    valor: Any
+    unidad: str
+    rango_referencia: Optional[str] = None
+    estado_estimado: Optional[str] = None
+    es_ratio: Optional[bool] = False
+
+class InformeDetailResponse(BaseModel):
+    id: int
+    fecha: str
+    etiqueta_corta: str
+    laboratorio: str
+    facultativo: Optional[str] = None
+    dictamen_global: Optional[str] = None
+    archivo_pdf: Optional[str] = None
+    mediciones: List[MedicionDetail]
+
+class InformeUpdateRequest(BaseModel):
+    fecha: str
+    laboratorio: str
+    facultativo: Optional[str] = None
+    dictamen_global: Optional[str] = None
+    mediciones: List[MedicionDetail]
+
+# --- Esquemas de Paciente ---
+
+class PacienteInfo(BaseModel):
+    id: Optional[int] = None
+    nombre_completo: Optional[str] = ""
+    fecha_nacimiento: Optional[str] = None
+    dni: Optional[str] = None
+    sexo: Optional[str] = "No especificado"
+    centro_referencia: Optional[str] = None
+    edad: Optional[str] = None
+
+class PacienteUpdateRequest(BaseModel):
+    nombre_completo: Optional[str] = ""
+    fecha_nacimiento: Optional[str] = None
+    dni: Optional[str] = None
+    sexo: Optional[str] = "No especificado"
+    centro_referencia: Optional[str] = None
+
+

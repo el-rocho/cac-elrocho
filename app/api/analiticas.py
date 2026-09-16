@@ -1,12 +1,44 @@
+from datetime import date
 from typing import List, Dict, Any
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.database import get_db
 from app.models import Paciente, Informe, Analito, Medicion
-from app.schemas import DashboardSummaryResponse, KpiCard, TablesResponse, TableRow, ChartsResponse, ChartConfig, ChartDataset
-from app.services.metrics import get_cell_format
+from app.schemas import (
+    DashboardSummaryResponse, KpiCard, TablesResponse, TableRow,
+    ChartsResponse, ChartConfig, ChartDataset, AuditFileItem,
+    InformeDetailResponse, InformeUpdateRequest, MedicionDetail,
+    PacienteInfo, PacienteUpdateRequest
+)
+from app.services.metrics import get_cell_format, calculate_ratios
+from app.services.analito_normalizer import get_analito_group, normalize_analito, get_analito_order
 
 router = APIRouter(prefix="/analiticas", tags=["Analíticas"])
+
+def calcular_edad(fecha_nacimiento: str) -> str:
+    """Calcula los años cumplidos a partir de una fecha en formato YYYY-MM-DD o DD/MM/YYYY."""
+    if not fecha_nacimiento or not str(fecha_nacimiento).strip():
+        return "-"
+    try:
+        limpia = str(fecha_nacimiento).strip()
+        partes = limpia.split("-")
+        if len(partes) == 3:
+            birth_year, birth_month, birth_day = int(partes[0]), int(partes[1]), int(partes[2])
+            hoy = date.today()
+            edad = hoy.year - birth_year - ((hoy.month, hoy.day) < (birth_month, birth_day))
+            if 0 <= edad <= 125:
+                return f"{edad} años"
+        partes_slash = limpia.split("/")
+        if len(partes_slash) == 3:
+            birth_day, birth_month, birth_year = int(partes_slash[0]), int(partes_slash[1]), int(partes_slash[2])
+            hoy = date.today()
+            edad = hoy.year - birth_year - ((hoy.month, hoy.day) < (birth_month, birth_day))
+            if 0 <= edad <= 125:
+                return f"{edad} años"
+    except Exception:
+        pass
+    return "-"
 
 @router.get("/summary", response_model=DashboardSummaryResponse)
 def get_dashboard_summary(db: Session = Depends(get_db)):
@@ -19,11 +51,11 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     if not informes:
         return DashboardSummaryResponse(
             paciente={
-                "nombre": paciente.nombre_completo if paciente else "Sin Paciente Configurado",
-                "nacimiento": paciente.fecha_nacimiento if paciente else "-",
-                "edad": "-",
-                "dni": paciente.dni if paciente else "-",
-                "centro": paciente.centro_referencia if paciente else "-"
+                "nombre": (paciente.nombre_completo if paciente and paciente.nombre_completo else "").strip(),
+                "nacimiento": (paciente.fecha_nacimiento if paciente and paciente.fecha_nacimiento else "-"),
+                "edad": calcular_edad(paciente.fecha_nacimiento) if paciente and paciente.fecha_nacimiento else "-",
+                "dni": (paciente.dni if paciente and paciente.dni else "-"),
+                "sexo": (paciente.sexo if paciente and paciente.sexo else "No especificado")
             },
             total_controles=0,
             periodo_historico="Sin registros",
@@ -133,11 +165,11 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     return DashboardSummaryResponse(
         paciente={
-            "nombre": paciente.nombre_completo if paciente else "Paciente",
-            "nacimiento": paciente.fecha_nacimiento if paciente else "-",
-            "edad": "Consultar historial",
-            "dni": paciente.dni if paciente else "-",
-            "centro": paciente.centro_referencia if paciente else "-"
+            "nombre": (paciente.nombre_completo if paciente and paciente.nombre_completo else "").strip(),
+            "nacimiento": (paciente.fecha_nacimiento if paciente and paciente.fecha_nacimiento else "-"),
+            "edad": calcular_edad(paciente.fecha_nacimiento) if paciente and paciente.fecha_nacimiento else "-",
+            "dni": (paciente.dni if paciente and paciente.dni else "-"),
+            "sexo": (paciente.sexo if paciente and paciente.sexo else "No especificado")
         },
         total_controles=total_controles,
         periodo_historico=periodo,
@@ -145,6 +177,59 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         dictamen_global=ultimo_informe.dictamen_global or "Favorable",
         dictamen_subtitulo=ultimo_informe.observaciones_ia or "Parámetros analizados por el sistema",
         kpis=kpis
+    )
+
+@router.get("/paciente", response_model=PacienteInfo)
+def get_paciente(db: Session = Depends(get_db)):
+    """
+    Obtiene los datos del paciente registrado en la aplicación.
+    """
+    paciente = db.query(Paciente).first()
+    if not paciente:
+        return PacienteInfo(
+            id=None,
+            nombre_completo="",
+            fecha_nacimiento=None,
+            dni=None,
+            sexo="No especificado",
+            edad="-"
+        )
+    return PacienteInfo(
+        id=paciente.id,
+        nombre_completo=paciente.nombre_completo or "",
+        fecha_nacimiento=paciente.fecha_nacimiento,
+        dni=paciente.dni,
+        sexo=paciente.sexo if paciente.sexo in ["Masculino", "Femenino"] else "No especificado",
+        edad=calcular_edad(paciente.fecha_nacimiento)
+    )
+
+@router.put("/paciente", response_model=PacienteInfo)
+def update_paciente(payload: PacienteUpdateRequest, db: Session = Depends(get_db)):
+    """
+    Actualiza la ficha de datos personales del paciente.
+    """
+    paciente = db.query(Paciente).first()
+    if not paciente:
+        paciente = Paciente(
+            nombre_completo=(payload.nombre_completo or "").strip()
+        )
+        db.add(paciente)
+
+    paciente.nombre_completo = (payload.nombre_completo or "").strip()
+    paciente.fecha_nacimiento = payload.fecha_nacimiento.strip() if payload.fecha_nacimiento else None
+    paciente.dni = payload.dni.strip() if payload.dni else None
+    paciente.sexo = payload.sexo.strip() if payload.sexo in ["Masculino", "Femenino"] else "No especificado"
+
+    db.commit()
+    db.refresh(paciente)
+
+    return PacienteInfo(
+        id=paciente.id,
+        nombre_completo=paciente.nombre_completo or "",
+        fecha_nacimiento=paciente.fecha_nacimiento,
+        dni=paciente.dni,
+        sexo=paciente.sexo or "No especificado",
+        edad=calcular_edad(paciente.fecha_nacimiento)
     )
 
 @router.get("/tables", response_model=TablesResponse)
@@ -161,11 +246,13 @@ def get_tables(db: Session = Depends(get_db)):
     # Los últimos 3 controles corresponden a 26/02/25, 19/12/25, 13/06/26
     recent_indices = [idx for idx, inf in enumerate(informes) if inf.fecha.startswith("2025") or inf.fecha.startswith("2026")]
 
-    analitos = db.query(Analito).filter_by(categoria="bioquimica").order_by(Analito.orden.asc()).all()
+    analitos = db.query(Analito).order_by(Analito.orden.asc(), Analito.id.asc()).all()
     
     bio_rows = []
     for a in analitos:
         meds = db.query(Medicion).filter_by(analito_id=a.id).all()
+        if not meds:
+            continue
         med_by_inf = {m.informe_id: (m.valor_numerico if m.valor_numerico is not None else m.valor_texto) for m in meds}
         
         vals = [med_by_inf.get(inf_id, None) for inf_id in informe_ids]
@@ -179,7 +266,7 @@ def get_tables(db: Session = Depends(get_db)):
         avg_recent = f"{sum(num_vals_recent) / len(num_vals_recent):.1f}" if num_vals_recent else "-"
         
         # Ajustes de decimales específicos
-        if a.codigo in ["CREATININE", "TSH", "PSA_TOTAL", "PSA_FREE", "RATIO_PSA_L_T"]:
+        if a.codigo in ["CREATININE", "TSH", "PSA_TOTAL", "PSA_FREE", "RATIO_PSA_L_T", "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL"]:
             if num_vals_total:
                 avg_total = f"{sum(num_vals_total) / len(num_vals_total):.2f}"
             if num_vals_recent:
@@ -191,7 +278,8 @@ def get_tables(db: Session = Depends(get_db)):
             ref=a.ref_texto_defecto or "",
             vals=vals,
             recentAvg=avg_recent,
-            avg=avg_total
+            avg=avg_total,
+            group=get_analito_group(a.codigo)
         ))
 
     # Paneles de muestra para demostración
@@ -216,8 +304,19 @@ def get_tables(db: Session = Depends(get_db)):
         ['TSH (Tiroides)', 'µUI/mL', '1.45', '1.80', '1.65', '2.10', '2.20', '1.84', '1.84', '1.84', '0.27 - 4.29', 'Óptimo (Eutiroideo)']
     ]
 
+    informes_meta = [
+        {
+            "id": inf.id,
+            "fecha": inf.fecha,
+            "etiqueta_corta": inf.etiqueta_corta,
+            "laboratorio": inf.laboratorio or "Desconocido"
+        }
+        for inf in informes
+    ]
+
     return TablesResponse(
         dates=dates,
+        informes=informes_meta,
         bioquimica=bio_rows,
         hemograma=hem_data,
         coagulacion=coag_data,
@@ -248,9 +347,7 @@ def get_charts_data(db: Session = Depends(get_db)):
     tg_vals = get_series("TRIGLYCERIDES")
     castelli1_vals = get_series("RATIO_COL_HDL")
     castelli2_vals = get_series("RATIO_LDL_HDL")
-    ratio_ldl_col = get_series("RATIO_LDL_COL")
-    ratio_hdl_col = get_series("RATIO_HDL_COL")
-    ratio_tg_col = get_series("RATIO_TG_COL")
+    tg_hdl_vals = get_series("RATIO_TG_HDL")
     urea_vals = get_series("UREA")
     creat_vals = get_series("CREATININE")
     urico_vals = get_series("URIC_ACID")
@@ -284,16 +381,21 @@ def get_charts_data(db: Session = Depends(get_db)):
         castelli=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Castelli I: Col.T / HDL (Ref < 4.5)", data=castelli1_vals, borderColor="#8b5cf6", backgroundColor="rgba(139, 92, 246, 0.1)", borderWidth=2.5),
-                ChartDataset(label="Castelli II: LDL / HDL (Ref < 3.0)", data=castelli2_vals, borderColor="#ec4899", backgroundColor="rgba(236, 72, 153, 0.1)", borderWidth=2.5)
+                ChartDataset(label="Castelli I: Col.T / HDL (Ref < 5.0)", data=castelli1_vals, borderColor="#8b5cf6", backgroundColor="rgba(139, 92, 246, 0.1)", borderWidth=2.5),
+                ChartDataset(label="Castelli II: LDL / HDL (Ref < 4.3)", data=castelli2_vals, borderColor="#ec4899", backgroundColor="rgba(236, 72, 153, 0.1)", borderWidth=2.5)
             ]
         ),
         ratios_tg=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Ratio LDL / Col. Total (Ref < 0.65)", data=ratio_ldl_col, borderColor="#f59e0b", borderWidth=2.0),
-                ChartDataset(label="Ratio HDL / Col. Total (Ref > 0.20)", data=ratio_hdl_col, borderColor="#3b82f6", borderWidth=2.0),
-                ChartDataset(label="Ratio TG / Col. Total (Ref < 0.50)", data=ratio_tg_col, borderColor="#10b981", borderWidth=2.0)
+                ChartDataset(
+                    label="Triglicéridos / HDL (Ref < 2.0)",
+                    data=tg_hdl_vals,
+                    borderColor="#06b6d4",
+                    backgroundColor="rgba(6, 182, 212, 0.15)",
+                    borderWidth=2.5,
+                    fill=True
+                )
             ]
         ),
         renal=ChartConfig(
@@ -323,3 +425,255 @@ def get_charts_data(db: Session = Depends(get_db)):
             ]
         )
     )
+
+@router.get("/files", response_model=List[AuditFileItem])
+def get_audit_files(db: Session = Depends(get_db)):
+    """
+    Devuelve el inventario completo de archivos de analíticas subidos al sistema.
+    """
+    informes = db.query(Informe).order_by(Informe.fecha.desc(), Informe.id.desc()).all()
+    res = []
+    for inf in informes:
+        res.append(AuditFileItem(
+            id=inf.id,
+            fecha=inf.fecha,
+            etiqueta_corta=inf.etiqueta_corta,
+            laboratorio=inf.laboratorio or "Desconocido",
+            facultativo=inf.facultativo or "No especificado",
+            archivo_pdf=inf.archivo_pdf,
+            total_mediciones=len(inf.mediciones),
+            dictamen_global=inf.dictamen_global or "Sin dictamen",
+            created_at=inf.created_at.strftime("%Y-%m-%d %H:%M") if inf.created_at else None
+        ))
+    return res
+
+@router.delete("/files/{informe_id}")
+def delete_audit_file(informe_id: int, db: Session = Depends(get_db)):
+    """
+    Elimina una analítica y sus mediciones asociadas de la base de datos.
+    """
+    informe = db.query(Informe).filter_by(id=informe_id).first()
+    if not informe:
+        raise HTTPException(status_code=404, detail="Analítica no encontrada")
+
+    if informe.archivo_pdf:
+        pdf_path = settings.DATA_DIR / "uploads" / informe.archivo_pdf
+        if pdf_path.exists():
+            try:
+                pdf_path.unlink()
+            except Exception:
+                pass
+
+    db.delete(informe)
+    db.commit()
+    return {"status": "success", "message": f"Analítica ID {informe_id} eliminada correctamente"}
+
+@router.get("/catalog")
+def get_canonical_catalog():
+    """
+    Devuelve el catálogo canónico estructurado y agrupado por especialidad clínica
+    para alimentar los selectores de analitos y evitar inconsistencias en la base de datos.
+    """
+    from app.services.analito_normalizer import CANONICAL_CATALOG
+    grouped = {}
+    for code, item in CANONICAL_CATALOG.items():
+        if item.get("es_ratio") or code.startswith("RATIO_"):
+            continue
+        g = item.get("grupo", "Otras Determinaciones")
+        grouped.setdefault(g, []).append({
+            "codigo": code,
+            "nombre": item["nombre"],
+            "unidad": item.get("unidad", ""),
+            "ref": item.get("ref", "")
+        })
+    return grouped
+
+@router.get("/informes/{informe_id}", response_model=InformeDetailResponse)
+def get_informe_detail(informe_id: int, db: Session = Depends(get_db)):
+    """
+    Devuelve los metadatos completos y todas las mediciones de un informe específico para su edición.
+    """
+    informe = db.query(Informe).filter_by(id=informe_id).first()
+    if not informe:
+        raise HTTPException(status_code=404, detail="Analítica no encontrada")
+
+    mediciones_db = (
+        db.query(Medicion)
+        .join(Analito, Medicion.analito_id == Analito.id)
+        .filter(Medicion.informe_id == informe.id)
+        .order_by(Analito.orden.asc(), Analito.nombre_visible.asc(), Medicion.id.asc())
+        .all()
+    )
+
+    ratio_codes = {
+        "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL",
+        "RATIO_LDL_COL", "RATIO_HDL_COL", "RATIO_TG_COL", "RATIO_PSA_L_T"
+    }
+
+    mediciones_list = []
+    for m in mediciones_db:
+        codigo = m.analito.codigo if m.analito else ""
+        nombre = m.analito.nombre_visible if m.analito else "Desconocido"
+        val = m.valor_numerico if m.valor_numerico is not None else (m.valor_texto or "")
+        mediciones_list.append(MedicionDetail(
+            id=m.id,
+            codigo=codigo,
+            nombre=nombre,
+            valor=val,
+            unidad=m.unidad or (m.analito.unidad_estandar if m.analito else ""),
+            rango_referencia=m.ref_texto or (m.analito.ref_texto_defecto if m.analito else ""),
+            estado_estimado=m.estado_semaforo or "Normal",
+            es_ratio=(codigo in ratio_codes)
+        ))
+
+    return InformeDetailResponse(
+        id=informe.id,
+        fecha=informe.fecha,
+        etiqueta_corta=informe.etiqueta_corta,
+        laboratorio=informe.laboratorio or "",
+        facultativo=informe.facultativo or "",
+        dictamen_global=informe.dictamen_global or "",
+        archivo_pdf=informe.archivo_pdf,
+        mediciones=mediciones_list
+    )
+
+@router.put("/informes/{informe_id}")
+def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Depends(get_db)):
+    """
+    Actualiza los metadatos y mediciones de un informe ya guardado en la base de datos.
+    Recalcula automáticamente los ratios dependientes (Castelli, TG/HDL, PSA, etc.).
+    """
+    informe = db.query(Informe).filter_by(id=informe_id).first()
+    if not informe:
+        raise HTTPException(status_code=404, detail="Analítica no encontrada")
+
+    # 1. Actualizar metadatos del informe
+    informe.fecha = req.fecha
+    partes_fecha = req.fecha.split("-")
+    if len(partes_fecha) == 3:
+        informe.etiqueta_corta = f"{partes_fecha[2]}/{partes_fecha[1]}/{partes_fecha[0][2:]}"
+    else:
+        informe.etiqueta_corta = req.fecha
+
+    informe.laboratorio = req.laboratorio
+    informe.facultativo = req.facultativo or "No especificado"
+    informe.dictamen_global = req.dictamen_global or "Control favorable"
+
+    # 2. Borrar mediciones previas asociadas a este informe para sincronización limpia
+    db.query(Medicion).filter_by(informe_id=informe.id).delete()
+    db.flush()
+
+    # 3. Procesar mediciones del request
+    mediciones_dict = {}
+    analitos_procesados = {}
+
+    ratio_codes = {
+        "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL",
+        "RATIO_LDL_COL", "RATIO_HDL_COL", "RATIO_TG_COL", "RATIO_PSA_L_T"
+    }
+
+    for item in req.mediciones:
+        if not item.nombre or not item.nombre.strip():
+            continue
+
+        # Si el usuario no modificó manualmente un ratio calculado, se recalculará automáticamente abajo
+        if item.codigo in ratio_codes and item.es_ratio:
+            continue
+
+        code_key, norm_nombre, norm_cat, norm_unit = normalize_analito(
+            item.nombre,
+            unidad=item.unidad,
+            valor=item.valor,
+            codigo_sugerido=item.codigo
+        )
+
+        analito = db.query(Analito).filter_by(codigo=code_key).first()
+        if not analito:
+            analito = Analito(
+                codigo=code_key,
+                nombre_visible=norm_nombre,
+                categoria=norm_cat,
+                unidad_estandar=norm_unit,
+                ref_texto_defecto=item.rango_referencia,
+                orden=get_analito_order(code_key)
+            )
+            db.add(analito)
+            db.flush()
+
+        try:
+            num_val = float(str(item.valor).replace(",", ".").split()[0])
+        except (ValueError, TypeError, IndexError):
+            num_val = None
+
+        if code_key in analitos_procesados:
+            med_existente = analitos_procesados[code_key]
+            if med_existente.valor_numerico is None and num_val is not None:
+                med_existente.valor_numerico = num_val
+                med_existente.valor_texto = None
+                med_existente.unidad = item.unidad or norm_unit
+                med_existente.ref_texto = item.rango_referencia
+                mediciones_dict[code_key] = num_val
+            continue
+
+        med = Medicion(
+            informe_id=informe.id,
+            analito_id=analito.id,
+            valor_numerico=num_val,
+            valor_texto=str(item.valor) if num_val is None else None,
+            unidad=item.unidad or norm_unit,
+            ref_texto=item.rango_referencia
+        )
+        db.add(med)
+        db.flush()
+        analitos_procesados[code_key] = med
+
+        if num_val is not None:
+            mediciones_dict[code_key] = num_val
+
+    # 4. Recalcular ratios automáticos derivados y guardarlos
+    ratios_calc = calculate_ratios(mediciones_dict)
+    ratio_names = {
+        "RATIO_COL_HDL": ("Colesterol Total / HDL (Castelli I)", "ratio", "< 5.0"),
+        "RATIO_LDL_HDL": ("LDL / HDL (Castelli II)", "ratio", "< 4.3"),
+        "RATIO_TG_HDL": ("Triglicéridos / HDL", "ratio", "< 2.0"),
+        "RATIO_LDL_COL": ("Ratio LDL / Col. Total", "ratio", "< 0.65"),
+        "RATIO_HDL_COL": ("Ratio HDL / Col. Total", "ratio", "> 0.20"),
+        "RATIO_TG_COL": ("Ratio TG / Col. Total", "ratio", "< 0.50"),
+        "RATIO_PSA_L_T": ("Ratio PSA Libre / Total", "%", "> 20 %")
+    }
+
+    for r_code, r_val in ratios_calc.items():
+        if r_code in analitos_procesados and analitos_procesados[r_code].valor_numerico is not None:
+            continue
+
+        nom, uni, ref = ratio_names.get(r_code, (r_code, "ratio", ""))
+        a_ratio = db.query(Analito).filter_by(codigo=r_code).first()
+        if not a_ratio:
+            a_ratio = Analito(
+                codigo=r_code,
+                nombre_visible=nom,
+                categoria="bioquimica",
+                unidad_estandar=uni,
+                ref_texto_defecto=ref,
+                orden=get_analito_order(r_code)
+            )
+            db.add(a_ratio)
+            db.flush()
+
+        med_ratio = Medicion(
+            informe_id=informe.id,
+            analito_id=a_ratio.id,
+            valor_numerico=r_val,
+            unidad=uni,
+            ref_texto=ref
+        )
+        db.add(med_ratio)
+
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Analítica del {informe.fecha} actualizada correctamente.",
+        "informe_id": informe.id
+    }
+
+

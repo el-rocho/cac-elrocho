@@ -12,24 +12,28 @@ def calculate_ratios(mediciones_dict: Dict[str, float]) -> Dict[str, float]:
     psa_t = mediciones_dict.get("PSA_TOTAL")
     psa_l = mediciones_dict.get("PSA_FREE")
 
-    # Castelli I (Col Total / HDL)
-    if col_total and hdl and hdl > 0:
+    # Castelli I (Col Total / HDL) - solo si ambos son concentraciones séricas plausibles
+    if col_total and hdl and hdl > 10 and col_total > 50:
         ratios["RATIO_COL_HDL"] = round(col_total / hdl, 2)
 
     # Castelli II (LDL / HDL)
-    if ldl and hdl and hdl > 0:
+    if ldl and hdl and hdl > 10 and ldl > 20:
         ratios["RATIO_LDL_HDL"] = round(ldl / hdl, 2)
 
+    # Triglicéridos / HDL (Marcador de resistencia insulínica y aterogenia SEA)
+    if tg and hdl and hdl > 10 and tg > 10:
+        ratios["RATIO_TG_HDL"] = round(tg / hdl, 2)
+
     # Ratio LDL / Col Total
-    if ldl and col_total and col_total > 0:
+    if ldl and col_total and col_total > 50:
         ratios["RATIO_LDL_COL"] = round(ldl / col_total, 2)
 
     # Ratio HDL / Col Total
-    if hdl and col_total and col_total > 0:
+    if hdl and col_total and col_total > 50:
         ratios["RATIO_HDL_COL"] = round(hdl / col_total, 2)
 
     # Ratio TG / Col Total
-    if tg and col_total and col_total > 0:
+    if tg and col_total and col_total > 50:
         ratios["RATIO_TG_COL"] = round(tg / col_total, 2)
 
     # Ratio PSA Libre / PSA Total
@@ -40,7 +44,7 @@ def calculate_ratios(mediciones_dict: Dict[str, float]) -> Dict[str, float]:
 
 def get_cell_format(name: str, val: Any) -> Dict[str, str]:
     """
-    Replica con exactitud las 18 reglas clínicas y de estilo semafórico
+    Replica con exactitud las reglas clínicas y de estilo semafórico
     definidas en el panel de control.
     """
     if val is None or val == "" or val == "-":
@@ -89,21 +93,29 @@ def get_cell_format(name: str, val: Any) -> Dict[str, str]:
             return {"cls": "text-slate-800 font-bold", "title": "Bueno / Próximo a 200"}
         return {"cls": "text-emerald-700 font-semibold", "title": "Óptimo (<180)"}
 
-    # 5. Cociente Col/HDL (Castelli I)
-    if name == "Cociente Col/HDL":
-        if v > 4.5:
-            return {"cls": "text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded", "title": "Riesgo Alto (>4.5)"}
-        if v >= 3.5:
-            return {"cls": "text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded", "title": "Bueno / Riesgo bajo (Óptimo <3.5)"}
-        return {"cls": "text-emerald-700 font-semibold", "title": "Óptimo (<3.5)"}
+    # 5. Cociente LDL/HDL (Castelli II: Ref < 4.3)
+    if "Castelli II" in name or name in ["Cociente LDL/HDL", "LDL / HDL"]:
+        if v > 4.3:
+            return {"cls": "text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded", "title": "Riesgo Alto (>4.3)"}
+        if v >= 3.0:
+            return {"cls": "text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded", "title": "Bueno / Límite intermedio"}
+        return {"cls": "text-emerald-700 font-semibold", "title": "Óptimo (<3.0)"}
 
-    # 6. Cociente LDL/HDL (Castelli II)
-    if name == "Cociente LDL/HDL":
-        if v > 3.0:
-            return {"cls": "text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded", "title": "Riesgo Alto (>3.0)"}
-        if v >= 2.0:
-            return {"cls": "text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded", "title": "Bueno / Favorable (Óptimo <2.0)"}
-        return {"cls": "text-emerald-700 font-semibold", "title": "Óptimo (<2.0)"}
+    # 6. Cociente Col/HDL (Castelli I: Ref < 5.0)
+    if ("Castelli I" in name and "Castelli II" not in name) or name in ["Cociente Col/HDL", "Colesterol Total / HDL"]:
+        if v > 5.0:
+            return {"cls": "text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded", "title": "Riesgo Aumentado / Alto (>5.0)"}
+        if v >= 4.0:
+            return {"cls": "text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded", "title": "Bueno / Límite (Óptimo <4.0)"}
+        return {"cls": "text-emerald-700 font-semibold", "title": "Óptimo (<4.0)"}
+
+    # 6b. Triglicéridos / HDL (Ref < 2.0)
+    if name in ["Triglicéridos / HDL", "Cociente TG/HDL", "Ratio TG/HDL"]:
+        if v > 2.0:
+            return {"cls": "text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded", "title": "Elevado / Resistencia Insulínica (>2.0)"}
+        if v >= 1.5:
+            return {"cls": "text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded", "title": "Bueno / Límite"}
+        return {"cls": "text-emerald-700 font-semibold", "title": "Óptimo (<1.5)"}
 
     # 7. Ratio LDL / Col. Total
     if name == "Ratio LDL / Col. Total":

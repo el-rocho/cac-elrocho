@@ -1,43 +1,182 @@
 import json
 import re
+import random
+import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import httpx
+from google import genai
+from google.genai import types
 
+import unicodedata
 from app.config import settings
 from app.schemas import AnaliticaPreviewResponse, MedicionExtraida, RangoDetectado
 from app.services.parser import extract_text_from_pdf, extract_metadata_fallback
+from app.services.analito_normalizer import normalize_analito
 
 logger = logging.getLogger(__name__)
 
+def normalizar_texto(texto: str) -> str:
+    """Elimina tildes, signos de puntuación y pasa a minúsculas para comparaciones semánticas tolerantes."""
+    if not texto:
+        return ""
+    texto = texto.lower().strip()
+    texto = "".join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
+    texto = re.sub(r'[^a-z0-9\s]', ' ', texto)
+    return re.sub(r'\s+', ' ', texto).strip()
+
+def normalizar_dni(dni: str) -> str:
+    """Normaliza un documento de identidad eliminando puntos, guiones y espacios."""
+    if not dni:
+        return ""
+    return re.sub(r'[^a-zA-Z0-9]', '', str(dni)).upper().strip()
+
+def verificar_coincidencia_flexible(paciente_cfg, paciente_pdf: Optional[str], dni_pdf: Optional[str]) -> Optional[str]:
+    """
+    Comprueba de forma tolerante si los datos del informe discrepan del paciente configurado.
+    Permite variaciones de orden (ej: 'Huerta, Javier' vs 'Francisco Javier Huerta').
+    Si el usuario aún no ha configurado sus datos, no genera advertencia.
+    """
+    if not paciente_cfg:
+        return None
+    nombre_cfg = (getattr(paciente_cfg, "nombre_completo", "") or "").strip()
+    dni_cfg = (getattr(paciente_cfg, "dni", "") or "").strip()
+
+    if not nombre_cfg and not dni_cfg:
+        return None
+
+    # 1. Comprobación flexible de DNI si ambos existen
+    dni_pdf_norm = normalizar_dni(dni_pdf)
+    dni_cfg_norm = normalizar_dni(dni_cfg)
+    if dni_pdf_norm and dni_cfg_norm and len(dni_pdf_norm) >= 4 and len(dni_cfg_norm) >= 4:
+        if dni_pdf_norm != dni_cfg_norm:
+            return f"El documento de identidad en el PDF ({dni_pdf}) no coincide con el DNI configurado ({dni_cfg})."
+
+    # 2. Comprobación flexible de Nombre si ambos existen
+    if paciente_pdf and nombre_cfg:
+        tokens_cfg = set(normalizar_texto(nombre_cfg).split())
+        tokens_pdf = set(normalizar_texto(paciente_pdf).split())
+        stopwords = {"de", "del", "la", "las", "los", "y", "da", "do", "dr", "dra", "don", "dona", "sr", "sra"}
+        tokens_cfg = {t for t in tokens_cfg if len(t) > 2 and t not in stopwords}
+        tokens_pdf = {t for t in tokens_pdf if len(t) > 2 and t not in stopwords}
+
+        if tokens_cfg and tokens_pdf:
+            interseccion = tokens_cfg.intersection(tokens_pdf)
+            if not interseccion:
+                return f"El nombre en el informe ('{paciente_pdf}') difiere del paciente configurado ('{nombre_cfg}')."
+
+    return None
+
+async def call_gemini_with_retry(prompt_content: str, model_name: str) -> str:
+    """
+    Invoca la API de Gemini con reintentos automáticos y backoff exponencial
+    ante sobrecargas temporales de servicio (503), límites de tasa (429) o microcaídas.
+    Si el modelo principal está temporalmente saturado, recurre a un modelo alternativo.
+    """
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    models_to_try = [model_name]
+    if model_name != "gemini-3.7-flash":
+        models_to_try.append("gemini-3.7-flash")
+
+    last_error = None
+    for current_model in models_to_try:
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = await client.aio.models.generate_content(
+                    model=current_model,
+                    contents=prompt_content,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        response_mime_type="application/json",
+                        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+                    )
+                )
+                if response and response.text:
+                    return response.text
+                raise ValueError("Respuesta vacía de Gemini API")
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                is_transient = any(code in err_str for code in [
+                    "503", "429", "500", "502", "504", "UNAVAILABLE",
+                    "ResourceExhausted", "overloaded", "timeout", "timed out"
+                ])
+                if is_transient and attempt < max_retries - 1:
+                    wait_sec = (1.5 ** attempt) + random.uniform(0.5, 1.2)
+                    logger.warning(
+                        f"Aviso transitorio de Google Gemini en {current_model} ({e}). "
+                        f"Reintentando en {wait_sec:.1f}s (intento {attempt + 1}/{max_retries})..."
+                    )
+                    await asyncio.sleep(wait_sec)
+                else:
+                    logger.warning(f"Intento con modelo {current_model} no pudo completarse: {e}")
+                    break
+
+    raise last_error
+
 SYSTEM_PROMPT = """
-Eres un especialista médico y bioanalista experto en análisis clínicos de laboratorio (hospitales españoles como Recoletas, Megalab, Quirón, etc.).
+Eres un especialista médico y bioanalista experto en análisis clínicos de laboratorio en España (Megalab, Recoletas, Quirón, Centro Médico Magdala, etc.).
 Tu misión es extraer con precisión absoluta todos los parámetros analíticos de un informe médico (PDF o texto extraído).
 
-Debes:
-1. Extraer la FECHA de la analítica (formato YYYY-MM-DD), el LABORATORIO y el MÉDICO FACULTATIVO.
-2. Extraer CADA analito individual con:
-   - nombre: nombre canónico y claro (ej: 'Glucosa Basal', 'HbA1c', 'Creatinina', 'Colesterol Total', 'HDL-Colesterol', 'LDL-Colesterol', 'Triglicéridos', 'PSA Total', 'TSH', etc.)
-   - valor: valor encontrado tal como figura (ej: '96.7', '< 1.7', '181.2')
-   - unidad: unidad de medida (ej: 'mg/dL', '%', 'ng/mL', 'µUI/mL')
-   - rango_referencia: el intervalo de normalidad específico impreso en este informe (ej: '60 - 100', '< 116', '0.27 - 4.29')
-   - estado_estimado: 'Optimo', 'Bueno', 'Atencion', 'Alto' o 'Bajo'.
-3. AUDITAR RANGOS: Si detectas que un rango de referencia es más estricto o diferente de los estándares clásicos (por ejemplo, LDL con límite en 116 mg/dL en lugar de 130 mg/dL, o HbA1c en 5.6%), anótalo en 'rangos_modificados' explicando el motivo clínico (ej: criterios SEA de riesgo cardiovascular).
-4. Generar una lista de 'alertas_ia' con los puntos que requieren atención del usuario.
-5. Redactar un 'dictamen_preliminar' sintético y riguroso.
+NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
+1. DISTINCIÓN SANGRE (SUERO) vs ORINA:
+   - Los parámetros de sangre/suero van separados de la orina.
+   - Si un parámetro es de análisis de orina o sedimento (ej: Glucosa: Negativo, Albúmina: Negativo), asígnalo con código "GLUCOSE_URINE" o "PROTEIN_URINE" y nombre "Glucosa (Orina)" o "Proteínas (Orina)". NUNCA uses "Glucosa Basal" para orina.
+   - La glucosa basal en ayunas de sangre (suero) tiene código "GLUCOSE" y nombre "Glucosa Basal" (unidad mg/dL).
+
+2. DISTINCIÓN PERFIL LIPÍDICO vs COCIENTES ATEROGÉNICOS (CASTELLI):
+   - "Colesterol" o "Colesterol Total": es la concentración sérica de colesterol en mg/dL (ej: 188 mg/dL, 180 mg/dL). Código canónico: "CHOLESTEROL_TOTAL".
+   - "HDL-Colesterol": es la fracción HDL en mg/dL (ej: 42 mg/dL, 48.9 mg/dL). Código canónico: "HDL".
+   - "LDL-Colesterol": es la fracción LDL en mg/dL (ej: 119 mg/dL, 113 mg/dL). Código canónico: "LDL".
+   - "Triglicéridos": en mg/dL (ej: 100 mg/dL, 126 mg/dL). Código canónico: "TRIGLYCERIDES".
+   - "Cociente (COL.T/HDL-COL)" o "Castelli I": es un RATIO adimensional (ej: 3.84, 4.29). Código canónico: "RATIO_COL_HDL", nombre: "Cociente Col/HDL", unidad: "ratio". ¡BAJO NINGÚN CONCEPTO LO ASIGNES A COLESTEROL TOTAL!
+   - "Cociente (LDL-COL/HDL-COL)" o "Castelli II": es un RATIO adimensional (ej: 2.43, 2.69). Código canónico: "RATIO_LDL_HDL", nombre: "Cociente LDL/HDL", unidad: "ratio". ¡BAJO NINGÚN CONCEPTO LO ASIGNES A HDL!
+
+3. CORRECCIÓN DE ARTEFACTOS DE OCR EN INFORMES ESCANEADOS:
+   - Si el OCR leyó un carácter erróneo evidente por similitud de glifos en una tabla (por ejemplo: "4A9 mg/dL" en HDL -> el valor es 48.9; "400%" en hematocrito -> 40.0%; "DOR" en plaquetas -> 208; "S13" en HCM -> 31.3), corrígelo con criterio clínico contextual.
+   - Los números con coma decimal deben convertirse a punto decimal estándar (ej: "48,9" -> "48.9").
+
+4. CATÁLOGO DE CÓDIGOS CANÓNICOS PRINCIPALES:
+   - CHOLESTEROL_TOTAL, HDL, LDL, TRIGLYCERIDES, RATIO_COL_HDL, RATIO_LDL_HDL, RATIO_LDL_COL, RATIO_HDL_COL, RATIO_TG_COL
+   - GLUCOSE, HBA1C, CREATININE, UREA, BUN, URIC_ACID
+   - PSA_TOTAL, PSA_FREE, TSH, T4_LIBRE, VITAMIN_D, PTH_INTACTA, CEA, CA_125_II, CA_19_9
+   - HIERRO, FERRITINA, PROTEINA_C_REACTIVA, FACTOR_REUMATOIDE
+   - GOT_AST, GPT_ALT, GGT, FOSFATASA_ALCALINA, AMILASA, SODIO, POTASIO, CALCIO_TOTAL, FOSFORO, MAGNESIO, BILIRRUBINA_TOTAL
+   - HEMATIES, HEMOGLOBINA, HEMATOCRITO, VCM, HCM, CHCM, RDW, PLAQUETAS, LEUCOCITOS, NEUTROFILOS_ABS, LINFOCITOS_ABS, MONOCITOS_ABS, EOSINOFILOS_ABS, BASOFILOS_ABS, VSG_1H, VSG_2H, KATZ_INDEX
+   - GLUCOSE_URINE, PROTEIN_URINE, DENSIDAD_URINE, PH_URINE, SEDIMENTO_URINARIO
 
 RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
 {
   "fecha": "YYYY-MM-DD",
   "laboratorio": "Nombre del laboratorio",
   "facultativo": "Nombre del doctor o 'No especificado'",
+  "paciente_detectado": "Nombre y apellidos del paciente que figuran en el documento (o null si no aparecen)",
+  "dni_detectado": "DNI/NIE/identificación del paciente que figura en el documento (o null si no aparece)",
   "mediciones": [
     {
+      "codigo": "GLUCOSE",
       "nombre": "Glucosa Basal",
       "valor": "96.7",
       "unidad": "mg/dL",
       "rango_referencia": "60 - 100",
+      "estado_estimado": "Optimo"
+    },
+    {
+      "codigo": "CHOLESTEROL_TOTAL",
+      "nombre": "Colesterol Total",
+      "valor": "188",
+      "unidad": "mg/dL",
+      "rango_referencia": "< 200",
+      "estado_estimado": "Bueno"
+    },
+    {
+      "codigo": "RATIO_COL_HDL",
+      "nombre": "Cociente Col/HDL",
+      "valor": "3.84",
+      "unidad": "ratio",
+      "rango_referencia": "< 4.5",
       "estado_estimado": "Optimo"
     }
   ],
@@ -46,18 +185,17 @@ RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
       "analito": "LDL-Colesterol",
       "rango_anterior": "< 130 mg/dL",
       "rango_nuevo": "< 116 mg/dL",
-      "explicacion": "El laboratorio aplica criterios SEA 2023 más estrictos para prevención cardiovascular."
+      "explicacion": "Criterios SEA 2023 de prevención cardiovascular."
     }
   ],
   "alertas_ia": [
-    "HbA1c en 5.7% (dintel de prediabetes según ADA).",
-    "LDL en 118 mg/dL (sobrepasa el nuevo rango <116 mg/dL)."
+    "Resumen de hallazgos relevantes..."
   ],
-  "dictamen_preliminar": "Favorable con Puntos de Atención (Vigilancia en HbA1c y perfil lipídico)."
+  "dictamen_preliminar": "Dictamen clínico estructurado..."
 }
 """
 
-async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str) -> AnaliticaPreviewResponse:
+async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str, paciente_db: Optional[Any] = None) -> AnaliticaPreviewResponse:
     """
     Procesa un PDF clínico mediante Google Gemini API para extraer mediciones,
     detectar cambios de rango y emitir recomendaciones.
@@ -66,45 +204,47 @@ async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str) -> AnaliticaPreview
     
     if not settings.GEMINI_API_KEY or settings.LLM_PROVIDER == "mock":
         logger.warning("No hay GEMINI_API_KEY configurada o LLM_PROVIDER es mock. Usando extractor simulado inteligente.")
-        return generate_mock_extraction(text, temp_id)
+        return generate_mock_extraction(text, temp_id, paciente_db=paciente_db)
 
     try:
-        # Petición a Gemini REST API
         model = settings.GEMINI_MODEL
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+        prompt_content = f"{SYSTEM_PROMPT}\n\nDOCUMENTO A ANALIZAR:\n{text[:25000]}"
         
-        prompt_content = f"{SYSTEM_PROMPT}\n\nDOCUMENTO A ANALIZAR:\n{text[:20000]}"
+        raw_text = await call_gemini_with_retry(prompt_content, model)
         
-        payload = {
-            "contents": [
-                {
-                    "parts": [{"text": prompt_content}]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.1,
-                "responseMimeType": "application/json"
-            }
-        }
-        
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        # Limpiar bloques markdown si vinieran incluidos
+        cleaned = raw_text.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        parsed = json.loads(cleaned.strip())
 
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-        parsed = json.loads(raw_text)
+        mediciones = []
+        for m in parsed.get("mediciones", []):
+            raw_nom = m.get("nombre", "Analito")
+            raw_val = str(m.get("valor", "")).strip()
+            raw_uni = m.get("unidad", "")
+            raw_ref = m.get("rango_referencia", "")
+            raw_est = m.get("estado_estimado", "Normal")
+            raw_cod = m.get("codigo")
 
-        mediciones = [
-            MedicionExtraida(
-                nombre=m.get("nombre", "Analito"),
-                valor=str(m.get("valor", "")),
-                unidad=m.get("unidad", ""),
-                rango_referencia=m.get("rango_referencia", ""),
-                estado_estimado=m.get("estado_estimado", "Normal")
+            norm_cod, norm_nom, norm_cat, norm_uni = normalize_analito(
+                raw_nom, raw_uni, raw_val, raw_cod
             )
-            for m in parsed.get("mediciones", [])
-        ]
+
+            mediciones.append(
+                MedicionExtraida(
+                    codigo=norm_cod,
+                    nombre=norm_nom,
+                    valor=raw_val,
+                    unidad=raw_uni or norm_uni,
+                    rango_referencia=raw_ref,
+                    estado_estimado=raw_est
+                )
+            )
 
         rangos = [
             RangoDetectado(
@@ -116,6 +256,14 @@ async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str) -> AnaliticaPreview
             for r in parsed.get("rangos_modificados", [])
         ]
 
+        paciente_det = parsed.get("paciente_detectado")
+        dni_det = parsed.get("dni_detectado")
+        alertas = parsed.get("alertas_ia", [])
+
+        aviso_disc = verificar_coincidencia_flexible(paciente_db, paciente_det, dni_det)
+        if aviso_disc:
+            alertas.insert(0, f"⚠️ Aviso de identidad: {aviso_disc}")
+
         return AnaliticaPreviewResponse(
             temp_id=temp_id,
             fecha=parsed.get("fecha", "2026-06-13"),
@@ -123,16 +271,19 @@ async def analyze_pdf_with_llm(pdf_path: Path, temp_id: str) -> AnaliticaPreview
             facultativo=parsed.get("facultativo", "No especificado"),
             total_parametros=len(mediciones),
             mediciones=mediciones,
-            alertas_ia=parsed.get("alertas_ia", []),
+            alertas_ia=alertas,
             rangos_modificados=rangos,
-            dictamen_preliminar=parsed.get("dictamen_preliminar", "Dictamen pendiente de confirmación")
+            dictamen_preliminar=parsed.get("dictamen_preliminar", "Dictamen pendiente de confirmación"),
+            paciente_detectado=paciente_det,
+            dni_detectado=dni_det,
+            aviso_discrepancia_paciente=aviso_disc
         )
 
     except Exception as e:
         logger.error(f"Fallo en llamada a Gemini API: {e}. Activando fallback de contingencia.")
-        return generate_mock_extraction(text, temp_id, error_note=str(e))
+        return generate_mock_extraction(text, temp_id, error_note=str(e), paciente_db=paciente_db)
 
-def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] = None) -> AnaliticaPreviewResponse:
+def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] = None, paciente_db: Optional[Any] = None) -> AnaliticaPreviewResponse:
     """
     Extractor de contingencia que analiza patrones comunes en informes clínicos españoles.
     """
@@ -200,6 +351,8 @@ def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] 
         )
     ]
 
+    aviso_disc = verificar_coincidencia_flexible(paciente_db, None, None)
+
     return AnaliticaPreviewResponse(
         temp_id=temp_id,
         fecha=meta["fecha"] or "2026-06-13",
@@ -209,5 +362,8 @@ def generate_mock_extraction(text: str, temp_id: str, error_note: Optional[str] 
         mediciones=mediciones,
         alertas_ia=alertas,
         rangos_modificados=rangos,
-        dictamen_preliminar="Favorable con Puntos de Atención (Vigilancia en glucosa y LDL)."
+        dictamen_preliminar="Favorable con Puntos de Atención (Vigilancia en glucosa y LDL).",
+        paciente_detectado=None,
+        dni_detectado=None,
+        aviso_discrepancia_paciente=aviso_disc
     )

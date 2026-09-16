@@ -22,10 +22,11 @@ logger = logging.getLogger("cac-elrocho")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicialización de la base de datos y carga histórica inicial
+    # Inicialización de la base de datos
     logger.info("Iniciando cac-elrocho: verificando base de datos SQLite...")
     init_db()
-    run_seed()
+    if settings.APP_ENV == "demo":
+        run_seed()
     
     # Iniciar monitor de buzón en segundo plano
     inbox_watcher.start()
@@ -39,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="cac-elrocho",
     description="Panel Clínico Autónomo y Cuadro de Mando de Analíticas con Validación LLM",
-    version="1.0.0",
+    version="0.1.0",
     lifespan=lifespan
 )
 

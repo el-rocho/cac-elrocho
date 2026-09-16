@@ -4,10 +4,40 @@ let currentPreviewData = null;
 let chartsRendered = false;
 let chartInstances = {};
 
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function getErrorMessage(res, defaultMsg = 'Error en la petición') {
+  try {
+    const err = await res.json();
+    return err.detail || err.message || defaultMsg;
+  } catch (_) {
+    try {
+      const text = await res.text();
+      if (text && text.trim().length > 0 && text.length < 300) return text;
+    } catch (_) {}
+    return `${defaultMsg} (${res.status} ${res.statusText})`;
+  }
+}
+
 // Inicialización al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.Chart) {
+    Chart.defaults.elements.line.spanGaps = true;
+    Chart.defaults.elements.point.radius = 4;
+    Chart.defaults.elements.point.hoverRadius = 6;
+  }
   loadSummary();
   loadTables();
+  loadAuditFiles();
+  loadPatientConfig();
   setupDragAndDrop();
 });
 
@@ -28,10 +58,16 @@ function setTab(tabId) {
     }
   });
 
-  if (tabId === 'charts' && !chartsRendered) {
-    loadCharts();
+  if (tabId === 'charts') {
+    setTimeout(() => {
+      loadCharts();
+    }, 60);
   } else if (tabId === 'ai') {
     loadAiAuditorias();
+  } else if (tabId === 'audit') {
+    loadAuditFiles();
+  } else if (tabId === 'config') {
+    loadPatientConfig();
   }
 }
 
@@ -44,8 +80,29 @@ async function loadSummary() {
 
     document.getElementById('badge-total-controles').textContent = `${data.total_controles} Controles (${data.periodo_historico})`;
     document.getElementById('badge-ultima-fecha').textContent = `Última analítica: ${data.ultima_fecha}`;
-    document.getElementById('paciente-nombre').textContent = 'Panel de Gestión Analítica: ' + (data.paciente.nombre || 'Paciente');
-    document.getElementById('paciente-detalles').innerHTML = 'F. Nacimiento: <strong>' + (data.paciente.nacimiento || '-') + '</strong> • DNI: <strong>' + (data.paciente.dni || '-') + '</strong> • ' + (data.paciente.centro || '-');
+
+    const p = data.paciente || {};
+    document.getElementById('paciente-nombre').textContent = 'Panel de Gestión Analítica: ' + (p.nombre || 'Paciente');
+    
+    let partesDetalles = [];
+    if (p.nacimiento && p.nacimiento !== '-') {
+      let nacStr = `F. Nacimiento: <strong>${escapeHtml(p.nacimiento)}</strong>`;
+      if (p.edad && p.edad !== '-') {
+        nacStr += ` (${escapeHtml(p.edad)})`;
+      }
+      partesDetalles.push(nacStr);
+    }
+    if (p.sexo && p.sexo !== '-' && p.sexo !== 'No especificado') {
+      partesDetalles.push(`Sexo: <strong>${escapeHtml(p.sexo)}</strong>`);
+    }
+    if (p.dni && p.dni !== '-') {
+      partesDetalles.push(`DNI: <strong>${escapeHtml(p.dni)}</strong>`);
+    }
+
+    document.getElementById('paciente-detalles').innerHTML = partesDetalles.length > 0 
+      ? partesDetalles.join(' • ') 
+      : 'Sin datos personales configurados';
+
     document.getElementById('dictamen-titulo').textContent = data.dictamen_global;
     document.getElementById('dictamen-sub').textContent = data.dictamen_subtitulo;
 
@@ -103,15 +160,20 @@ function getCellFormatClient(name, v) {
     if (num >= 180) return { cls: 'text-slate-800 font-bold', title: 'Bueno / Próximo a 200' };
     return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<180)' };
   }
-  if (name === 'Cociente Col/HDL') {
-    if (num > 4.5) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Riesgo Alto (>4.5)' };
-    if (num >= 3.5) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno (Óptimo <3.5)' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<3.5)' };
+  if (name.includes('Castelli II') || name === 'Cociente LDL/HDL' || name === 'LDL / HDL') {
+    if (num > 4.3) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Riesgo Alto (>4.3)' };
+    if (num >= 3.0) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Límite intermedio' };
+    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<3.0)' };
   }
-  if (name === 'Cociente LDL/HDL') {
-    if (num > 3.0) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Riesgo Alto (>3.0)' };
-    if (num >= 2.0) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno (Óptimo <2.0)' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<2.0)' };
+  if ((name.includes('Castelli I') && !name.includes('Castelli II')) || name === 'Cociente Col/HDL' || name === 'Colesterol Total / HDL') {
+    if (num > 5.0) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Riesgo Aumentado / Alto (>5.0)' };
+    if (num >= 4.0) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Límite (Óptimo <4.0)' };
+    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<4.0)' };
+  }
+  if (name === 'Triglicéridos / HDL' || name === 'Cociente TG/HDL' || name === 'Ratio TG/HDL') {
+    if (num > 2.0) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Elevado / Resistencia Insulínica (>2.0)' };
+    if (num >= 1.5) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Límite' };
+    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<1.5)' };
   }
   if (name === 'Vitamina D (25-OH)') {
     if (num < 20) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Déficit (<20)' };
@@ -138,12 +200,27 @@ async function loadTables() {
         <th class="p-3">Unidad</th>
         <th class="p-3 text-center">Ref. Oficial</th>
     `;
+    const infList = data.informes || [];
     data.dates.forEach((d, idx) => {
-      let bgCls = 'bg-slate-700';
-      if (idx === data.dates.length - 1) bgCls = 'bg-emerald-800 font-bold';
-      else if (idx === data.dates.length - 2) bgCls = 'bg-indigo-900 font-bold';
-      else if (idx === data.dates.length - 3) bgCls = 'bg-blue-900 font-bold';
-      hHtml += `<th class="p-3 text-center ${bgCls}">${d}</th>`;
+      let bgCls = 'bg-slate-700 hover:bg-slate-600';
+      if (idx === data.dates.length - 1) bgCls = 'bg-emerald-800 hover:bg-emerald-700 font-bold';
+      else if (idx === data.dates.length - 2) bgCls = 'bg-indigo-900 hover:bg-indigo-800 font-bold';
+      else if (idx === data.dates.length - 3) bgCls = 'bg-blue-900 hover:bg-blue-800 font-bold';
+
+      const inf = infList[idx];
+      if (inf && inf.id) {
+        hHtml += `
+          <th class="p-3 text-center ${bgCls} cursor-pointer group transition-all select-none border-b-2 border-transparent hover:border-amber-400"
+              onclick="openEditInformeModal(${inf.id})"
+              title="Hacer clic para revisar o editar analítica del ${escapeHtml(inf.fecha)} (${escapeHtml(inf.laboratorio)})">
+            <div class="flex items-center justify-center gap-1.5">
+              <span>${escapeHtml(d)}</span>
+              <span class="text-[10px] opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-transform" title="Editar este control">✏️</span>
+            </div>
+          </th>`;
+      } else {
+        hHtml += `<th class="p-3 text-center ${bgCls}">${escapeHtml(d)}</th>`;
+      }
     });
     hHtml += `
         <th class="p-3 text-center bg-blue-800 font-extrabold text-white border-l-2 border-r-2 border-blue-400 shadow-inner">
@@ -159,7 +236,23 @@ async function loadTables() {
     // 4.2 Filas Bioquímica
     const tbody = document.getElementById('tableBodyRows');
     tbody.innerHTML = '';
+    let currentGroup = null;
+    const totalCols = 3 + data.dates.length + 2;
+
     data.bioquimica.forEach(row => {
+      // Cabecera visual de grupo clínico
+      if (row.group && row.group !== currentGroup) {
+        currentGroup = row.group;
+        const groupTr = document.createElement('tr');
+        groupTr.className = 'group-header bg-slate-100 border-t-2 border-b border-slate-300';
+        groupTr.innerHTML = `
+          <td colspan="${totalCols}" class="px-4 py-2 text-xs font-black text-slate-800 tracking-wider bg-slate-100/95 uppercase shadow-sm">
+            ${row.group}
+          </td>
+        `;
+        tbody.appendChild(groupTr);
+      }
+
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-50 transition-colors';
       let cells = `
@@ -237,110 +330,111 @@ function populateSimplePanel(tbodyId, rows) {
 
 // 5. Cargar Gráficos Evolutivos
 async function loadCharts() {
+  if (typeof Chart === 'undefined') {
+    console.error('Chart.js no está cargado todavía.');
+    return;
+  }
+
   try {
     const res = await fetch('/api/v1/analiticas/charts');
-    if (!res.ok) throw new Error('Error al cargar charts');
+    if (!res.ok) throw new Error('Error al cargar datos de gráficos: ' + res.statusText);
     const cData = await res.json();
     chartsRendered = true;
 
-    // Destruir instancias previas si existen
-    Object.values(chartInstances).forEach(c => c && c.destroy());
+    // Destruir instancias previas de forma segura
+    Object.values(chartInstances).forEach(c => {
+      if (c && typeof c.destroy === 'function') {
+        try { c.destroy(); } catch (e) {}
+      }
+    });
+    chartInstances = {};
+
+    const renderChart = (key, canvasId, config, extraOptions = {}) => {
+      const el = document.getElementById(canvasId);
+      if (!el || !config || !config.labels || config.labels.length === 0) return;
+      try {
+        if (config.datasets) {
+          config.datasets.forEach(ds => {
+            ds.spanGaps = true;
+            if (!ds.pointRadius) ds.pointRadius = 4;
+            if (!ds.pointHoverRadius) ds.pointHoverRadius = 6;
+          });
+        }
+        chartInstances[key] = new Chart(el, {
+          type: 'line',
+          data: config,
+          options: Object.assign({
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 350 },
+            spanGaps: true,
+            elements: {
+              line: { tension: 0.2, spanGaps: true },
+              point: { radius: 4, hoverRadius: 6 }
+            }
+          }, extraOptions)
+        });
+      } catch (e) {
+        console.error(`Error al crear gráfico ${key} (${canvasId}):`, e);
+      }
+    };
 
     // 1. Glucosa
-    chartInstances['glucosa'] = new Chart(document.getElementById('chartGlucosa'), {
-      type: 'line',
-      data: cData.glucosa,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { y: { min: 85, max: 115 } }
-      }
+    renderChart('glucosa', 'chartGlucosa', cData.glucosa, {
+      plugins: { legend: { display: false } },
+      scales: { y: { suggestedMin: 70, suggestedMax: 125 } }
     });
 
     // 2. Lípidos
-    chartInstances['lipidos'] = new Chart(document.getElementById('chartLipidos'), {
-      type: 'line',
-      data: cData.lipidos,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { min: 40, max: 200 } }
-      }
+    renderChart('lipidos', 'chartLipidos', cData.lipidos, {
+      scales: { y: { suggestedMin: 40, suggestedMax: 220 } }
     });
 
     // 3. Castelli
-    chartInstances['castelli'] = new Chart(document.getElementById('chartCastelli'), {
-      type: 'line',
-      data: cData.castelli,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { min: 0.5, max: 4.8 } }
-      }
+    renderChart('castelli', 'chartCastelli', cData.castelli, {
+      scales: { y: { suggestedMin: 1.0, suggestedMax: 5.5 } }
     });
 
-    // 4. Ratios Lipídicos
-    chartInstances['ratios'] = new Chart(document.getElementById('chartRatiosLipidos'), {
-      type: 'line',
-      data: cData.ratios_tg,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { min: 0.1, max: 0.8 } }
-      }
+    // 4. Cociente Triglicéridos / HDL
+    renderChart('ratios', 'chartRatiosLipidos', cData.ratios_tg, {
+      scales: { y: { suggestedMin: 0.5, suggestedMax: 3.5 } }
     });
 
     // 5. Renal
-    chartInstances['renal'] = new Chart(document.getElementById('chartRenal'), {
-      type: 'line',
-      data: cData.renal,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: { type: 'linear', position: 'left', min: 20, max: 60, title: { display: true, text: 'Urea (mg/dL)' } },
-          y1: { type: 'linear', position: 'right', min: 0.6, max: 1.3, grid: { drawOnChartArea: false }, title: { display: true, text: 'Creatinina (mg/dL)' } }
-        }
+    renderChart('renal', 'chartRenal', cData.renal, {
+      scales: {
+        y: { type: 'linear', position: 'left', suggestedMin: 20, suggestedMax: 60, title: { display: true, text: 'Urea (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', suggestedMin: 0.6, suggestedMax: 1.3, grid: { drawOnChartArea: false }, title: { display: true, text: 'Creatinina (mg/dL)' } }
       }
     });
 
     // 6. Ácido Úrico
-    chartInstances['urico'] = new Chart(document.getElementById('chartUrico'), {
-      type: 'line',
-      data: cData.urico,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: { y: { min: 4.5, max: 8.0 } }
-      }
+    renderChart('urico', 'chartUrico', cData.urico, {
+      plugins: { legend: { display: false } },
+      scales: { y: { suggestedMin: 3.5, suggestedMax: 8.0 } }
     });
 
     // 7. PSA
-    chartInstances['psa'] = new Chart(document.getElementById('chartPSA'), {
-      type: 'line',
-      data: cData.psa,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: { min: 0.3, max: 1.0, title: { display: true, text: 'PSA Total (ng/mL)' } },
-          y1: { min: 20, max: 80, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Ratio (%)' } }
-        }
+    renderChart('psa', 'chartPSA', cData.psa, {
+      scales: {
+        y: { suggestedMin: 0.2, suggestedMax: 4.0, title: { display: true, text: 'PSA Total (ng/mL)' } },
+        y1: { suggestedMin: 10, suggestedMax: 70, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Ratio (%)' } }
       }
     });
 
     // 8. TSH
-    chartInstances['tsh'] = new Chart(document.getElementById('chartTSH'), {
-      type: 'line',
-      data: cData.tsh,
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { min: 0.8, max: 3.0 } }
-      }
+    renderChart('tsh', 'chartTSH', cData.tsh, {
+      scales: { y: { suggestedMin: 0.2, suggestedMax: 4.5 } }
     });
+
+    // Trigger de redimensionado tras terminar la animación de pestaña
+    setTimeout(() => {
+      Object.values(chartInstances).forEach(c => {
+        if (c && typeof c.resize === 'function') {
+          try { c.resize(); } catch (e) {}
+        }
+      });
+    }, 100);
 
   } catch (err) {
     console.error('Fallo al cargar gráficos:', err);
@@ -460,8 +554,8 @@ async function uploadPdfFile(file) {
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Error al procesar el archivo');
+      const errMsg = await getErrorMessage(res, 'Error al procesar el archivo');
+      throw new Error(errMsg);
     }
 
     const data = await res.json();
@@ -479,17 +573,35 @@ function renderUploadPreview(data) {
   document.getElementById('uploadStep2').classList.add('hidden');
   document.getElementById('uploadStep3').classList.remove('hidden');
 
-  document.getElementById('previewLabDate').textContent = `${data.fecha} • ${data.laboratorio}`;
-  document.getElementById('previewDictamen').textContent = data.dictamen_preliminar;
-  document.getElementById('previewParamCount').textContent = data.total_parametros;
+  // Metadatos editables
+  const fechaEl = document.getElementById('previewFechaInput');
+  if (fechaEl) fechaEl.value = data.fecha || '';
+
+  const labEl = document.getElementById('previewLabInput');
+  if (labEl) labEl.value = data.laboratorio || '';
+
+  const facEl = document.getElementById('previewFacultativoInput');
+  if (facEl) facEl.value = data.facultativo || '';
+
+  const dictEl = document.getElementById('previewDictamenInput');
+  if (dictEl) dictEl.value = data.dictamen_preliminar || '';
 
   const alertsContainer = document.getElementById('previewAlerts');
   alertsContainer.innerHTML = '';
+  
+  if (data.aviso_discrepancia_paciente) {
+    const mismatchDiv = document.createElement('div');
+    mismatchDiv.className = 'flex items-center gap-2 bg-rose-50 border border-rose-300 p-2.5 rounded-xl text-rose-800 text-xs font-semibold';
+    mismatchDiv.innerHTML = `<span>⚠️</span> <span><strong>Atención de Identidad:</strong> ${escapeHtml(data.aviso_discrepancia_paciente)} Verifica si es el documento correcto.</span>`;
+    alertsContainer.appendChild(mismatchDiv);
+  }
+
   if (data.alertas_ia && data.alertas_ia.length > 0) {
     data.alertas_ia.forEach(al => {
+      if (data.aviso_discrepancia_paciente && al.includes(data.aviso_discrepancia_paciente)) return;
       const div = document.createElement('div');
-      div.className = 'flex items-center gap-1.5';
-      div.innerHTML = `<span>⚠️</span> <span>${al}</span>`;
+      div.className = 'flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded-lg text-amber-900';
+      div.innerHTML = `<span>⚠️</span> <span>${escapeHtml(al)}</span>`;
       alertsContainer.appendChild(div);
     });
   }
@@ -498,35 +610,135 @@ function renderUploadPreview(data) {
   tbody.innerHTML = '';
   data.mediciones.forEach(m => {
     const tr = document.createElement('tr');
-    tr.className = 'hover:bg-slate-50';
+    tr.className = 'hover:bg-slate-50 transition-colors';
+    tr.dataset.code = m.codigo || '';
+
     tr.innerHTML = `
-      <td class="p-2.5 font-semibold text-slate-800">${m.nombre}</td>
-      <td class="p-2.5 text-center font-bold text-slate-900">${m.valor}</td>
-      <td class="p-2.5 text-center text-slate-500">${m.unidad}</td>
-      <td class="p-2.5 text-center text-slate-400 text-[11px]">${m.rango_referencia}</td>
-      <td class="p-2.5 text-center">
-        <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-semibold rounded text-[10px]">${m.estado_estimado || 'Normal'}</span>
+      <td class="p-2">
+        <input type="text" class="preview-nombre w-full text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" value="${escapeHtml(m.nombre)}" placeholder="Nombre analito">
+      </td>
+      <td class="p-2 text-center">
+        <input type="text" class="preview-valor w-full text-xs font-bold text-center text-slate-900 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" value="${escapeHtml(String(m.valor ?? ''))}" placeholder="Valor">
+      </td>
+      <td class="p-2 text-center">
+        <input type="text" class="preview-unidad w-full text-xs text-center text-slate-600 bg-white border border-slate-200 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" value="${escapeHtml(m.unidad || '')}" placeholder="Unidad">
+      </td>
+      <td class="p-2 text-center">
+        <input type="text" class="preview-rango w-full text-[11px] text-center text-slate-500 bg-white border border-slate-200 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" value="${escapeHtml(m.rango_referencia || '')}" placeholder="Rango ref.">
+      </td>
+      <td class="p-2 text-center">
+        <span class="px-2 py-0.5 bg-purple-50 text-purple-700 font-semibold rounded text-[10px] whitespace-nowrap">${escapeHtml(m.estado_estimado || 'Normal')}</span>
+      </td>
+      <td class="p-2 text-center">
+        <button type="button" onclick="removePreviewRow(this)" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors" title="Eliminar fila">
+          🗑️
+        </button>
       </td>
     `;
     tbody.appendChild(tr);
   });
+
+  updatePreviewParamCount();
+}
+
+function addPreviewRow() {
+  const tbody = document.getElementById('previewTableBody');
+  const tr = document.createElement('tr');
+  tr.className = 'hover:bg-slate-50 transition-colors bg-purple-50/30';
+  tr.dataset.code = '';
+
+  tr.innerHTML = `
+    <td class="p-2">
+      <input type="text" class="preview-nombre w-full text-xs font-semibold text-slate-800 bg-white border border-purple-300 rounded-lg px-2 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" placeholder="Nombre analito (ej: Ferritina)">
+    </td>
+    <td class="p-2 text-center">
+      <input type="text" class="preview-valor w-full text-xs font-bold text-center text-slate-900 bg-white border border-purple-300 rounded-lg px-2 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" placeholder="0.0">
+    </td>
+    <td class="p-2 text-center">
+      <input type="text" class="preview-unidad w-full text-xs text-center text-slate-600 bg-white border border-purple-300 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" placeholder="mg/dL">
+    </td>
+    <td class="p-2 text-center">
+      <input type="text" class="preview-rango w-full text-[11px] text-center text-slate-500 bg-white border border-purple-300 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" placeholder="Rango ref.">
+    </td>
+    <td class="p-2 text-center">
+      <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">Nuevo</span>
+    </td>
+    <td class="p-2 text-center">
+      <button type="button" onclick="removePreviewRow(this)" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors" title="Eliminar fila">
+        🗑️
+      </button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  updatePreviewParamCount();
+  tr.querySelector('.preview-nombre').focus();
+}
+
+function removePreviewRow(btn) {
+  const tr = btn.closest('tr');
+  if (tr) {
+    tr.remove();
+    updatePreviewParamCount();
+  }
+}
+
+function updatePreviewParamCount() {
+  const count = document.querySelectorAll('#previewTableBody tr').length;
+  const el = document.getElementById('previewParamCount');
+  if (el) el.textContent = count;
 }
 
 async function confirmUploadData() {
   if (!currentPreviewData) return;
 
+  const fecha = document.getElementById('previewFechaInput').value.trim();
+  const laboratorio = document.getElementById('previewLabInput').value.trim();
+  const facultativo = document.getElementById('previewFacultativoInput').value.trim();
+  const dictamen = document.getElementById('previewDictamenInput').value.trim();
+
+  if (!fecha) {
+    alert('Por favor, indica una fecha válida para la analítica.');
+    return;
+  }
+
+  const rows = document.querySelectorAll('#previewTableBody tr');
+  const mediciones = [];
+
+  rows.forEach(tr => {
+    const nombre = tr.querySelector('.preview-nombre').value.trim();
+    const valor = tr.querySelector('.preview-valor').value.trim();
+    const unidad = tr.querySelector('.preview-unidad').value.trim();
+    const rango = tr.querySelector('.preview-rango').value.trim();
+    const codigo = tr.dataset.code || null;
+
+    if (nombre && valor !== '') {
+      mediciones.push({
+        codigo: codigo,
+        nombre: nombre,
+        valor: valor,
+        unidad: unidad,
+        rango_referencia: rango
+      });
+    }
+  });
+
+  if (mediciones.length === 0) {
+    alert('La analítica debe contener al menos un parámetro o medición para ser incorporada.');
+    return;
+  }
+
   const btn = document.getElementById('btnConfirmUpload');
   btn.disabled = true;
-  btn.textContent = 'Guardando en base de datos...';
+  btn.innerHTML = '<span>⏳</span> Guardando en base de datos...';
 
   try {
     const payload = {
       temp_id: currentPreviewData.temp_id,
-      fecha: currentPreviewData.fecha,
-      laboratorio: currentPreviewData.laboratorio,
-      facultativo: currentPreviewData.facultativo,
-      mediciones: currentPreviewData.mediciones,
-      dictamen_global: currentPreviewData.dictamen_preliminar
+      fecha: fecha,
+      laboratorio: laboratorio || 'Laboratorio Clínico',
+      facultativo: facultativo || 'No especificado',
+      mediciones: mediciones,
+      dictamen_global: dictamen || 'Control favorable'
     };
 
     const res = await fetch('/api/v1/upload/confirm', {
@@ -536,8 +748,8 @@ async function confirmUploadData() {
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || 'Error al confirmar analítica');
+      const errMsg = await getErrorMessage(res, 'Error al confirmar analítica');
+      throw new Error(errMsg);
     }
 
     alert('¡Analítica incorporada con éxito al historial!');
@@ -546,6 +758,7 @@ async function confirmUploadData() {
     // Recargar componentes dinámicamente
     await loadSummary();
     await loadTables();
+    await loadAuditFiles();
     chartsRendered = false;
     if (!document.getElementById('tab-charts').classList.contains('hidden')) {
       await loadCharts();
@@ -555,21 +768,424 @@ async function confirmUploadData() {
     alert(`Error al confirmar: ${err.message}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✅ Confirmar e Incorporar al Historial';
+    btn.innerHTML = '<span>✅</span> Confirmar e Incorporar al Historial';
+  }
+}
+
+// 7.2 Edición de Analíticas Guardadas en Base de Datos (Post-Ingesta)
+let currentEditingInformeId = null;
+
+async function openEditInformeModal(informeId) {
+  try {
+    const res = await fetch(`/api/v1/analiticas/informes/${informeId}`);
+    if (!res.ok) throw new Error('No se pudo recuperar la analítica solicitada.');
+    const data = await res.json();
+    
+    currentEditingInformeId = data.id;
+    document.getElementById('editInformeId').value = data.id;
+    document.getElementById('editInformeFecha').value = data.fecha;
+    document.getElementById('editInformeLab').value = data.laboratorio || '';
+    document.getElementById('editInformeFacultativo').value = data.facultativo || '';
+    document.getElementById('editInformeDictamen').value = data.dictamen_global || '';
+
+    renderEditInformeRows(data.mediciones || []);
+    document.getElementById('editInformeModal').classList.remove('hidden');
+  } catch (err) {
+    alert('Error al abrir editor de analítica: ' + err.message);
+  }
+}
+
+function closeEditInformeModal() {
+  document.getElementById('editInformeModal').classList.add('hidden');
+  currentEditingInformeId = null;
+}
+
+let canonicalCatalogCache = null;
+
+async function getCanonicalCatalog() {
+  if (canonicalCatalogCache) return canonicalCatalogCache;
+  try {
+    const res = await fetch('/api/v1/analiticas/catalog');
+    if (res.ok) {
+      canonicalCatalogCache = await res.json();
+    }
+  } catch (e) {
+    console.error('Error al cargar catálogo canónico:', e);
+  }
+  return canonicalCatalogCache || {};
+}
+
+function renderEditInformeRows(mediciones) {
+  const tbody = document.getElementById('editTableBody');
+  tbody.innerHTML = '';
+
+  mediciones.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-50 transition-colors';
+    tr.dataset.id = m.id || '';
+    tr.dataset.code = m.codigo || '';
+    tr.dataset.isRatio = m.es_ratio ? '1' : '0';
+
+    const ratioBadge = m.es_ratio 
+      ? `<span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold rounded-full" title="Ratio derivado (se recalcula automáticamente al guardar)">Ratio Auto</span>`
+      : `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-medium rounded-full">Basal</span>`;
+
+    tr.innerHTML = `
+      <td class="p-2">
+        <div class="flex items-center gap-1.5 py-1">
+          <span class="text-xs font-bold text-slate-800" title="Código canónico: ${escapeHtml(m.codigo || '')}">${escapeHtml(m.nombre)}</span>
+          <input type="hidden" class="edit-nombre" value="${escapeHtml(m.nombre)}">
+        </div>
+      </td>
+      <td class="p-2 text-center">
+        <input type="text" class="edit-valor w-full text-xs font-bold text-center text-slate-900 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" value="${escapeHtml(String(m.valor ?? ''))}" placeholder="Valor">
+      </td>
+      <td class="p-2 text-center">
+        <input type="text" class="edit-unidad w-full text-xs text-center text-slate-600 bg-white border border-slate-200 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" value="${escapeHtml(m.unidad || '')}" placeholder="Unidad">
+      </td>
+      <td class="p-2 text-center">
+        <input type="text" class="edit-rango w-full text-[11px] text-center text-slate-500 bg-white border border-slate-200 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" value="${escapeHtml(m.rango_referencia || '')}" placeholder="Rango ref.">
+      </td>
+      <td class="p-2 text-center">
+        ${ratioBadge}
+      </td>
+      <td class="p-2 text-center">
+        <button type="button" onclick="removeEditMeasurementRow(this)" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors" title="Eliminar medición">
+          🗑️
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateEditParamCount();
+}
+
+async function addEditMeasurementRow() {
+  const tbody = document.getElementById('editTableBody');
+  const tr = document.createElement('tr');
+  tr.className = 'hover:bg-slate-50 transition-colors bg-blue-50/30';
+  tr.dataset.id = '';
+  tr.dataset.code = '';
+  tr.dataset.isRatio = '0';
+
+  const catalog = await getCanonicalCatalog();
+  let optionsHtml = '<option value="">-- Selecciona analito del catálogo --</option>';
+  for (const [group, items] of Object.entries(catalog)) {
+    optionsHtml += `<optgroup label="${escapeHtml(group)}">`;
+    items.forEach(item => {
+      optionsHtml += `<option value="${escapeHtml(item.codigo)}" data-nombre="${escapeHtml(item.nombre)}" data-unidad="${escapeHtml(item.unidad || '')}" data-ref="${escapeHtml(item.ref || '')}">${escapeHtml(item.nombre)}</option>`;
+    });
+    optionsHtml += `</optgroup>`;
+  }
+  optionsHtml += `<option value="__custom__">➕ Otro analito no catalogado...</option>`;
+
+  tr.innerHTML = `
+    <td class="p-2">
+      <select class="edit-select-analito w-full text-xs font-semibold text-slate-800 bg-white border border-blue-300 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-blue-500 focus:outline-none" onchange="handleCatalogSelect(this)">
+        ${optionsHtml}
+      </select>
+      <input type="text" class="edit-nombre-custom hidden w-full text-xs font-semibold text-slate-800 bg-white border border-blue-300 rounded-lg px-2 py-1 mt-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Nombre analito manual">
+      <input type="hidden" class="edit-nombre" value="">
+    </td>
+    <td class="p-2 text-center">
+      <input type="text" class="edit-valor w-full text-xs font-bold text-center text-slate-900 bg-white border border-blue-300 rounded-lg px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="0.0">
+    </td>
+    <td class="p-2 text-center">
+      <input type="text" class="edit-unidad w-full text-xs text-center text-slate-600 bg-white border border-blue-300 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="mg/dL">
+    </td>
+    <td class="p-2 text-center">
+      <input type="text" class="edit-rango w-full text-[11px] text-center text-slate-500 bg-white border border-blue-300 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none" placeholder="Rango ref.">
+    </td>
+    <td class="p-2 text-center">
+      <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">Nuevo</span>
+    </td>
+    <td class="p-2 text-center">
+      <button type="button" onclick="removeEditMeasurementRow(this)" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors" title="Eliminar medición">
+        🗑️
+      </button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  updateEditParamCount();
+  tr.querySelector('.edit-select-analito').focus();
+}
+
+function handleCatalogSelect(selectEl) {
+  const tr = selectEl.closest('tr');
+  const customInput = tr.querySelector('.edit-nombre-custom');
+  const hiddenNombre = tr.querySelector('.edit-nombre');
+  const unidadInput = tr.querySelector('.edit-unidad');
+  const rangoInput = tr.querySelector('.edit-rango');
+  const selectedVal = selectEl.value;
+
+  if (selectedVal === '__custom__') {
+    customInput.classList.remove('hidden');
+    customInput.focus();
+    tr.dataset.code = '';
+    hiddenNombre.value = '';
+  } else if (selectedVal) {
+    customInput.classList.add('hidden');
+    const opt = selectEl.selectedOptions[0];
+    tr.dataset.code = selectedVal;
+    hiddenNombre.value = opt.dataset.nombre || '';
+    if (opt.dataset.unidad) unidadInput.value = opt.dataset.unidad;
+    if (opt.dataset.ref) rangoInput.value = opt.dataset.ref;
+  } else {
+    customInput.classList.add('hidden');
+    tr.dataset.code = '';
+    hiddenNombre.value = '';
+  }
+}
+
+function removeEditMeasurementRow(btn) {
+  const tr = btn.closest('tr');
+  if (tr) {
+    tr.remove();
+    updateEditParamCount();
+  }
+}
+
+function updateEditParamCount() {
+  const count = document.querySelectorAll('#editTableBody tr').length;
+  const el = document.getElementById('editParamCount');
+  if (el) el.textContent = count;
+}
+
+async function saveEditedInforme() {
+  if (!currentEditingInformeId) return;
+
+  const fecha = document.getElementById('editInformeFecha').value.trim();
+  const laboratorio = document.getElementById('editInformeLab').value.trim();
+  const facultativo = document.getElementById('editInformeFacultativo').value.trim();
+  const dictamen = document.getElementById('editInformeDictamen').value.trim();
+
+  if (!fecha) {
+    alert('Por favor, introduce una fecha válida para la analítica.');
+    return;
+  }
+
+  const rows = document.querySelectorAll('#editTableBody tr');
+  const mediciones = [];
+
+  rows.forEach(tr => {
+    let nombre = tr.querySelector('.edit-nombre').value.trim();
+    const customInput = tr.querySelector('.edit-nombre-custom');
+    if (customInput && !customInput.classList.contains('hidden') && customInput.value.trim()) {
+      nombre = customInput.value.trim();
+    }
+    const valor = tr.querySelector('.edit-valor').value.trim();
+    const unidad = tr.querySelector('.edit-unidad').value.trim();
+    const rango = tr.querySelector('.edit-rango').value.trim();
+    const id = tr.dataset.id ? parseInt(tr.dataset.id) : null;
+    const codigo = tr.dataset.code || null;
+    const esRatio = tr.dataset.isRatio === '1';
+
+    if (nombre && valor !== '') {
+      mediciones.push({
+        id: id,
+        codigo: codigo,
+        nombre: nombre,
+        valor: valor,
+        unidad: unidad,
+        rango_referencia: rango,
+        es_ratio: esRatio
+      });
+    }
+  });
+
+  if (mediciones.length === 0) {
+    alert('La analítica debe contener al menos una medición.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSaveEditedInforme');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> Guardando y recalculando...';
+
+  try {
+    const payload = {
+      fecha: fecha,
+      laboratorio: laboratorio || 'Laboratorio Clínico',
+      facultativo: facultativo || 'No especificado',
+      dictamen_global: dictamen || 'Control favorable',
+      mediciones: mediciones
+    };
+
+    const res = await fetch(`/api/v1/analiticas/informes/${currentEditingInformeId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errMsg = await getErrorMessage(res, 'Error al actualizar la analítica');
+      throw new Error(errMsg);
+    }
+
+    alert('¡Analítica actualizada y ratios recalculados con éxito!');
+    closeEditInformeModal();
+
+    // Refrescar todos los componentes de la aplicación
+    await loadSummary();
+    await loadTables();
+    await loadAuditFiles();
+    chartsRendered = false;
+    if (!document.getElementById('tab-charts').classList.contains('hidden')) {
+      await loadCharts();
+    }
+  } catch (err) {
+    alert('Error al guardar cambios: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<span>💾</span> Guardar Cambios y Recalcular';
   }
 }
 
 // 8. Filtro en Vivo de la Tabla Bioquímica
 function filterTable() {
-  const query = document.getElementById('tableFilter').value.toLowerCase();
+  const query = document.getElementById('tableFilter').value.trim().toLowerCase();
   const rows = document.getElementById('tableBodyRows').getElementsByTagName('tr');
+  if (!query) {
+    for (let i = 0; i < rows.length; i++) rows[i].style.display = '';
+    return;
+  }
+  
+  let currentGroupHeader = null;
+  let groupHasMatch = false;
+
   for (let i = 0; i < rows.length; i++) {
-    const text = rows[i].textContent.toLowerCase();
-    rows[i].style.display = text.includes(query) ? '' : 'none';
+    const row = rows[i];
+    if (row.classList.contains('group-header')) {
+      if (currentGroupHeader) {
+        currentGroupHeader.style.display = groupHasMatch ? '' : 'none';
+      }
+      currentGroupHeader = row;
+      groupHasMatch = row.textContent.toLowerCase().includes(query);
+    } else {
+      const match = row.textContent.toLowerCase().includes(query);
+      row.style.display = match ? '' : 'none';
+      if (match) groupHasMatch = true;
+    }
+  }
+  if (currentGroupHeader) {
+    currentGroupHeader.style.display = groupHasMatch ? '' : 'none';
   }
 }
 
 // 9. Funciones del Panel de Gestión y Respaldo de Datos (Tab 7)
+
+function calculateAgeFromBirthdate(birthdateStr) {
+  if (!birthdateStr) return null;
+  const birth = new Date(birthdateStr);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return (age >= 0 && age <= 125) ? age : null;
+}
+
+function updateAgeBadgePreview() {
+  const nacInput = document.getElementById('cfg-paciente-nacimiento');
+  const badge = document.getElementById('cfg-paciente-badge-edad');
+  if (!nacInput || !badge) return;
+  const age = calculateAgeFromBirthdate(nacInput.value);
+  if (age !== null) {
+    badge.textContent = `Edad calculada: ${age} años`;
+    badge.classList.remove('hidden');
+  } else {
+    badge.textContent = 'Edad: -';
+    badge.classList.add('hidden');
+  }
+}
+
+async function loadPatientConfig() {
+  try {
+    const res = await fetch('/api/v1/analiticas/paciente');
+    if (!res.ok) return;
+    const p = await res.json();
+    
+    const nombreEl = document.getElementById('cfg-paciente-nombre');
+    const dniEl = document.getElementById('cfg-paciente-dni');
+    const nacEl = document.getElementById('cfg-paciente-nacimiento');
+    const sexoEl = document.getElementById('cfg-paciente-sexo');
+
+    if (nombreEl) nombreEl.value = p.nombre_completo || '';
+    if (dniEl) dniEl.value = p.dni || '';
+    if (nacEl) nacEl.value = p.fecha_nacimiento || '';
+    if (sexoEl) {
+      if (p.sexo && ['Masculino', 'Femenino'].includes(p.sexo)) {
+        sexoEl.value = p.sexo;
+      } else {
+        sexoEl.value = 'No especificado';
+      }
+    }
+
+    updateAgeBadgePreview();
+  } catch (err) {
+    console.warn('No se pudo cargar la configuración del paciente:', err);
+  }
+}
+
+async function savePatientConfig(event) {
+  if (event) event.preventDefault();
+  const statusEl = document.getElementById('cfg-paciente-status');
+  const btn = document.getElementById('btn-save-paciente');
+
+  const payload = {
+    nombre_completo: document.getElementById('cfg-paciente-nombre').value.trim(),
+    dni: document.getElementById('cfg-paciente-dni').value.trim() || null,
+    fecha_nacimiento: document.getElementById('cfg-paciente-nacimiento').value || null,
+    sexo: document.getElementById('cfg-paciente-sexo').value
+  };
+
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> Guardando...';
+    }
+
+    const res = await fetch('/api/v1/analiticas/paciente', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errDetail = await getErrorMessage(res, 'Fallo al guardar datos del paciente');
+      throw new Error(errDetail);
+    }
+
+    const updated = await res.json();
+
+    if (statusEl) {
+      statusEl.textContent = '✓ Datos del paciente actualizados correctamente.';
+      statusEl.className = 'text-xs font-semibold text-emerald-600 inline-block';
+      setTimeout(() => {
+        statusEl.className = 'text-xs font-semibold text-emerald-600 hidden';
+      }, 4000);
+    }
+
+    updateAgeBadgePreview();
+    await loadSummary();
+
+  } catch (err) {
+    alert(`Error al guardar: ${err.message}`);
+    if (statusEl) {
+      statusEl.textContent = `❌ ${err.message}`;
+      statusEl.className = 'text-xs font-semibold text-rose-600 inline-block';
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>💾</span> Guardar Datos del Paciente';
+    }
+  }
+}
+
 async function downloadBackup() {
   const pass = document.getElementById('exportPassphrase').value.trim();
   let url = '/api/v1/backup/export';
@@ -658,6 +1274,7 @@ async function confirmWipeDatabase() {
     alert(data.message);
     await loadSummary();
     await loadTables();
+    await loadAuditFiles();
     chartsRendered = false;
     setTab('eval');
   } catch (err) {
@@ -679,10 +1296,81 @@ async function confirmResetDemo() {
     alert(data.message);
     await loadSummary();
     await loadTables();
+    await loadAuditFiles();
     chartsRendered = false;
     setTab('eval');
   } catch (err) {
     alert(`Error: ${err.message}`);
   }
 }
+
+// 8. Auditoría Documental de Archivos
+async function loadAuditFiles() {
+  const tbody = document.getElementById('auditFilesTableBody');
+  try {
+    const res = await fetch('/api/v1/analiticas/files');
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    const files = await res.json();
+    const countEl = document.getElementById('audit-files-count');
+    if (countEl) countEl.textContent = `${files.length} Informes`;
+
+    if (!tbody) return;
+    if (files.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">No hay informes cargados en el historial. Sube un PDF para comenzar.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = '';
+    files.forEach(f => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-slate-50 transition-colors';
+      tr.innerHTML = `
+        <td class="p-3 font-bold text-slate-900">${escapeHtml(f.fecha)} <span class="text-[10px] text-slate-400 font-normal">(${escapeHtml(f.etiqueta_corta)})</span></td>
+        <td class="p-3 font-medium text-slate-800">${escapeHtml(f.laboratorio)}</td>
+        <td class="p-3 text-slate-600">${escapeHtml(f.facultativo || 'No especificado')}</td>
+        <td class="p-3 font-mono text-[11px] text-slate-500">${escapeHtml(f.archivo_pdf || '-')}</td>
+        <td class="p-3 text-center"><span class="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-full">${f.total_mediciones}</span></td>
+        <td class="p-3 text-slate-600 max-w-xs truncate" title="${escapeHtml(f.dictamen_global || '')}">${escapeHtml(f.dictamen_global || '-')}</td>
+        <td class="p-3 text-center">
+          <div class="flex items-center justify-center gap-1.5">
+            <button onclick="openEditInformeModal(${f.id})" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="Editar analítica y recalcular">
+              <span>✏️</span> Editar
+            </button>
+            <button onclick="deleteAuditFile(${f.id}, '${escapeHtml(f.fecha)}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="Eliminar del historial">
+              <span>🗑️</span>
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error('Fallo al cargar archivos de auditoría:', err);
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-500 font-medium">⚠️ Error al cargar informes: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+}
+
+async function deleteAuditFile(id, fecha) {
+  if (!confirm(`¿Estás seguro de que deseas eliminar la analítica del ${fecha} (ID: ${id}) del historial? Esta acción no se puede deshacer.`)) {
+    return;
+  }
+  try {
+    const res = await fetch(`/api/v1/analiticas/files/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Error al eliminar analítica');
+    alert(`Analítica del ${fecha} eliminada correctamente.`);
+    // Recargar todo el estado de la aplicación
+    await loadAuditFiles();
+    await loadSummary();
+    await loadTables();
+    chartsRendered = false;
+    if (!document.getElementById('tab-charts').classList.contains('hidden')) {
+      await loadCharts();
+    }
+  } catch (err) {
+    alert('Error al eliminar: ' + err.message);
+  }
+}
+
 

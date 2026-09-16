@@ -1,5 +1,6 @@
 services:
   app:
+    image: ghcr.io/el-rocho/cac-elrocho:latest
     build: .
     container_name: cac-elrocho-app
     restart: unless-stopped

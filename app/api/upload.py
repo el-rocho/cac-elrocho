@@ -1,5 +1,7 @@
+import re
 import uuid
 import shutil
+import logging
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -10,11 +12,20 @@ from app.models import Paciente, Informe, Analito, Medicion, AuditoriaRango
 from app.schemas import AnaliticaPreviewResponse, ConfirmacionRequest
 from app.services.llm_service import analyze_pdf_with_llm
 from app.services.metrics import calculate_ratios
+from app.services.analito_normalizer import normalize_analito, CANONICAL_ANALITOS
+
+logger = logging.getLogger(__name__)
+
+def sanitize_filename(name: str) -> str:
+    """Elimina caracteres incompatibles con el sistema de archivos (barras, dos puntos, etc.)."""
+    clean = re.sub(r'[\\/*?:"<>|]', '_', name or '')
+    clean = re.sub(r'[\s_]+', '_', clean).strip('_.')
+    return clean[:80] if clean else "laboratorio"
 
 router = APIRouter(prefix="/upload", tags=["Carga de Analíticas"])
 
 @router.post("", response_model=AnaliticaPreviewResponse)
-async def upload_pdf_for_analysis(file: UploadFile = File(...)):
+async def upload_pdf_for_analysis(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Recibe un documento PDF, lo analiza mediante el LLM (Gemini) y genera
     un borrador estructurado para confirmación previa por el usuario.
@@ -31,8 +42,9 @@ async def upload_pdf_for_analysis(file: UploadFile = File(...)):
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Analizar el archivo con el servicio LLM
-        preview = await analyze_pdf_with_llm(temp_path, temp_id)
+        paciente = db.query(Paciente).first()
+        # Analizar el archivo con el servicio LLM y validar discrepancias con el paciente configurado
+        preview = await analyze_pdf_with_llm(temp_path, temp_id, paciente_db=paciente)
         return preview
 
     except Exception as e:
@@ -46,145 +58,165 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
     Consolida e inserta de forma definitiva en la base de datos la analítica
     revisada y aprobada por el usuario.
     """
-    upload_dir = settings.DATA_DIR / "uploads"
-    temp_path = upload_dir / f"temp_{req.temp_id}.pdf"
-    
-    # 1. Obtener o crear paciente
-    paciente = db.query(Paciente).first()
-    if not paciente:
-        paciente = Paciente(
-            nombre_completo="Usuario Clínico",
-            fecha_nacimiento="1980-01-01",
-            dni="00000000T",
-            centro_referencia="Hospital Clínico"
+    try:
+        upload_dir = settings.DATA_DIR / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        temp_path = upload_dir / f"temp_{req.temp_id}.pdf"
+        
+        # 1. Obtener o crear paciente sin pre-rellenar datos falsos
+        paciente = db.query(Paciente).first()
+        if not paciente:
+            paciente = Paciente(
+                nombre_completo="",
+                fecha_nacimiento=None,
+                dni=None,
+                sexo="No especificado",
+                centro_referencia=None
+            )
+            db.add(paciente)
+            db.flush()
+
+        # 2. Formato de etiqueta corta (DD/MM/AA)
+        partes_fecha = req.fecha.split("-")
+        if len(partes_fecha) == 3:
+            etiq_corta = f"{partes_fecha[2]}/{partes_fecha[1]}/{partes_fecha[0][2:]}"
+        else:
+            etiq_corta = req.fecha
+
+        # 3. Guardar archivo definitivo de forma segura (sanitizando caracteres como / o \)
+        clean_lab = sanitize_filename(req.laboratorio)
+        nombre_archivo = f"{req.fecha}_{clean_lab}.pdf"
+        ruta_definitiva = upload_dir / nombre_archivo
+        if temp_path.exists():
+            try:
+                shutil.copy2(str(temp_path), str(ruta_definitiva))
+                temp_path.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"Aviso al archivar PDF definitivo: {e}")
+
+        # 4. Crear registro de Informe
+        informe = Informe(
+            paciente_id=paciente.id,
+            fecha=req.fecha,
+            etiqueta_corta=etiq_corta,
+            laboratorio=req.laboratorio,
+            facultativo=req.facultativo or "No especificado",
+            archivo_pdf=nombre_archivo,
+            dictamen_global=req.dictamen_global or "Control favorable",
+            estado="confirmado"
         )
-        db.add(paciente)
+        db.add(informe)
         db.flush()
 
-    # 2. Formato de etiqueta corta (DD/MM/AA)
-    partes_fecha = req.fecha.split("-")
-    if len(partes_fecha) == 3:
-        etiq_corta = f"{partes_fecha[2]}/{partes_fecha[1]}/{partes_fecha[0][2:]}"
-    else:
-        etiq_corta = req.fecha
+        # 5. Insertar mediciones y calcular ratios
+        mediciones_dict = {}
+        analitos_procesados = {}  # code_key -> Medicion
 
-    # 3. Guardar archivo definitivo
-    nombre_archivo = f"{req.fecha}_{req.laboratorio.replace(' ', '_')}.pdf"
-    ruta_definitiva = upload_dir / nombre_archivo
-    if temp_path.exists():
-        shutil.move(str(temp_path), str(ruta_definitiva))
+        for item in req.mediciones:
+            if not item.nombre or not item.nombre.strip():
+                continue
 
-    # 4. Crear registro de Informe
-    informe = Informe(
-        paciente_id=paciente.id,
-        fecha=req.fecha,
-        etiqueta_corta=etiq_corta,
-        laboratorio=req.laboratorio,
-        facultativo=req.facultativo or "No especificado",
-        archivo_pdf=nombre_archivo,
-        dictamen_global=req.dictamen_global or "Control favorable",
-        estado="confirmado"
-    )
-    db.add(informe)
-    db.flush()
-
-    # 5. Insertar mediciones y calcular ratios
-    mediciones_dict = {}
-    
-    # Mapeo de analitos conocidos
-    code_map = {
-        "glucosa": "GLUCOSE",
-        "hba1c": "HBA1C",
-        "creatinina": "CREATININE",
-        "urea": "UREA",
-        "ácido úrico": "URIC_ACID",
-        "acido urico": "URIC_ACID",
-        "colesterol total": "CHOLESTEROL_TOTAL",
-        "triglicéridos": "TRIGLYCERIDES",
-        "trigliceridos": "TRIGLYCERIDES",
-        "hdl": "HDL",
-        "ldl": "LDL",
-        "psa total": "PSA_TOTAL",
-        "psa libre": "PSA_FREE",
-        "tsh": "TSH",
-        "vitamina d": "VITAMIN_D"
-    }
-
-    for item in req.mediciones:
-        code_key = None
-        for k, v in code_map.items():
-            if k in item.nombre.lower():
-                code_key = v
-                break
-
-        if not code_key:
-            code_key = item.nombre.upper().replace(" ", "_")[:30]
-
-        analito = db.query(Analito).filter_by(codigo=code_key).first()
-        if not analito:
-            analito = Analito(
-                codigo=code_key,
-                nombre_visible=item.nombre,
-                categoria="bioquimica",
-                unidad_estandar=item.unidad,
-                ref_texto_defecto=item.rango_referencia
+            code_key, norm_nombre, norm_cat, norm_unit = normalize_analito(
+                item.nombre,
+                unidad=item.unidad,
+                valor=item.valor,
+                codigo_sugerido=getattr(item, "codigo", None)
             )
-            db.add(analito)
-            db.flush()
 
-        try:
-            num_val = float(str(item.valor).replace(",", ".").split()[0])
-            mediciones_dict[code_key] = num_val
-        except (ValueError, TypeError):
-            num_val = None
+            analito = db.query(Analito).filter_by(codigo=code_key).first()
+            if not analito:
+                from app.services.analito_normalizer import get_analito_order
+                analito = Analito(
+                    codigo=code_key,
+                    nombre_visible=norm_nombre,
+                    categoria=norm_cat,
+                    unidad_estandar=norm_unit,
+                    ref_texto_defecto=item.rango_referencia,
+                    orden=get_analito_order(code_key)
+                )
+                db.add(analito)
+                db.flush()
 
-        med = Medicion(
-            informe_id=informe.id,
-            analito_id=analito.id,
-            valor_numerico=num_val,
-            valor_texto=str(item.valor) if num_val is None else None,
-            unidad=item.unidad,
-            ref_texto=item.rango_referencia
-        )
-        db.add(med)
+            try:
+                num_val = float(str(item.valor).replace(",", ".").split()[0])
+            except (ValueError, TypeError, IndexError):
+                num_val = None
 
-    # 6. Calcular ratios automáticos y guardarlos si no venían en el informe
-    ratios_calc = calculate_ratios(mediciones_dict)
-    ratio_names = {
-        "RATIO_COL_HDL": ("Cociente Col/HDL", "ratio", "< 4.5"),
-        "RATIO_LDL_HDL": ("Cociente LDL/HDL", "ratio", "< 3.0"),
-        "RATIO_LDL_COL": ("Ratio LDL / Col. Total", "ratio", "< 0.65"),
-        "RATIO_HDL_COL": ("Ratio HDL / Col. Total", "ratio", "> 0.20"),
-        "RATIO_TG_COL": ("Ratio TG / Col. Total", "ratio", "< 0.50"),
-        "RATIO_PSA_L_T": ("Ratio PSA L/T", "ratio", "> 0.20")
-    }
+            # Si este analito canónico ya se procesó en este informe, resolvemos colisiones:
+            # Priorizar siempre valores numéricos de suero sobre valores nulos o cualitativos
+            if code_key in analitos_procesados:
+                med_existente = analitos_procesados[code_key]
+                if med_existente.valor_numerico is None and num_val is not None:
+                    med_existente.valor_numerico = num_val
+                    med_existente.valor_texto = None
+                    med_existente.unidad = item.unidad or norm_unit
+                    med_existente.ref_texto = item.rango_referencia
+                    mediciones_dict[code_key] = num_val
+                continue
 
-    for r_code, r_val in ratios_calc.items():
-        nom, uni, ref = ratio_names.get(r_code, (r_code, "ratio", ""))
-        a_ratio = db.query(Analito).filter_by(codigo=r_code).first()
-        if not a_ratio:
-            a_ratio = Analito(
-                codigo=r_code,
-                nombre_visible=nom,
-                categoria="bioquimica",
-                unidad_estandar=uni,
-                ref_texto_defecto=ref
+            med = Medicion(
+                informe_id=informe.id,
+                analito_id=analito.id,
+                valor_numerico=num_val,
+                valor_texto=str(item.valor) if num_val is None else None,
+                unidad=item.unidad or norm_unit,
+                ref_texto=item.rango_referencia
             )
-            db.add(a_ratio)
+            db.add(med)
             db.flush()
+            analitos_procesados[code_key] = med
 
-        med_ratio = Medicion(
-            informe_id=informe.id,
-            analito_id=a_ratio.id,
-            valor_numerico=r_val,
-            unidad=uni,
-            ref_texto=ref
-        )
-        db.add(med_ratio)
+            if num_val is not None:
+                mediciones_dict[code_key] = num_val
 
-    db.commit()
-    return {
-        "status": "success",
-        "message": f"Analítica del {req.fecha} incorporada con éxito al historial.",
-        "informe_id": informe.id
-    }
+        # 6. Calcular ratios automáticos y guardarlos si no venían en el informe
+        ratios_calc = calculate_ratios(mediciones_dict)
+        ratio_names = {
+            "RATIO_COL_HDL": ("Colesterol Total / HDL (Castelli I)", "ratio", "< 5.0"),
+            "RATIO_LDL_HDL": ("LDL / HDL (Castelli II)", "ratio", "< 4.3"),
+            "RATIO_TG_HDL": ("Triglicéridos / HDL", "ratio", "< 2.0"),
+            "RATIO_LDL_COL": ("Ratio LDL / Col. Total", "ratio", "< 0.65"),
+            "RATIO_HDL_COL": ("Ratio HDL / Col. Total", "ratio", "> 0.20"),
+            "RATIO_TG_COL": ("Ratio TG / Col. Total", "ratio", "< 0.50"),
+            "RATIO_PSA_L_T": ("Ratio PSA Libre / Total", "%", "> 20 %")
+        }
+
+        for r_code, r_val in ratios_calc.items():
+            if r_code in analitos_procesados and analitos_procesados[r_code].valor_numerico is not None:
+                continue
+
+            nom, uni, ref = ratio_names.get(r_code, (r_code, "ratio", ""))
+            a_ratio = db.query(Analito).filter_by(codigo=r_code).first()
+            if not a_ratio:
+                from app.services.analito_normalizer import get_analito_order
+                a_ratio = Analito(
+                    codigo=r_code,
+                    nombre_visible=nom,
+                    categoria="bioquimica",
+                    unidad_estandar=uni,
+                    ref_texto_defecto=ref,
+                    orden=get_analito_order(r_code)
+                )
+                db.add(a_ratio)
+                db.flush()
+
+            med_ratio = Medicion(
+                informe_id=informe.id,
+                analito_id=a_ratio.id,
+                valor_numerico=r_val,
+                unidad=uni,
+                ref_texto=ref
+            )
+            db.add(med_ratio)
+
+        db.commit()
+        return {
+            "status": "success",
+            "message": f"Analítica del {req.fecha} incorporada con éxito al historial.",
+            "informe_id": informe.id
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error en confirm_analitica: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al guardar la analítica: {str(e)}")
+

@@ -10,7 +10,7 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
     
     # Intentar con PyMuPDF
     try:
-        import fitz  # PyMuPDF
+        import pymupdf as fitz
         doc = fitz.open(str(pdf_path))
         for page_num in range(len(doc)):
             page = doc[page_num]

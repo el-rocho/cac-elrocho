@@ -23,6 +23,7 @@ def run_seed(db: Session = None):
             nombre_completo="Paciente Ejemplo (Modo Demo)",
             fecha_nacimiento="1975-05-15",
             dni="00000000T",
+            sexo="Masculino",
             centro_referencia="Hospital Universitario Central (Demo)"
         )
         db.add(paciente)
