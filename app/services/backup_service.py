@@ -65,7 +65,7 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
 
     backup = {
         "app": "cac-elrocho",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "paciente": {
             "nombre_completo": paciente.nombre_completo if paciente else "",
             "fecha_nacimiento": paciente.fecha_nacimiento if paciente else "",

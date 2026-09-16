@@ -242,9 +242,21 @@ def get_tables(db: Session = Depends(get_db)):
     dates = [inf.etiqueta_corta for inf in informes]
     informe_ids = [inf.id for inf in informes]
     
-    # Identificar índices de los últimos controles (2025-2026) para el promedio reciente
-    # Los últimos 3 controles corresponden a 26/02/25, 19/12/25, 13/06/26
-    recent_indices = [idx for idx, inf in enumerate(informes) if inf.fecha.startswith("2025") or inf.fecha.startswith("2026")]
+    # Identificar índices de los controles dentro de los últimos 18 meses (respecto a la última analítica)
+    recent_indices = []
+    if informes:
+        try:
+            from datetime import datetime, timedelta
+            ultima_fecha_dt = datetime.strptime(informes[-1].fecha, "%Y-%m-%d").date()
+            cutoff_18m = ultima_fecha_dt - timedelta(days=548)  # ~18 meses
+            recent_indices = [
+                idx for idx, inf in enumerate(informes)
+                if datetime.strptime(inf.fecha, "%Y-%m-%d").date() >= cutoff_18m
+            ]
+        except Exception:
+            recent_indices = [idx for idx, inf in enumerate(informes) if idx >= max(0, len(informes) - 3)]
+    if not recent_indices and informes:
+        recent_indices = [len(informes) - 1]
 
     analitos = db.query(Analito).order_by(Analito.orden.asc(), Analito.id.asc()).all()
     
@@ -257,18 +269,13 @@ def get_tables(db: Session = Depends(get_db)):
         
         vals = [med_by_inf.get(inf_id, None) for inf_id in informe_ids]
         
-        # Calcular promedio total y promedio reciente
-        num_vals_total = [v for v in vals if isinstance(v, (int, float))]
-        avg_total = f"{sum(num_vals_total) / len(num_vals_total):.1f}" if num_vals_total else "-"
-        
+        # Calcular promedio reciente (últimos 18 meses)
         recent_vals = [vals[i] for i in recent_indices if i < len(vals)]
         num_vals_recent = [v for v in recent_vals if isinstance(v, (int, float))]
         avg_recent = f"{sum(num_vals_recent) / len(num_vals_recent):.1f}" if num_vals_recent else "-"
         
         # Ajustes de decimales específicos
         if a.codigo in ["CREATININE", "TSH", "PSA_TOTAL", "PSA_FREE", "RATIO_PSA_L_T", "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL"]:
-            if num_vals_total:
-                avg_total = f"{sum(num_vals_total) / len(num_vals_total):.2f}"
             if num_vals_recent:
                 avg_recent = f"{sum(num_vals_recent) / len(num_vals_recent):.2f}"
 
@@ -278,7 +285,7 @@ def get_tables(db: Session = Depends(get_db)):
             ref=a.ref_texto_defecto or "",
             vals=vals,
             recentAvg=avg_recent,
-            avg=avg_total,
+            avg=avg_recent,
             group=get_analito_group(a.codigo)
         ))
 
@@ -332,28 +339,67 @@ def get_charts_data(db: Session = Depends(get_db)):
     dates = [inf.etiqueta_corta for inf in informes]
     informe_ids = [inf.id for inf in informes]
 
-    def get_series(codigo: str):
-        analito = db.query(Analito).filter_by(codigo=codigo).first()
-        if not analito:
+    def get_series(*codigos: str):
+        analitos = db.query(Analito).filter(Analito.codigo.in_(codigos)).all()
+        if not analitos:
             return [None] * len(informe_ids)
-        meds = db.query(Medicion).filter_by(analito_id=analito.id).all()
-        med_map = {m.informe_id: m.valor_numerico for m in meds}
+        a_ids = [a.id for a in analitos]
+        meds = db.query(Medicion).filter(Medicion.analito_id.in_(a_ids)).all()
+        med_map = {}
+        for m in meds:
+            if m.valor_numerico is not None:
+                med_map[m.informe_id] = m.valor_numerico
         return [med_map.get(i_id, None) for i_id in informe_ids]
 
-    glucosa_vals = get_series("GLUCOSE")
-    col_t_vals = get_series("CHOLESTEROL_TOTAL")
-    hdl_vals = get_series("HDL")
-    ldl_vals = get_series("LDL")
-    tg_vals = get_series("TRIGLYCERIDES")
-    castelli1_vals = get_series("RATIO_COL_HDL")
-    castelli2_vals = get_series("RATIO_LDL_HDL")
-    tg_hdl_vals = get_series("RATIO_TG_HDL")
+    glucosa_vals = get_series("GLUCOSE", "GLUCOSA")
+    col_t_vals = get_series("CHOLESTEROL_TOTAL", "COLESTEROL_TOTAL", "COLESTEROL")
+    hdl_vals = get_series("HDL", "HDL_COLESTEROL")
+    ldl_vals = get_series("LDL", "LDL_COLESTEROL")
+    tg_vals = get_series("TRIGLYCERIDES", "TRIGLICERIDOS")
     urea_vals = get_series("UREA")
-    creat_vals = get_series("CREATININE")
-    urico_vals = get_series("URIC_ACID")
-    psa_t_vals = get_series("PSA_TOTAL")
-    psa_ratio_vals = [round(v * 100, 1) if v is not None else None for v in get_series("RATIO_PSA_L_T")]
+    creat_vals = get_series("CREATININE", "CREATININA")
+    urico_vals = get_series("URIC_ACID", "ACIDO_URICO")
+    psa_t_vals = get_series("PSA_TOTAL", "PSA")
+    psa_free_vals = get_series("PSA_FREE", "PSA_LIBRE")
     tsh_vals = get_series("TSH")
+
+    # Ratios con fallback calculado dinámicamente si no estaban guardados en BD
+    raw_castelli1 = get_series("RATIO_COL_HDL", "COCIENTE_COL_HDL")
+    castelli1_vals = []
+    for idx, i_id in enumerate(informe_ids):
+        val = raw_castelli1[idx]
+        if val is None and col_t_vals[idx] is not None and hdl_vals[idx] and hdl_vals[idx] > 0:
+            val = round(col_t_vals[idx] / hdl_vals[idx], 2)
+        castelli1_vals.append(val)
+
+    raw_castelli2 = get_series("RATIO_LDL_HDL", "COCIENTE_LDL_HDL")
+    castelli2_vals = []
+    for idx, i_id in enumerate(informe_ids):
+        val = raw_castelli2[idx]
+        if val is None and ldl_vals[idx] is not None and hdl_vals[idx] and hdl_vals[idx] > 0:
+            val = round(ldl_vals[idx] / hdl_vals[idx], 2)
+        castelli2_vals.append(val)
+
+    raw_tg_hdl = get_series("RATIO_TG_HDL", "COCIENTE_TG_HDL")
+    tg_hdl_vals = []
+    for idx, i_id in enumerate(informe_ids):
+        val = raw_tg_hdl[idx]
+        if val is None and tg_vals[idx] is not None and hdl_vals[idx] and hdl_vals[idx] > 0:
+            val = round(tg_vals[idx] / hdl_vals[idx], 2)
+        tg_hdl_vals.append(val)
+
+    raw_psa_ratio = get_series("RATIO_PSA_L_T", "RATIO_PSA")
+    psa_ratio_vals = []
+    for idx, i_id in enumerate(informe_ids):
+        val = raw_psa_ratio[idx]
+        if val is not None:
+            if val <= 1.0:
+                val = round(val * 100, 1)
+            else:
+                val = round(val, 1)
+        elif psa_free_vals[idx] is not None and psa_t_vals[idx] and psa_t_vals[idx] > 0:
+            val = round((psa_free_vals[idx] / psa_t_vals[idx]) * 100, 1)
+        psa_ratio_vals.append(val)
 
     return ChartsResponse(
         glucosa=ChartConfig(
@@ -365,24 +411,25 @@ def get_charts_data(db: Session = Depends(get_db)):
                     borderColor="#2563eb",
                     backgroundColor="rgba(37, 99, 235, 0.1)",
                     borderWidth=2.5,
-                    fill=True
+                    fill=True,
+                    yAxisID="y"
                 )
             ]
         ),
         lipidos=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Colesterol Total", data=col_t_vals, borderColor="#2563eb", borderWidth=2.5),
-                ChartDataset(label="LDL-Colesterol", data=ldl_vals, borderColor="#f59e0b", borderWidth=2.5),
-                ChartDataset(label="HDL-Colesterol", data=hdl_vals, borderColor="#10b981", borderWidth=2.0),
-                ChartDataset(label="Triglicéridos", data=tg_vals, borderColor="#8b5cf6", borderWidth=1.5)
+                ChartDataset(label="Colesterol Total", data=col_t_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="LDL-Colesterol", data=ldl_vals, borderColor="#f59e0b", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="HDL-Colesterol", data=hdl_vals, borderColor="#10b981", borderWidth=2.0, yAxisID="y"),
+                ChartDataset(label="Triglicéridos", data=tg_vals, borderColor="#8b5cf6", borderWidth=1.5, yAxisID="y")
             ]
         ),
         castelli=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Castelli I: Col.T / HDL (Ref < 5.0)", data=castelli1_vals, borderColor="#8b5cf6", backgroundColor="rgba(139, 92, 246, 0.1)", borderWidth=2.5),
-                ChartDataset(label="Castelli II: LDL / HDL (Ref < 4.3)", data=castelli2_vals, borderColor="#ec4899", backgroundColor="rgba(236, 72, 153, 0.1)", borderWidth=2.5)
+                ChartDataset(label="Castelli I: Col.T / HDL (Ref < 5.0)", data=castelli1_vals, borderColor="#8b5cf6", backgroundColor="rgba(139, 92, 246, 0.1)", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Castelli II: LDL / HDL (Ref < 4.3)", data=castelli2_vals, borderColor="#ec4899", backgroundColor="rgba(236, 72, 153, 0.1)", borderWidth=2.5, yAxisID="y")
             ]
         ),
         ratios_tg=ChartConfig(
@@ -394,7 +441,8 @@ def get_charts_data(db: Session = Depends(get_db)):
                     borderColor="#06b6d4",
                     backgroundColor="rgba(6, 182, 212, 0.15)",
                     borderWidth=2.5,
-                    fill=True
+                    fill=True,
+                    yAxisID="y"
                 )
             ]
         ),
@@ -408,7 +456,7 @@ def get_charts_data(db: Session = Depends(get_db)):
         urico=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Ácido Úrico (mg/dL)", data=urico_vals, borderColor="#059669", backgroundColor="rgba(5, 150, 105, 0.1)", borderWidth=2.5, fill=True)
+                ChartDataset(label="Ácido Úrico (mg/dL)", data=urico_vals, borderColor="#059669", backgroundColor="rgba(5, 150, 105, 0.1)", borderWidth=2.5, fill=True, yAxisID="y")
             ]
         ),
         psa=ChartConfig(
@@ -421,7 +469,7 @@ def get_charts_data(db: Session = Depends(get_db)):
         tsh=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="TSH (µUI/mL)", data=tsh_vals, borderColor="#0284c7", backgroundColor="rgba(2, 132, 199, 0.1)", borderWidth=2.0, fill=True)
+                ChartDataset(label="TSH (µUI/mL)", data=tsh_vals, borderColor="#0284c7", backgroundColor="rgba(2, 132, 199, 0.1)", borderWidth=2.0, fill=True, yAxisID="y")
             ]
         )
     )

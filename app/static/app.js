@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 1. Gestión de Pestañas
 function setTab(tabId) {
-  const tabs = ['eval', 'charts', 'table', 'panels', 'audit', 'ai', 'config'];
+  const tabs = ['eval', 'charts', 'table', 'audit', 'config'];
   tabs.forEach(t => {
     const el = document.getElementById('tab-' + t);
     const btn = document.getElementById('tab-btn-' + t);
@@ -62,12 +62,11 @@ function setTab(tabId) {
     setTimeout(() => {
       loadCharts();
     }, 60);
-  } else if (tabId === 'ai') {
-    loadAiAuditorias();
   } else if (tabId === 'audit') {
     loadAuditFiles();
   } else if (tabId === 'config') {
     loadPatientConfig();
+    loadAiAuditorias();
   }
 }
 
@@ -82,11 +81,12 @@ async function loadSummary() {
     document.getElementById('badge-ultima-fecha').textContent = `Última analítica: ${data.ultima_fecha}`;
 
     const p = data.paciente || {};
-    document.getElementById('paciente-nombre').textContent = 'Panel de Gestión Analítica: ' + (p.nombre || 'Paciente');
+    const nombre = (p.nombre || '').trim();
+    document.getElementById('paciente-nombre').textContent = 'Control de analíticas clínicas: ' + (nombre || 'Paciente');
     
     let partesDetalles = [];
     if (p.nacimiento && p.nacimiento !== '-') {
-      let nacStr = `F. Nacimiento: <strong>${escapeHtml(p.nacimiento)}</strong>`;
+      let nacStr = `Fecha de nacimiento: <strong>${escapeHtml(p.nacimiento)}</strong>`;
       if (p.edad && p.edad !== '-') {
         nacStr += ` (${escapeHtml(p.edad)})`;
       }
@@ -96,15 +96,24 @@ async function loadSummary() {
       partesDetalles.push(`Sexo: <strong>${escapeHtml(p.sexo)}</strong>`);
     }
     if (p.dni && p.dni !== '-') {
-      partesDetalles.push(`DNI: <strong>${escapeHtml(p.dni)}</strong>`);
+      partesDetalles.push(`Identificación fiscal (DNI): <strong>${escapeHtml(p.dni)}</strong>`);
     }
 
     document.getElementById('paciente-detalles').innerHTML = partesDetalles.length > 0 
-      ? partesDetalles.join(' • ') 
+      ? partesDetalles.join(' <span class="text-slate-300">•</span> ') 
       : 'Sin datos personales configurados';
 
-    document.getElementById('dictamen-titulo').textContent = data.dictamen_global;
-    document.getElementById('dictamen-sub').textContent = data.dictamen_subtitulo;
+    document.getElementById('dictamen-titulo').textContent = data.dictamen_global || 'Control favorable';
+    const subEl = document.getElementById('dictamen-sub');
+    if (subEl) {
+      if (data.dictamen_subtitulo && data.dictamen_subtitulo !== 'Parámetros analizados por el sistema' && data.dictamen_subtitulo !== '-' && data.dictamen_subtitulo.trim().length > 0) {
+        subEl.textContent = '— ' + data.dictamen_subtitulo;
+        subEl.classList.remove('hidden');
+      } else {
+        subEl.textContent = '';
+        subEl.classList.add('hidden');
+      }
+    }
 
     // Renderizar KPIs
     const container = document.getElementById('kpi-container');
@@ -224,10 +233,7 @@ async function loadTables() {
     });
     hHtml += `
         <th class="p-3 text-center bg-blue-800 font-extrabold text-white border-l-2 border-r-2 border-blue-400 shadow-inner">
-          Promedio Reciente<br><span class="text-[10px] font-normal text-blue-200">1.5 años (2025-26)</span>
-        </th>
-        <th class="p-3 text-center bg-slate-800 text-slate-400 font-normal">
-          Promedio Total<br><span class="text-[10px] text-slate-500 font-light">Histórico (2022-26)</span>
+          Promedio 18 meses
         </th>
       </tr>
     `;
@@ -237,7 +243,7 @@ async function loadTables() {
     const tbody = document.getElementById('tableBodyRows');
     tbody.innerHTML = '';
     let currentGroup = null;
-    const totalCols = 3 + data.dates.length + 2;
+    const totalCols = 3 + data.dates.length + 1;
 
     data.bioquimica.forEach(row => {
       // Cabecera visual de grupo clínico
@@ -269,63 +275,24 @@ async function loadTables() {
         }
       });
 
-      // Promedio Reciente
+      // Promedio 18 meses
       if (row.recentAvg && row.recentAvg !== '-') {
         let fmt = getCellFormatClient(row.name, row.recentAvg);
         cells += `
           <td class="p-3 text-center bg-blue-50/70 border-l border-r border-blue-200">
-            <span class="${fmt.cls} text-xs font-bold" title="Promedio reciente (2025-26): ${fmt.title}">${row.recentAvg}</span>
+            <span class="${fmt.cls} text-xs font-bold" title="Promedio últimos 18 meses: ${fmt.title}">${row.recentAvg}</span>
           </td>
         `;
       } else {
         cells += `<td class="p-3 text-center bg-blue-50/40 border-l border-r border-blue-200 text-slate-300 font-normal">-</td>`;
       }
 
-      // Promedio Total
-      cells += `<td class="p-3 text-center text-[11px] text-slate-400 font-normal bg-slate-50/50">${row.avg}</td>`;
       tr.innerHTML = cells;
       tbody.appendChild(tr);
     });
-
-    // 4.3 Paneles Especiales
-    populateSimplePanel('hemogramaRows', data.hemograma);
-    populateSimplePanel('coagRows', data.coagulacion);
-    populateSimplePanel('enzimasRows', data.enzimas);
-
   } catch (err) {
     console.error('Fallo al cargar tablas:', err);
   }
-}
-
-function populateSimplePanel(tbodyId, rows) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
-  tbody.innerHTML = '';
-  rows.forEach(r => {
-    const tr = document.createElement('tr');
-    tr.className = 'hover:bg-slate-50';
-    let statusClass = 'text-emerald-700 font-semibold';
-    if (r[11] && (r[11].includes('Bajo') || r[11].includes('Ligeramente'))) {
-      statusClass = 'text-blue-900 bg-blue-100 border border-blue-300 font-bold px-2 py-0.5 rounded inline-block';
-    } else if (r[11] && (r[11].includes('Atención') || r[11].includes('Límite'))) {
-      statusClass = 'text-amber-800 bg-amber-100 border border-amber-300 font-bold px-2 py-0.5 rounded inline-block';
-    }
-    tr.innerHTML = `
-      <td class="p-3 font-semibold">${r[0]}</td>
-      <td class="p-3 text-slate-500">${r[1]}</td>
-      <td class="p-3 text-center">${r[2]}</td>
-      <td class="p-3 text-center">${r[3]}</td>
-      <td class="p-3 text-center">${r[4]}</td>
-      <td class="p-3 text-center">${r[5]}</td>
-      <td class="p-3 text-center">${r[6]}</td>
-      <td class="p-3 text-center bg-blue-50 font-bold">${r[7]}</td>
-      <td class="p-3 text-center bg-slate-50">${r[8]}</td>
-      <td class="p-3 text-center bg-emerald-50 font-bold text-emerald-900">${r[9]}</td>
-      <td class="p-3 text-center text-slate-500">${r[10]}</td>
-      <td class="p-3 text-center"><span class="${statusClass}">${r[11]}</span></td>
-    `;
-    tbody.appendChild(tr);
-  });
 }
 
 // 5. Cargar Gráficos Evolutivos
@@ -356,6 +323,7 @@ async function loadCharts() {
         if (config.datasets) {
           config.datasets.forEach(ds => {
             ds.spanGaps = true;
+            if (!ds.yAxisID) ds.yAxisID = 'y';
             if (!ds.pointRadius) ds.pointRadius = 4;
             if (!ds.pointHoverRadius) ds.pointHoverRadius = 6;
           });

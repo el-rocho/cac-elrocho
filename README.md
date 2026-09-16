@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.1.0`
+# cac-elrocho 🩺 `v0.2.0`
 
 > **Cuadro de Mando Clínico Autónomo y Autoalojable con Validación por Inteligencia Artificial (LLM)**
 
@@ -10,7 +10,7 @@ Diseñada para ser ejecutada de manera autónoma en una **máquina virtual con D
 
 ## 🚀 Características Principales
 
-* 📊 **Panel de Control Integral**: Tarjetas KPI, 8 gráficos evolutivos interactivos con Chart.js y tabla bioquímica comparativa que destaca el promedio reciente frente al histórico global.
+* 📊 **Panel de Control Integral**: Tarjetas KPI, 8 gráficos evolutivos interactivos con Chart.js y tabla de resultados completa con promedio reciente a 18 meses.
 * 👤 **Ficha Personal del Paciente**:
   * Configuración soberana y privada de datos personales: **Nombre**, **Documento de Identidad (DNI/NIE)**, **Fecha de Nacimiento** (con cálculo dinámico de edad cumplida) y **Sexo** (Masculino / Femenino / No especificado).
   * Los datos de configuración son privados y nunca son sobreescritos por los informes médicos que se suban.
@@ -19,7 +19,7 @@ Diseñada para ser ejecutada de manera autónoma en una **máquina virtual con D
   * **Auditoría de Rangos de Referencia**: Detecta si un laboratorio ha actualizado sus límites de normalidad (por ejemplo, el dintel de LDL de 130 a 116 mg/dL según guías SEA 2023) y explica el motivo clínico.
   * Detección de prediabetes (HbA1c ≥ 5.7%) y semaforización clínica rigurosa.
 * 🛡️ **Validación de Identidad Flexible (Human-in-the-Loop)**:
-  * Comprobación tolerante de identidad entre el informe PDF y el paciente configurado (ignora orden de apellidos/nombre, tildes, mayúsculas y formato de DNI).
+  * Comprobación tolerante de identidad entre el informe PDF y el paciente configurado (ignora orden de apellidos/nombre, tildes, mayúsculas y ceros a la izquierda en el DNI).
   * En caso de discrepancia real (por ejemplo, si se sube por error el informe de otra persona), emite una advertencia previa no bloqueante en el modal de revisión.
 * 🔐 **Panel de Gestión y Respaldo de Datos**:
   * **Exportación Segura**: Descarga copias de seguridad completas en JSON con **cifrado simétrico AES-256-GCM** protegido por contraseña.
@@ -81,7 +81,7 @@ http://IP_DE_TU_MAQUINA_DEBIAN:8000
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.1.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.2.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho
@@ -103,7 +103,7 @@ docker image prune -f
 
 ## ⚙️ Primeros Pasos y Configuración
 
-1. Dirígete a la pestaña **⚙️ 7. Configuración y Datos** en la barra superior.
+1. Dirígete a la pestaña **⚙️ 5. Configuración y Datos** en la barra superior.
 2. En la sección **Datos Personales del Paciente**, introduce tu Nombre, DNI, Fecha de Nacimiento y Sexo y pulsa en `Guardar Datos del Paciente`.
 3. Ahora puedes:
    * **Subir tus analíticas**: Pulsa en el botón azul de la cabecera `➕ Subir Nueva Analítica (PDF)` o arrastra archivos.

@@ -29,7 +29,7 @@ class TableRow(BaseModel):
     ref: str
     vals: List[Any] # Floats, strings or None
     recentAvg: str
-    avg: str
+    avg: Optional[str] = "-"
     group: Optional[str] = None
 
 class TablesResponse(BaseModel):
@@ -48,7 +48,7 @@ class ChartDataset(BaseModel):
     borderWidth: Optional[float] = 2.0
     tension: Optional[float] = 0.2
     fill: Optional[bool] = False
-    yAxisID: Optional[str] = None
+    yAxisID: Optional[str] = "y"
     spanGaps: Optional[bool] = True
     pointRadius: Optional[float] = 4.0
     pointHoverRadius: Optional[float] = 6.0

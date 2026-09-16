@@ -27,15 +27,39 @@ def normalizar_texto(texto: str) -> str:
     return re.sub(r'\s+', ' ', texto).strip()
 
 def normalizar_dni(dni: str) -> str:
-    """Normaliza un documento de identidad eliminando puntos, guiones y espacios."""
+    """
+    Normaliza un documento de identidad eliminando puntos, guiones y espacios.
+    Ajusta ceros a la izquierda en DNIs españoles estándar (ej: '4555766H' -> '04555766H').
+    """
     if not dni:
         return ""
-    return re.sub(r'[^a-zA-Z0-9]', '', str(dni)).upper().strip()
+    clean = re.sub(r'[^a-zA-Z0-9]', '', str(dni)).upper().strip()
+    if not clean:
+        return ""
+    
+    # Caso DNI español estándar: dígitos seguidos de una letra (ej: 4555766H o 04555766H)
+    m = re.match(r"^(\d+)([A-Z])$", clean)
+    if m:
+        num, letter = m.groups()
+        if len(num) < 8:
+            num = num.zfill(8)
+        return f"{num}{letter}"
+        
+    # Caso NIE: Letra (X, Y, Z) + dígitos + letra (ej: X1234567A)
+    m_nie = re.match(r"^([XYZ])(\d+)([A-Z])$", clean)
+    if m_nie:
+        prefix, num, letter = m_nie.groups()
+        if len(num) < 7:
+            num = num.zfill(7)
+        return f"{prefix}{num}{letter}"
+        
+    return clean
 
 def verificar_coincidencia_flexible(paciente_cfg, paciente_pdf: Optional[str], dni_pdf: Optional[str]) -> Optional[str]:
     """
     Comprueba de forma tolerante si los datos del informe discrepan del paciente configurado.
-    Permite variaciones de orden (ej: 'Huerta, Javier' vs 'Francisco Javier Huerta').
+    Permite variaciones de orden (ej: 'Huerta, Javier' vs 'Francisco Javier Huerta')
+    y diferencias de formato de DNI (ceros a la izquierda, puntos o guiones).
     Si el usuario aún no ha configurado sus datos, no genera advertencia.
     """
     if not paciente_cfg:
@@ -51,7 +75,11 @@ def verificar_coincidencia_flexible(paciente_cfg, paciente_pdf: Optional[str], d
     dni_cfg_norm = normalizar_dni(dni_cfg)
     if dni_pdf_norm and dni_cfg_norm and len(dni_pdf_norm) >= 4 and len(dni_cfg_norm) >= 4:
         if dni_pdf_norm != dni_cfg_norm:
-            return f"El documento de identidad en el PDF ({dni_pdf}) no coincide con el DNI configurado ({dni_cfg})."
+            # Comprobación de seguridad adicional suprimiendo ceros iniciales
+            pdf_no_zero = re.sub(r'^0+', '', dni_pdf_norm)
+            cfg_no_zero = re.sub(r'^0+', '', dni_cfg_norm)
+            if pdf_no_zero != cfg_no_zero:
+                return f"El documento de identidad en el PDF ({dni_pdf}) no coincide con el DNI configurado ({dni_cfg})."
 
     # 2. Comprobación flexible de Nombre si ambos existen
     if paciente_pdf and nombre_cfg:

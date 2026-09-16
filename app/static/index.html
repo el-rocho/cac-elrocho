@@ -25,36 +25,45 @@
   <div class="max-w-7xl mx-auto space-y-8">
     
     <!-- HEADER -->
-    <header class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-      <div>
-        <div class="flex flex-wrap items-center gap-2.5">
-          <span class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full uppercase tracking-wider">Historial Clínico Integral</span>
-          <span id="badge-total-controles" class="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Cargando controles...</span>
-          <span id="badge-ultima-fecha" class="text-xs text-slate-500 font-medium">Última analítica: -</span>
-          <span class="px-2.5 py-0.5 bg-purple-100 text-purple-800 text-[11px] font-bold rounded-full flex items-center gap-1">
+    <header class="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm space-y-3.5">
+      <!-- FILA 1: Etiquetas informativas y botón de acción -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-lg uppercase tracking-wider">Historial Clínico Integral</span>
+          <span id="badge-total-controles" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">Cargando controles...</span>
+          <span id="badge-ultima-fecha" class="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg">Última analítica: -</span>
+          <span class="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1">
             ✨ Motor LLM Activo
           </span>
         </div>
-        <h1 id="paciente-nombre" class="text-2xl md:text-3xl font-extrabold text-slate-900 mt-3">Panel de Gestión Analítica</h1>
-        <p id="paciente-detalles" class="text-sm text-slate-600 mt-1">Cargando información del paciente...</p>
-      </div>
 
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-3 rounded-2xl">
-          <div class="relative flex h-3.5 w-3.5">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
-          </div>
-          <div>
-            <div class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Dictamen Global</div>
-            <div id="dictamen-titulo" class="text-sm font-bold text-slate-900">-</div>
-            <div id="dictamen-sub" class="text-[11px] text-slate-500">-</div>
-          </div>
-        </div>
-
-        <button onclick="openUploadModal()" class="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+        <button onclick="openUploadModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all flex items-center gap-1.5 shrink-0">
           <span>➕</span> Subir Nueva Analítica (PDF)
         </button>
+      </div>
+
+      <!-- FILA 2: Título y Nombre del Usuario -->
+      <div class="border-t border-slate-100 pt-3">
+        <h1 id="paciente-nombre" class="text-lg md:text-xl font-extrabold text-slate-900 tracking-tight truncate">
+          Control de analíticas clínicas: Paciente
+        </h1>
+      </div>
+
+      <!-- FILA 3: Datos del Usuario -->
+      <div id="paciente-detalles" class="text-xs md:text-sm text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
+        Cargando datos personales...
+      </div>
+
+      <!-- FILA 4: Tarjeta con Dictamen -->
+      <div id="dictamen-card" class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
+        <div class="relative flex h-3 w-3 shrink-0">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+        </div>
+        <div class="text-xs md:text-sm text-slate-700">
+          <span id="dictamen-titulo" class="font-normal text-slate-800">-</span>
+          <span id="dictamen-sub" class="text-slate-500 font-normal ml-2 hidden"></span>
+        </div>
       </div>
     </header>
 
@@ -72,19 +81,13 @@
         📈 2. Gráficos Evolutivos
       </button>
       <button onclick="setTab('table')" id="tab-btn-table" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        📊 3. Histórico Bioquímico Completo
-      </button>
-      <button onclick="setTab('panels')" id="tab-btn-panels" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        🧪 4. Paneles Especiales
+        📊 3. Historial de Resultados
       </button>
       <button onclick="setTab('audit')" id="tab-btn-audit" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        🔍 5. Auditoría de Archivos
-      </button>
-      <button onclick="setTab('ai')" id="tab-btn-ai" class="pb-3 px-4 border-b-2 tab-inactive transition-colors flex items-center gap-1.5 text-purple-700">
-        <span>🤖</span> 6. Auditoría IA y Rangos
+        🔍 4. Auditoría de Archivos
       </button>
       <button onclick="setTab('config')" id="tab-btn-config" class="pb-3 px-4 border-b-2 tab-inactive transition-colors flex items-center gap-1.5 text-blue-700">
-        <span>⚙️</span> 7. Configuración y Datos
+        <span>⚙️</span> 5. Configuración y Datos
       </button>
     </div>
 
@@ -215,16 +218,12 @@
       </div>
     </div>
 
-    <!-- TAB 3: HISTÓRICO BIOQUÍMICO COMPLETO -->
+    <!-- TAB 3: HISTORIAL DE RESULTADOS -->
     <div id="tab-table" class="space-y-4 hidden">
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-          <div>
-            <h3 class="text-base font-bold text-slate-900">Serie Temporal Bioquímica Consolidada</h3>
-            <p class="text-xs text-slate-500">Datos dinámicos provistos por la API REST de cac-elrocho.</p>
-          </div>
-          <div class="flex items-center gap-3">
-            <input type="text" id="tableFilter" onkeyup="filterTable()" placeholder="Buscar parámetro..." class="text-xs border border-slate-300 rounded-xl px-3 py-2 w-48 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <div class="flex justify-center items-center mb-4">
+          <div class="relative w-full max-w-md">
+            <input type="text" id="tableFilter" onkeyup="filterTable()" placeholder="🔍 Buscar parámetro o analito..." class="w-full text-xs sm:text-sm border border-slate-300 rounded-xl px-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-center placeholder:text-slate-400">
           </div>
         </div>
 
@@ -237,85 +236,7 @@
       </div>
     </div>
 
-    <!-- TAB 4: PANELES ESPECIALES -->
-    <div id="tab-panels" class="space-y-6 hidden">
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h3 class="text-base font-bold text-slate-900 mb-2">1. Hemograma Completo</h3>
-        <div class="table-container border border-slate-200 rounded-xl">
-          <table class="w-full text-xs text-left divide-y divide-slate-200">
-            <thead class="bg-slate-100 text-slate-700 font-bold">
-              <tr>
-                <th class="p-3">Parámetro</th>
-                <th class="p-3">Unidad</th>
-                <th class="p-3 text-center">C1</th>
-                <th class="p-3 text-center">C2</th>
-                <th class="p-3 text-center">C3</th>
-                <th class="p-3 text-center">C4</th>
-                <th class="p-3 text-center">C5</th>
-                <th class="p-3 text-center">C6</th>
-                <th class="p-3 text-center">C7</th>
-                <th class="p-3 text-center">C8</th>
-                <th class="p-3 text-center">Rango Ref.</th>
-                <th class="p-3 text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 text-slate-700" id="hemogramaRows"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h3 class="text-base font-bold text-slate-900 mb-2">2. Coagulación y Hemostasia</h3>
-        <div class="table-container border border-slate-200 rounded-xl">
-          <table class="w-full text-xs text-left divide-y divide-slate-200">
-            <thead class="bg-slate-100 text-slate-700 font-bold">
-              <tr>
-                <th class="p-3">Parámetro</th>
-                <th class="p-3">Unidad</th>
-                <th class="p-3 text-center">C1</th>
-                <th class="p-3 text-center">C2</th>
-                <th class="p-3 text-center">C3</th>
-                <th class="p-3 text-center">C4</th>
-                <th class="p-3 text-center">C5</th>
-                <th class="p-3 text-center">C6</th>
-                <th class="p-3 text-center">C7</th>
-                <th class="p-3 text-center">C8</th>
-                <th class="p-3 text-center">Rango Ref.</th>
-                <th class="p-3 text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 text-slate-700" id="coagRows"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h3 class="text-base font-bold text-slate-900 mb-2">3. Enzimas Hepáticas e Iones</h3>
-        <div class="table-container border border-slate-200 rounded-xl">
-          <table class="w-full text-xs text-left divide-y divide-slate-200">
-            <thead class="bg-slate-100 text-slate-700 font-bold">
-              <tr>
-                <th class="p-3">Parámetro</th>
-                <th class="p-3">Unidad</th>
-                <th class="p-3 text-center">C1</th>
-                <th class="p-3 text-center">C2</th>
-                <th class="p-3 text-center">C3</th>
-                <th class="p-3 text-center">C4</th>
-                <th class="p-3 text-center">C5</th>
-                <th class="p-3 text-center">C6</th>
-                <th class="p-3 text-center">C7</th>
-                <th class="p-3 text-center">C8</th>
-                <th class="p-3 text-center">Referencia</th>
-                <th class="p-3 text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 text-slate-700" id="enzimasRows"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 5: AUDITORÍA DE ARCHIVOS -->
+    <!-- TAB 4: AUDITORÍA DE ARCHIVOS -->
     <div id="tab-audit" class="space-y-6 hidden">
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -357,26 +278,7 @@
       </div>
     </div>
 
-    <!-- TAB 6: AUDITORÍA IA Y CAMBIOS DE RANGO -->
-    <div id="tab-ai" class="space-y-6 hidden">
-      <div class="bg-white border border-purple-200 rounded-2xl p-6 shadow-sm">
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-3">
-            <div class="p-2.5 bg-purple-100 text-purple-800 rounded-xl font-bold text-lg">🤖</div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Copiloto Clínico: Auditoría de Rangos de Referencia</h3>
-              <p class="text-xs text-slate-500">Supervisión de cambios analíticos y variaciones en criterios de normalidad.</p>
-            </div>
-          </div>
-          <button onclick="loadAiAuditorias()" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-semibold">
-            🔄 Actualizar
-          </button>
-        </div>
-        <div id="ai-auditorias-list" class="space-y-3"></div>
-      </div>
-    </div>
-
-    <!-- TAB 7: CONFIGURACIÓN Y GESTIÓN DE DATOS -->
+    <!-- TAB 5: CONFIGURACIÓN Y GESTIÓN DE DATOS -->
     <div id="tab-config" class="space-y-6 hidden">
       
       <!-- Fila 0: Datos del Paciente -->
@@ -430,6 +332,23 @@
             </button>
           </div>
         </form>
+      </div>
+
+      <!-- Fila 1: Auditoría IA y Cambios de Rango -->
+      <div class="bg-white border border-purple-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-purple-100 text-purple-800 rounded-xl font-bold text-lg">🤖</div>
+            <div>
+              <h3 class="text-base font-bold text-slate-900">Auditoría IA y Rangos de Referencia</h3>
+              <p class="text-xs text-slate-500">Supervisión automática de variaciones y cambios en criterios de normalidad de los laboratorios.</p>
+            </div>
+          </div>
+          <button onclick="loadAiAuditorias()" class="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-semibold flex items-center gap-1">
+            🔄 Actualizar
+          </button>
+        </div>
+        <div id="ai-auditorias-list" class="space-y-3"></div>
       </div>
 
       <div class="grid md:grid-cols-2 gap-6">
@@ -505,7 +424,7 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho v0.1.0 • Cuadro de Mando Clínico Autoalojable con Validación LLM • Debian 13 & Docker
+      cac-elrocho v0.2.0 • Control de Analíticas Clínicas personal y privado
     </footer>
 
   </div>
@@ -657,7 +576,7 @@
             <span class="text-[11px] text-slate-400 font-normal">Edita el valor o la unidad según corresponda</span>
           </div>
           <button type="button" onclick="addEditMeasurementRow()" class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm">
-            <span>➕</span> Añadir Analito Manual
+            <span>➕</span> Añadir Parámetro / Analito
           </button>
         </div>
 
@@ -665,7 +584,7 @@
           <table class="w-full text-xs text-left">
             <thead class="bg-slate-100 text-slate-700 font-bold sticky top-0 z-10 shadow-sm">
               <tr>
-                <th class="p-2.5 w-1/3">Analito / Parámetro</th>
+                <th class="p-2.5 w-1/3">Parámetro / Determinación (Analito)</th>
                 <th class="p-2.5 text-center w-28">Valor</th>
                 <th class="p-2.5 text-center w-24">Unidad</th>
                 <th class="p-2.5 text-center w-32">Rango Ref.</th>
@@ -691,6 +610,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=2.7"></script>
+  <script src="/static/app.js?v=2.9"></script>
 </body>
 </html>
