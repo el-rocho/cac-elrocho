@@ -8,6 +8,15 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
+## ✨ Novedades de la Versión `v0.3.0`
+* 🛡️ **Prevención Activa de Duplicados**: Indexación criptográfica **SHA-256** por cada archivo PDF subido y detección por fecha/laboratorio, con opción en la interfaz de **sobrescribir/actualizar** datos de forma atómica o registrar como analítica adicional.
+* 💾 **Respaldos con Marca Temporal**: Generación automática de archivos con fecha y hora (`cac-elrocho-backup-YYYYMMDD_HHMMSS.json`) y cifrado opcional `AES-256-GCM`.
+* 🖥️ **Integración Nativa de Guardado**: Soporte para `window.showSaveFilePicker` en navegadores modernos, con control preciso de cancelación y sin alertas bloqueantes intrusivas.
+* 🔄 **Restauración Segura y Transparente**: Diálogos informativos y de confirmación que clarifican el proceso de restauración completa (*Wipe & Restore* limpia sin duplicidades).
+* 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
+
+---
+
 ## 🚀 Características Principales
 
 * 📊 **Panel de Control Integral**: Tarjetas KPI, 8 gráficos evolutivos interactivos con Chart.js y tabla de resultados completa con promedio reciente a 18 meses.
