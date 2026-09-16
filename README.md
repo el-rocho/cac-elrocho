@@ -4,7 +4,7 @@
 
 `cac-elrocho` es una aplicación web integral y soberana diseñada para la digitalización, seguimiento evolutivo y supervisión longitudinal de analíticas médicas y controles de laboratorio. 
 
-Diseñada para ser ejecutada de manera autónoma en una **máquina virtual con Debian 13** (o cualquier servidor con Docker), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza un modelo LLM multimodal (**Google Gemini API**) para procesar nuevos informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
+Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows** con Docker Desktop, **Linux** como Debian 13 / Ubuntu en servidores o máquinas virtuales, y **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza un modelo LLM multimodal (**Google Gemini API**) para procesar nuevos informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
 
 ---
 
@@ -31,14 +31,17 @@ Diseñada para ser ejecutada de manera autónoma en una **máquina virtual con D
 
 ---
 
-## 🛠️ Requisitos del Sistema (Debian 13)
+## 🛠️ Requisitos del Sistema
 
-* **Sistema Operativo**: Debian 13 (Trixie) / Ubuntu 22.04+ / Cualquier distribución Linux con Docker.
+* **Sistema Operativo**:
+  * **Windows**: Windows 10/11 con [Docker Desktop](https://www.docker.com/products/docker-desktop/) (backend WSL2 recomendado).
+  * **Linux**: Debian 13 (Trixie), Ubuntu 22.04+ o cualquier distribución Linux con Docker.
+  * **macOS**: Docker Desktop para macOS.
 * **Recursos Mínimos**:
-  * 1 vCPU
+  * 1 vCPU / Procesador estándar
   * 1 GB de memoria RAM
   * 10 GB de almacenamiento disponible
-* **Software**: Docker y Docker Compose plugin (`docker compose`).
+* **Software**: Docker y Docker Compose (`docker compose`).
 
 ---
 
@@ -51,21 +54,24 @@ cd cac-elrocho
 ```
 
 ### 2. Configurar Variables de Entorno
-Copia la plantilla y configura tu clave de Gemini API:
+Copia la plantilla de configuración:
 ```bash
+# En Linux / macOS:
 cp .env.example .env
-nano .env
+
+# En Windows (PowerShell / CMD):
+copy .env.example .env
 ```
-Parámetros esenciales:
+Edita el archivo `.env` con tu editor preferido (`nano .env`, Bloc de notas, VS Code, etc.) y define tus parámetros esenciales:
 ```ini
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=tu_clave_de_gemini_api_aqui
 GEMINI_MODEL=gemini-2.5-flash
 ```
-*(Nota: Si dejas `GEMINI_API_KEY` vacío o usas `LLM_PROVIDER=mock`, la aplicación utilizará un motor de extracción inteligente local con patrones clínicos sin requerir conexión a internet).*
+*(Nota: Si dejas `GEMINI_API_KEY` vacío o usas `LLM_PROVIDER=mock`, la aplicación utilizará un motor de extracción inteligente local con patrones clínicos sin requerir conexión a internet ni consumo de API).*
 
 ### 3. Levantar los Contenedores
-Descarga la imagen precompilada en GitHub Actions y levanta el servicio sin consumir recursos de compilación en tu servidor:
+Descarga la imagen precompilada en GitHub Actions y levanta el servicio sin consumir recursos de compilación en tu máquina:
 ```bash
 docker compose pull
 docker compose up -d
@@ -74,7 +80,8 @@ docker compose up -d
 
 Accede desde tu navegador a:
 ```
-http://IP_DE_TU_MAQUINA_DEBIAN:8000
+http://localhost:8000            # Si lo ejecutas en tu propio equipo (Windows, macOS o Linux)
+http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máquina virtual
 ```
 
 ---
@@ -114,7 +121,7 @@ docker image prune -f
 
 ## 🌐 Configuración HTTPS Automática con Caddy (Opcional)
 
-Si deseas exponer la aplicación con certificado SSL/HTTPS Let's Encrypt de forma automática en Debian 13:
+Si deseas exponer la aplicación en un servidor público o dominio con certificado SSL/HTTPS Let's Encrypt automático:
 
 1. Descomenta el servicio `caddy` en `docker-compose.yml`.
 2. Crea un archivo `Caddyfile` en la raíz del proyecto:
@@ -127,20 +134,26 @@ tudominio.com {
 
 ---
 
-## 💻 Desarrollo Local (sin Docker)
+## 💻 Desarrollo y Ejecución Local (sin Docker)
 
+Si prefieres ejecutar la aplicación de forma nativa con Python:
+
+### En Windows:
+```cmd
+.\dev.bat
+```
+*(El script `dev.bat` creará automáticamente el entorno virtual, instalará las dependencias si no existen y arrancará el servidor en http://localhost:8000).*
+
+### En Linux / macOS:
 ```bash
-# Crear entorno virtual
-python -m venv venv
-# En Windows:
-venv\Scripts\activate
-# En Linux:
+# 1. Crear entorno virtual
+python3 -m venv venv
 source venv/bin/activate
 
-# Instalar dependencias
+# 2. Instalar dependencias
 pip install -r requirements.txt
 
-# Iniciar servidor de desarrollo
+# 3. Iniciar servidor de desarrollo
 uvicorn app.main:app --reload --port 8000
 ```
 
