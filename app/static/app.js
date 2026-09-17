@@ -85,13 +85,13 @@ async function loadSummary() {
       const mInfo = data.motor_llm_info;
       if (mInfo.activo) {
         badgeMotor.className = 'px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
-        const modCount = mInfo.slots_llm || 1;
+        const modelName = (mInfo.modelos && mInfo.modelos.length > 0) ? mInfo.modelos[0] : 'Gemini';
         const modNames = (mInfo.modelos || []).join(', ');
-        badgeMotor.innerHTML = `✨ Motor LLM Activo (${modCount} mod.)`;
-        badgeMotor.title = `Modelos configurados en .env: ${modNames}`;
+        badgeMotor.innerHTML = `✨ LLM Activo: ${escapeHtml(modelName)}`;
+        badgeMotor.title = `Modelo principal: ${modelName}. Alternativas configuradas: ${modNames}`;
       } else {
         badgeMotor.className = 'px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
-        badgeMotor.innerHTML = `⚠️ Extractor RegEx (Sin LLM)`;
+        badgeMotor.innerHTML = `⚠️ Extractor RegEx`;
         badgeMotor.title = 'No hay modelos LLM activos configurados en .env. La aplicación operará con el extractor basado en expresiones regulares.';
       }
     }
@@ -737,7 +737,7 @@ function renderUploadPreview(data) {
   if (data.motor_extraccion === 'mock') {
     if (badgeMotor) {
       badgeMotor.className = 'px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
-      badgeMotor.innerHTML = '⚠️ Extractor RegEx (Contingencia Activa)';
+      badgeMotor.innerHTML = '⚠️ Extractor RegEx';
       badgeMotor.title = 'Los modelos LLM configurados no respondieron o no están activos. Se ha utilizado el extractor de contingencia basado en expresiones regulares.';
     }
     if (bannerContainer) {
@@ -746,7 +746,7 @@ function renderUploadPreview(data) {
     if (bannerHeader) {
       bannerHeader.innerHTML = `
         <span class="flex items-center gap-1.5 text-amber-900 font-extrabold">
-          <span>⚠️</span> Extractor de Contingencia por RegEx (Sin LLM):
+          <span>⚠️</span> Extractor RegEx:
         </span>
         <span class="text-[11px] text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full font-medium">
           Modelos LLM inaccesibles o sin cuota. Extraídos ${data.total_parametros} parámetros con patrones estándar.
@@ -756,18 +756,17 @@ function renderUploadPreview(data) {
   } else {
     if (badgeMotor) {
       badgeMotor.className = 'px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
-      const slotText = data.slot_utilizado ? `Slot ${data.slot_utilizado}: ` : '';
-      badgeMotor.innerHTML = `✨ Motor LLM (${slotText}${escapeHtml(data.modelo_utilizado || 'Activo')})`;
+      badgeMotor.innerHTML = `✨ LLM Activo: ${escapeHtml(data.modelo_utilizado || 'Gemini')}`;
       badgeMotor.title = `Extraído con éxito mediante ${data.modelo_utilizado || 'modelo LLM'}`;
     }
     if (bannerContainer) {
       bannerContainer.className = 'p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs space-y-3';
     }
     if (bannerHeader) {
-      const slotBadge = data.slot_utilizado ? `<span class="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">Slot ${data.slot_utilizado}: ${escapeHtml(data.modelo_utilizado || '')}</span>` : '';
+      const slotBadge = data.slot_utilizado ? `<span class="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">Slot ${data.slot_utilizado}</span>` : '';
       bannerHeader.innerHTML = `
         <span class="flex items-center gap-1.5 text-purple-900 font-bold">
-          <span>✨</span> Datos Extraídos por Inteligencia Artificial ${slotBadge}:
+          <span>✨</span> Datos Extraídos por LLM (${escapeHtml(data.modelo_utilizado || '')}) ${slotBadge}:
         </span>
         <span class="text-[11px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
           Revisa y modifica antes de incorporar a la base de datos
