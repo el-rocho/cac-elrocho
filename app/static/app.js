@@ -96,6 +96,13 @@ async function loadSummary() {
       }
     }
 
+    if (data.app_version) {
+      const verEl = document.getElementById('footer-app-version');
+      if (verEl) {
+        verEl.textContent = data.app_version.startsWith('v') ? data.app_version : `v${data.app_version}`;
+      }
+    }
+
     const p = data.paciente || {};
     const nombre = (p.nombre || '').trim();
     document.getElementById('paciente-nombre').textContent = 'Control de analíticas clínicas: ' + (nombre || 'Paciente');

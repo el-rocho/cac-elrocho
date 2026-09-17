@@ -1,11 +1,13 @@
+import re
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from app import __version__
 
 from app.config import settings
 from app.database import init_db
@@ -44,7 +46,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="cac-elrocho",
     description="Panel Clínico Autónomo y Cuadro de Mando de Analíticas con Validación LLM",
-    version="0.4.0",
+    version=__version__,
     lifespan=lifespan
 )
 
@@ -69,5 +71,12 @@ if static_dir.exists():
 async def serve_index():
     index_file = static_dir / "index.html"
     if index_file.exists():
-        return FileResponse(str(index_file))
+        html = index_file.read_text(encoding="utf-8")
+        # Inyección dinámica de la versión en el footer para evitar desincronizaciones
+        html = re.sub(
+            r'id="footer-app-version">[^<]*<',
+            f'id="footer-app-version">v{__version__}<',
+            html
+        )
+        return HTMLResponse(content=html)
     return {"message": "cac-elrocho API activa. Visita /docs para la documentación interactiva."}

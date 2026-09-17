@@ -2,6 +2,7 @@ from datetime import date
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app import __version__
 from app.config import settings
 from app.database import get_db
 from app.models import Paciente, Informe, Analito, Medicion
@@ -77,7 +78,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             dictamen_global="Base de Datos Vacía",
             dictamen_subtitulo="Carga un PDF o importa un respaldo para iniciar el seguimiento",
             kpis=[],
-            motor_llm_info=motor_info
+            motor_llm_info=motor_info,
+            app_version=__version__
         )
 
     ultimo_informe = informes[-1]
@@ -192,7 +194,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         dictamen_global=ultimo_informe.dictamen_global or "Favorable",
         dictamen_subtitulo=ultimo_informe.observaciones_ia or "Parámetros analizados por el sistema",
         kpis=kpis,
-        motor_llm_info=motor_info
+        motor_llm_info=motor_info,
+        app_version=__version__
     )
 
 @router.get("/paciente", response_model=PacienteInfo)

@@ -24,6 +24,7 @@ Todas las modificaciones notables de este proyecto están documentadas en este a
 ### 🧹 Refactorización de Interfaz y Textos
 * **Limpieza de textos en Exportar / Importar Respaldo**: Eliminación de textos superfluos y clarificación de la advertencia de reemplazo total en la restauración.
 * **Puesta a punto (Modo Demo)**: Texto clarificado sobre la sustitución de datos de prueba y botón renombrado a "Cargar datos del modo Demo".
+* **Versión dinámica en pie de página (Footer)**: Desacoplamiento total del número de versión en el frontend; se inyecta y actualiza de forma dinámica en base a `__version__` de la aplicación, garantizando que el pie de página siempre refleje la versión en curso sin requerir modificaciones manuales en el HTML.
 
 ---
 

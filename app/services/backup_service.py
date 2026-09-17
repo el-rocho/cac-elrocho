@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 
+from app import __version__
 from app.models import Paciente, Informe, Analito, Medicion, AuditoriaRango
 
 def derive_key(passphrase: str, salt: bytes) -> bytes:
@@ -65,7 +66,7 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
 
     backup = {
         "app": "cac-elrocho",
-        "version": "0.4.0",
+        "version": __version__,
         "paciente": {
             "nombre_completo": paciente.nombre_completo if paciente else "",
             "fecha_nacimiento": paciente.fecha_nacimiento if paciente else "",

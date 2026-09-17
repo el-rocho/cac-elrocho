@@ -23,6 +23,7 @@ class DashboardSummaryResponse(BaseModel):
     dictamen_subtitulo: str
     kpis: List[KpiCard]
     motor_llm_info: Optional[Dict[str, Any]] = None
+    app_version: Optional[str] = None
 
 class TableRow(BaseModel):
     name: str
