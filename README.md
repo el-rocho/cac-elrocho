@@ -1,10 +1,12 @@
 # cac-elrocho 🩺 `v0.5.0`
 
-> **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con validación por Inteligencia Artificial (LLM)**
+> **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
 `cac-elrocho` es una aplicación web integral y soberana diseñada para la digitalización, seguimiento evolutivo y supervisión longitudinal de analíticas médicas y controles de laboratorio. 
 
-Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows**, **Linux** o **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza modelos LLM multimodales para procesar los informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
+Su principal ventaja diferencial radica en la **automatización total de la ingesta de datos**: la aplicación lee, extrae e incorpora los parámetros analíticos directamente desde los archivos PDF emitidos por cualquier laboratorio clínico (Megalab, Recoletas, Quirónsalud, Synlab, laboratorios hospitalarios públicos o privados). Este proceso se realiza de manera totalmente automática —asistido opcionalmente por modelos de **Inteligencia Artificial (LLM)** o mediante un motor de extracción local inteligente—, reduciendo al máximo la necesidad de realizar transcripciones o tareas manuales.
+
+Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows**, **Linux** o **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, audita cambios en rangos de referencia y emite valoraciones clínicas con gráficos evolutivos interactivos.
 
 ---
 
@@ -23,12 +25,16 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ## 🚀 Características Principales
 
+* 📄 **Extracción Automatizada de PDFs (Sin transcripción manual)**:
+  * Lee, extrae y normaliza de forma automática todos los datos directamente de los informes clínicos en PDF de cualquier laboratorio médico (público o privado).
+  * Reduce a cero el trabajo manual de mecanografiado: captura analitos, valores numéricos, unidades, rangos de referencia, laboratorios y médicos solicitantes.
+  * Modalidad híbrida y soberana: asistida opcionalmente por modelos LLM multimodales (**Google Gemini API**) o ejecutada de forma local e inmediata con el motor por patrones RegEx (sin necesidad de IA ni conexión externa).
+  * Supervisión *Human-in-the-Loop*: ventana modal de previsualización para validar o ajustar datos en segundos antes de incorporarlos a la base de datos.
 * 📊 **Panel de Control Integral**: Tarjetas KPI, 8 gráficos evolutivos interactivos con Chart.js y tabla de resultados completa con promedio reciente a 18 meses.
 * 👤 **Ficha Personal del Paciente**:
   * Configuración soberana y privada de datos personales: **Nombre**, **Documento de Identidad (DNI/NIE)**, **Fecha de Nacimiento** (con cálculo dinámico de edad cumplida) y **Sexo** (Masculino / Femenino / No especificado).
   * Los datos de configuración son privados y nunca son sobreescritos por los informes médicos que se suban.
-* 🤖 **Copiloto Clínico con IA (recomendada Gemini API gratuita de Google AI Studio)**:
-  * Ingesta inteligente de documentos PDF clínicos.
+* 🤖 **Copiloto Clínico con IA y Auditoría de Rangos (Gemini API)**:
   * **Auditoría de Rangos de Referencia**: Detecta si un laboratorio ha actualizado sus límites de normalidad (por ejemplo, el dintel de LDL de 130 a 116 mg/dL según guías SEA 2023) y explica el motivo clínico.
   * Detección de prediabetes (HbA1c ≥ 5.7%) y semaforización clínica rigurosa.
 * 🛡️ **Detección y Control de Analíticas Duplicadas**:
