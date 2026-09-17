@@ -50,3 +50,6 @@ wheels/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Scripts locales de desarrollo
+dev.bat
