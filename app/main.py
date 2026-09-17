@@ -67,6 +67,8 @@ static_dir = Path(__file__).resolve().parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+import time
+
 @app.get("/")
 async def serve_index():
     index_file = static_dir / "index.html"
@@ -78,5 +80,18 @@ async def serve_index():
             f'id="footer-app-version">v{__version__}<',
             html
         )
-        return HTMLResponse(content=html)
+        # Inyección dinámica de timestamp para app.js para evitar problemas de caché del navegador
+        html = re.sub(
+            r'src="/static/app\.js\?v=[^"]*"',
+            f'src="/static/app.js?v={int(time.time())}"',
+            html
+        )
+        return HTMLResponse(
+            content=html,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
     return {"message": "cac-elrocho API activa. Visita /docs para la documentación interactiva."}

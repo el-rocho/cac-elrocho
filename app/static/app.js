@@ -143,16 +143,22 @@ async function loadSummary() {
     container.innerHTML = '';
     data.kpis.forEach(kpi => {
       const card = document.createElement('div');
-      card.className = 'bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow transition-shadow';
+      card.className = 'bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow transition-shadow flex flex-col justify-between';
+      const labelHtml = kpi.main_label 
+        ? `<div class="text-[11px] font-medium text-slate-500 mt-1 truncate" title="${kpi.main_label}">${kpi.main_label}</div>` 
+        : '';
       card.innerHTML = `
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-semibold text-slate-500 uppercase">${kpi.title}</span>
-          <span class="text-[10px] ${kpi.tag_class} font-bold px-1.5 py-0.5 rounded">${kpi.tag}</span>
+        <div>
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide truncate" title="${kpi.title}">
+            ${kpi.title}
+          </div>
+          ${labelHtml}
+          <div class="text-xl font-extrabold text-slate-900 ${kpi.main_label ? 'mt-0.5' : 'mt-1'}">${kpi.main_value} <span class="text-xs font-normal text-slate-500">${kpi.unit}</span></div>
+          <div class="text-xs font-medium text-slate-600 mt-1 truncate" title="${kpi.subtitle_1 || ''}">${kpi.subtitle_1 || '&nbsp;'}</div>
+          <div class="text-xs font-medium text-slate-600 mt-0.5 truncate" title="${kpi.subtitle_2 || ''}">${kpi.subtitle_2 || '&nbsp;'}</div>
+          <div class="text-xs font-medium text-slate-600 mt-0.5 truncate" title="${kpi.subtitle_3 || ''}">${kpi.subtitle_3 || '&nbsp;'}</div>
         </div>
-        <div class="text-xl font-extrabold text-slate-900 mt-1">${kpi.main_value} <span class="text-xs font-normal text-slate-500">${kpi.unit}</span></div>
-        <div class="text-xs font-semibold text-slate-600 mt-0.5">${kpi.subtitle_1}</div>
-        <div class="text-[10px] text-slate-500 mt-0.5">${kpi.subtitle_2}</div>
-        <div class="mt-2 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
+        <div class="mt-2.5 inline-flex items-center self-start px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
           ${kpi.badge_text}
         </div>
       `;

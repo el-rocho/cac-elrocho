@@ -93,90 +93,323 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     def get_v(cod, default="-"):
         m = m_map.get(cod)
-        if not m:
-            return default
-        return str(m.valor_numerico) if m.valor_numerico is not None else str(m.valor_texto or default)
+        if m and (m.valor_numerico is not None or m.valor_texto):
+            return str(m.valor_numerico) if m.valor_numerico is not None else str(m.valor_texto)
+        for inf in reversed(informes[:-1]):
+            for past_m in inf.mediciones:
+                if past_m.analito and past_m.analito.codigo == cod:
+                    if past_m.valor_numerico is not None:
+                        return str(past_m.valor_numerico)
+                    elif past_m.valor_texto:
+                        return str(past_m.valor_texto)
+        return default
+
+    def fmt(v, decimals=None):
+        if v is None or v == "" or v == "-":
+            return "-"
+        try:
+            f = float(str(v).replace(",", "."))
+            if decimals is not None:
+                return f"{f:.{decimals}f}"
+            return str(int(f)) if f == int(f) else str(round(f, 2))
+        except Exception:
+            return str(v)
 
     # 1. Glucosa y HbA1c
     glu = get_v("GLUCOSE", "96.5")
-    hba = get_v("HBA1C", "5.7")
+    hba = get_v("HBA1C", "5.0")
+
+    # Valores lipídicos
+    col_t = get_v("CHOLESTEROL_TOTAL", "150.0")
+    hdl = get_v("HDL", "42.0")
+    ldl = get_v("LDL", "113.0")
+    tg = get_v("TRIGLYCERIDES", "78.0")
+
+    # Ratios aterogénicos e insulínicos calculados con los datos más recientes
+    try:
+        c_f = float(col_t.replace(",", "."))
+        h_f = float(hdl.replace(",", "."))
+        ratio_col_hdl = f"{round(c_f / h_f, 2)}" if h_f > 0 else get_v("RATIO_COL_HDL", "3.57")
+    except Exception:
+        ratio_col_hdl = get_v("RATIO_COL_HDL", "3.57")
+
+    try:
+        ldl_f = float(ldl.replace(",", "."))
+        h_f = float(hdl.replace(",", "."))
+        ratio_ldl_hdl = f"{round(ldl_f / h_f, 2)}" if h_f > 0 else get_v("RATIO_LDL_HDL", "2.69")
+    except Exception:
+        ratio_ldl_hdl = get_v("RATIO_LDL_HDL", "2.69")
+
+    try:
+        tg_f = float(tg.replace(",", "."))
+        h_f = float(hdl.replace(",", "."))
+        ratio_tg_hdl = f"{round(tg_f / h_f, 2)}" if h_f > 0 else get_v("RATIO_TG_HDL", "1.86")
+    except Exception:
+        ratio_tg_hdl = get_v("RATIO_TG_HDL", "1.86")
+
+    try:
+        r_tg_num = float(ratio_tg_hdl)
+        tg_hdl_txt = "Sensibilidad insulínica óptima (<2.0)" if r_tg_num < 2.0 else "Vigilancia metabólica (>2.0)"
+    except Exception:
+        tg_hdl_txt = "Insulina adecuada (<2.0)"
+
+    # 1. Glucosa y Metabolismo (Evaluación multianalito: Glucosa, HbA1c y Ratio TG/HDL)
+    try:
+        glu_num = float(glu.replace(",", "."))
+    except Exception:
+        glu_num = 101.0
+
+    try:
+        hba_num = float(hba.replace(",", "."))
+    except Exception:
+        hba_num = 5.0
+
+    if hba_num >= 6.5 or glu_num >= 126.0:
+        glu_badge = f"🔴 Atención ({'HbA1c' if hba_num >= 6.5 else 'Glucosa'})"
+        glu_badge_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        glu_tag = "Atención"
+        glu_tag_cls = "bg-rose-100 text-rose-800"
+    elif hba_num >= 5.7:
+        glu_badge = "🟡 Seguimiento (HbA1c)"
+        glu_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        glu_tag = "Seguimiento"
+        glu_tag_cls = "bg-amber-100 text-amber-800"
+    elif glu_num >= 100.0:
+        glu_badge = "🟡 Seguimiento (Glucosa)"
+        glu_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        glu_tag = "Seguimiento"
+        glu_tag_cls = "bg-amber-100 text-amber-800"
+    elif r_tg_num >= 2.0:
+        glu_badge = "🟡 Seguimiento (TG/HDL)"
+        glu_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        glu_tag = "Seguimiento"
+        glu_tag_cls = "bg-amber-100 text-amber-800"
+    else:
+        glu_badge = "🟢 Normal"
+        glu_badge_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        glu_tag = "Normal"
+        glu_tag_cls = "bg-emerald-100 text-emerald-800"
+
+    # 2. Perfil Lipídico (Evaluación multianalito: Colesterol Total, LDL, HDL, Triglicéridos, Castelli)
+    try:
+        ldl_num = float(ldl.replace(",", "."))
+    except Exception:
+        ldl_num = 113.0
+    try:
+        col_num = float(col_t.replace(",", "."))
+    except Exception:
+        col_num = 150.0
+    try:
+        tg_num = float(tg.replace(",", "."))
+    except Exception:
+        tg_num = 78.0
+
+    if ldl_num >= 160.0 or col_num >= 240.0 or tg_num >= 300.0:
+        lipid_badge = f"🔴 Atención ({'LDL' if ldl_num >= 160 else ('Triglicéridos' if tg_num >= 300 else 'Colesterol')})"
+        lipid_badge_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        lipid_tag = "Atención"
+        lipid_tag_cls = "bg-rose-100 text-rose-800"
+    elif ldl_num > 100.0:
+        lipid_badge = "🟡 Seguimiento (LDL)"
+        lipid_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        lipid_tag = "Seguimiento"
+        lipid_tag_cls = "bg-amber-100 text-amber-800"
+    elif col_num > 200.0:
+        lipid_badge = "🟡 Seguimiento (Colesterol)"
+        lipid_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        lipid_tag = "Seguimiento"
+        lipid_tag_cls = "bg-amber-100 text-amber-800"
+    elif tg_num > 150.0:
+        lipid_badge = "🟡 Seguimiento (Triglicéridos)"
+        lipid_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        lipid_tag = "Seguimiento"
+        lipid_tag_cls = "bg-amber-100 text-amber-800"
+    else:
+        lipid_badge = "🟢 Normal"
+        lipid_badge_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        lipid_tag = "Normal"
+        lipid_tag_cls = "bg-emerald-100 text-emerald-800"
+
+    # 3. Función Renal (Evaluación multianalito: Creatinina, Urea, Ácido Úrico)
+    try:
+        creat_num = float(get_v("CREATININE", "0.84").replace(",", "."))
+    except Exception:
+        creat_num = 0.84
+    try:
+        urico_num = float(get_v("URIC_ACID", "6.1").replace(",", "."))
+    except Exception:
+        urico_num = 6.1
+
+    if creat_num >= 1.4 or urico_num >= 8.5:
+        renal_badge = f"🔴 Atención ({'Creatinina' if creat_num >= 1.4 else 'Ác. Úrico'})"
+        renal_badge_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        renal_tag = "Atención"
+        renal_tag_cls = "bg-rose-100 text-rose-800"
+    elif creat_num > 1.2:
+        renal_badge = "🟡 Seguimiento (Creatinina)"
+        renal_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        renal_tag = "Seguimiento"
+        renal_tag_cls = "bg-amber-100 text-amber-800"
+    elif urico_num > 7.0:
+        renal_badge = "🟡 Seguimiento (Ác. Úrico)"
+        renal_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        renal_tag = "Seguimiento"
+        renal_tag_cls = "bg-amber-100 text-amber-800"
+    else:
+        renal_badge = "🟢 Normal"
+        renal_badge_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        renal_tag = "Normal"
+        renal_tag_cls = "bg-emerald-100 text-emerald-800"
+
+    # 4. Próstata (Evaluación multianalito: PSA Total, PSA Libre, Ratio Libre/Total)
+    psa_t_val = get_v("PSA_TOTAL", "0.69")
+    psa_f_val = get_v("PSA_FREE", "0.37")
+    try:
+        psa_num = float(psa_t_val.replace(",", "."))
+    except Exception:
+        psa_num = 0.69
+    try:
+        psa_f_num = float(psa_f_val.replace(",", "."))
+        ratio_psa_pct = round((psa_f_num / psa_num) * 100) if psa_num > 0 else 54
+    except Exception:
+        ratio_psa_pct = 54
+
+    if psa_num >= 4.0:
+        psa_badge = "🔴 Atención (PSA)"
+        psa_badge_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        psa_tag = "Atención"
+        psa_tag_cls = "bg-rose-100 text-rose-800"
+    elif psa_num > 0.40:
+        psa_badge = "🟡 Seguimiento (PSA)"
+        psa_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        psa_tag = "Seguimiento"
+        psa_tag_cls = "bg-amber-100 text-amber-800"
+    else:
+        psa_badge = "🟢 Normal"
+        psa_badge_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        psa_tag = "Normal"
+        psa_tag_cls = "bg-emerald-100 text-emerald-800"
+
+    # 5. Tiroides (TSH)
+    try:
+        tsh_num = float(get_v("TSH", "1.80").replace(",", "."))
+    except Exception:
+        tsh_num = 1.80
+    if tsh_num > 10.0 or tsh_num < 0.1:
+        tsh_badge = "🔴 Atención (TSH)"
+        tsh_badge_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        tsh_tag = "Atención"
+        tsh_tag_cls = "bg-rose-100 text-rose-800"
+    elif tsh_num < 0.27 or tsh_num > 4.29:
+        tsh_badge = "🟡 Seguimiento (TSH)"
+        tsh_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        tsh_tag = "Seguimiento"
+        tsh_tag_cls = "bg-amber-100 text-amber-800"
+    else:
+        tsh_badge = "🟢 Normal"
+        tsh_badge_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        tsh_tag = "Normal"
+        tsh_tag_cls = "bg-emerald-100 text-emerald-800"
+
+    # 6. Vitamina D
+    try:
+        vitd_num = float(get_v("VITAMIN_D", "37.6").replace(",", "."))
+    except Exception:
+        vitd_num = 37.6
+    if vitd_num < 15.0:
+        vitd_badge = "🔴 Atención (Vitamina D)"
+        vitd_badge_cls = "bg-rose-50 text-rose-700 border-rose-200"
+        vitd_tag = "Atención"
+        vitd_tag_cls = "bg-rose-100 text-rose-800"
+    elif vitd_num < 30.0:
+        vitd_badge = "🟡 Seguimiento (Vitamina D)"
+        vitd_badge_cls = "bg-amber-50 text-amber-800 border-amber-200"
+        vitd_tag = "Seguimiento"
+        vitd_tag_cls = "bg-amber-100 text-amber-800"
+    else:
+        vitd_badge = "🟢 Normal"
+        vitd_badge_cls = "bg-emerald-50 text-emerald-700 border-emerald-200"
+        vitd_tag = "Normal"
+        vitd_tag_cls = "bg-emerald-100 text-emerald-800"
+
     kpis = [
         KpiCard(
-            title="Glucosa & HbA1c",
-            tag="Atención" if float(hba.replace(",", ".")) >= 5.7 else "Normal",
-            tag_class="bg-amber-100 text-amber-800" if float(hba.replace(",", ".")) >= 5.7 else "bg-emerald-100 text-emerald-800",
-            main_value=glu,
+            title="Glucosa y Metabolismo",
+            tag=glu_tag,
+            tag_class=glu_tag_cls,
+            main_label="Glucosa en ayunas",
+            main_value=fmt(glu),
             unit="mg/dL",
-            subtitle_1=f"HbA1c: {hba}%",
-            subtitle_2="Glucosa basal en ayunas",
-            badge_text="⚠️ Límite (>5.6%)" if float(hba.replace(",", ".")) >= 5.7 else "🟢 Normal",
-            badge_class="bg-amber-100 text-amber-800 border-amber-200" if float(hba.replace(",", ".")) >= 5.7 else "bg-emerald-100 text-emerald-800 border-emerald-200"
+            subtitle_1=f"HbA1c: {fmt(hba, 1)}%",
+            subtitle_2=f"TG/HDL: {ratio_tg_hdl}",
+            subtitle_3="",
+            badge_text=glu_badge,
+            badge_class=glu_badge_cls
         ),
         KpiCard(
-            title="Lípidos & Aterogenia",
-            tag="Observación",
-            tag_class="bg-yellow-100 text-yellow-800",
-            main_value=get_v("CHOLESTEROL_TOTAL", "179.0"),
+            title="Perfil Lipídico",
+            tag=lipid_tag,
+            tag_class=lipid_tag_cls,
+            main_label="Colesterol Total",
+            main_value=fmt(col_t),
             unit="mg/dL",
-            subtitle_1=f"HDL {get_v('HDL', '52')} | LDL {get_v('LDL', '118')}",
-            subtitle_2=f"Castelli I: {get_v('RATIO_COL_HDL', '3.4')} • Castelli II: {get_v('RATIO_LDL_HDL', '2.2')}",
-            badge_text="🟡 Favorable / Obs. LDL",
-            badge_class="bg-yellow-50 text-yellow-800 border-yellow-200"
-        ),
-        KpiCard(
-            title="Triglicéridos",
-            tag="Excelente",
-            tag_class="bg-emerald-100 text-emerald-800",
-            main_value=get_v("TRIGLYCERIDES", "66.0"),
-            unit="mg/dL",
-            subtitle_1="Perfil depurado (< 150)",
-            subtitle_2="Óptimo protector (< 100)",
-            badge_text="🟢 Excelente (<100)",
-            badge_class="bg-emerald-100 text-emerald-800 border-emerald-200"
+            subtitle_1=f"LDL {fmt(ldl)} · HDL {fmt(hdl)} · TG {fmt(tg)}",
+            subtitle_2=f"Col/HDL: {ratio_col_hdl}",
+            subtitle_3=f"LDL/HDL: {ratio_ldl_hdl}",
+            badge_text=lipid_badge,
+            badge_class=lipid_badge_cls
         ),
         KpiCard(
             title="Función Renal",
-            tag="Óptimo",
-            tag_class="bg-emerald-100 text-emerald-800",
-            main_value=get_v("CREATININE", "0.89"),
+            tag=renal_tag,
+            tag_class=renal_tag_cls,
+            main_label="Creatinina sérica",
+            main_value=fmt(get_v("CREATININE", "0.84"), 2),
             unit="mg/dL",
-            subtitle_1=f"Urea: {get_v('UREA', '41.0')} mg/dL",
-            subtitle_2=f"Ác. Úrico: {get_v('URIC_ACID', '6.2')} mg/dL",
-            badge_text="🟢 Óptimo (Depuración OK)",
-            badge_class="bg-emerald-100 text-emerald-800 border-emerald-200"
+            subtitle_1=f"Urea: {fmt(get_v('UREA', '45.0'))} mg/dL",
+            subtitle_2=f"Ác. Úrico: {fmt(get_v('URIC_ACID', '6.1'), 1)} mg/dL",
+            subtitle_3="",
+            badge_text=renal_badge,
+            badge_class=renal_badge_cls
         ),
         KpiCard(
-            title="PSA Total / Ratio",
-            tag="Excelente",
-            tag_class="bg-emerald-100 text-emerald-800",
-            main_value=get_v("PSA_TOTAL", "0.71"),
+            title="Próstata",
+            tag=psa_tag,
+            tag_class=psa_tag_cls,
+            main_label="PSA Total",
+            main_value=fmt(psa_t_val, 2),
             unit="ng/mL",
-            subtitle_1=f"PSA Libre: {get_v('PSA_FREE', '0.42')} ng/mL",
-            subtitle_2="Ref: < 4.0 | Ratio benigno",
-            badge_text="🟢 Excelente / Benigno",
-            badge_class="bg-emerald-100 text-emerald-800 border-emerald-200"
+            subtitle_1=f"PSA Libre: {fmt(psa_f_val, 2)} ng/mL",
+            subtitle_2=f"Ratio libre: {ratio_psa_pct}%",
+            subtitle_3="",
+            badge_text=psa_badge,
+            badge_class=psa_badge_cls
         ),
         KpiCard(
-            title="TSH & Tiroides",
-            tag="Bueno",
-            tag_class="bg-blue-100 text-blue-800",
-            main_value=get_v("TSH", "2.20"),
+            title="Tiroides",
+            tag=tsh_tag,
+            tag_class=tsh_tag_cls,
+            main_label="Hormona TSH",
+            main_value=fmt(get_v("TSH", "1.80"), 2),
             unit="µUI/mL",
-            subtitle_1="Eutiroideo en norma",
-            subtitle_2="Ref: 0.27 - 4.29",
-            badge_text="🔵 Bueno (Eutiroideo)",
-            badge_class="bg-blue-50 text-blue-800 border-blue-200"
+            subtitle_1="Rango normal: 0.27 - 4.29",
+            subtitle_2="",
+            subtitle_3="",
+            badge_text=tsh_badge,
+            badge_class=tsh_badge_cls
         ),
         KpiCard(
-            title="Vitamina D (25-OH)",
-            tag="Normalizada",
-            tag_class="bg-emerald-100 text-emerald-800",
-            main_value=get_v("VITAMIN_D", "32.5"),
+            title="Vitamina D",
+            tag=vitd_tag,
+            tag_class=vitd_tag_cls,
+            main_label="25-OH Vitamina D",
+            main_value=fmt(get_v("VITAMIN_D", "37.6"), 1),
             unit="ng/mL",
-            subtitle_1="Dintel de suficiencia (>30)",
-            subtitle_2="Estado óptimo",
-            badge_text="🟢 Bueno / Suficiente (>30)",
-            badge_class="bg-emerald-100 text-emerald-800 border-emerald-300"
+            subtitle_1="Rango normal: > 30.0 ng/mL",
+            subtitle_2="",
+            subtitle_3="",
+            badge_text=vitd_badge,
+            badge_class=vitd_badge_cls
         )
     ]
 

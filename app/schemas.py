@@ -7,10 +7,12 @@ class KpiCard(BaseModel):
     title: str
     tag: str
     tag_class: str
+    main_label: Optional[str] = None
     main_value: str
     unit: str
     subtitle_1: str
     subtitle_2: str
+    subtitle_3: Optional[str] = ""
     badge_text: str
     badge_class: str
 
