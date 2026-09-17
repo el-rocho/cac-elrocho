@@ -1,10 +1,10 @@
 # cac-elrocho 🩺 `v0.4.0`
 
-> **Cuadro de Mando Clínico Autónomo y Autoalojable con Validación por Inteligencia Artificial (LLM)**
+> **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con validación por Inteligencia Artificial (LLM)**
 
 `cac-elrocho` es una aplicación web integral y soberana diseñada para la digitalización, seguimiento evolutivo y supervisión longitudinal de analíticas médicas y controles de laboratorio. 
 
-Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows** con Docker Desktop, **Linux** como Debian 13 / Ubuntu en servidores o máquinas virtuales, y **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza modelos LLM multimodales (**Google Gemini API**) para procesar nuevos informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
+Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Docker** (en **Windows**, **Linux** o **macOS**), la aplicación almacena el historial médico en una base de datos local SQLite (WAL), calcula ratios aterogénicos y metabólicos automáticos, y utiliza modelos LLM multimodales para procesar los informes en PDF, auditar cambios en rangos de referencia y emitir recomendaciones clínicas.
 
 ---
 
@@ -24,7 +24,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 * 👤 **Ficha Personal del Paciente**:
   * Configuración soberana y privada de datos personales: **Nombre**, **Documento de Identidad (DNI/NIE)**, **Fecha de Nacimiento** (con cálculo dinámico de edad cumplida) y **Sexo** (Masculino / Femenino / No especificado).
   * Los datos de configuración son privados y nunca son sobreescritos por los informes médicos que se suban.
-* 🤖 **Copiloto Clínico con IA (Gemini API)**:
+* 🤖 **Copiloto Clínico con IA (recomendada Gemini API gratuita de Google AI Studio)**:
   * Ingesta inteligente de documentos PDF clínicos.
   * **Auditoría de Rangos de Referencia**: Detecta si un laboratorio ha actualizado sus límites de normalidad (por ejemplo, el dintel de LDL de 130 a 116 mg/dL según guías SEA 2023) y explica el motivo clínico.
   * Detección de prediabetes (HbA1c ≥ 5.7%) y semaforización clínica rigurosa.
@@ -78,17 +78,22 @@ copy .env.example .env
 Edita el archivo `.env` con tu editor preferido (`nano .env`, Bloc de notas, VS Code, etc.) y define tus parámetros esenciales:
 ```ini
 # Configuración multi-modelo LLM (hasta 3 modelos configurables con alternancia por fallo)
+# Puedes configurar 1, 2 o los 3 modelos con sus respectivas claves de API
+
+# Slot 1: Extractor principal (Rápido y preciso)
 LLM_PROVIDER1=gemini
 API_KEY1=tu_clave_de_gemini_api_aqui
-MODEL1=gemini-flash-lite-latest
+MODEL1=gemini-2.5-flash
 
+# Slot 2: Respaldo de alta disponibilidad (Ultraligero)
 LLM_PROVIDER2=gemini
 API_KEY2=tu_clave_de_gemini_api_aqui
-MODEL2=gemini-2.5-flash
+MODEL2=gemini-2.5-flash-lite
 
+# Slot 3: Razonamiento avanzado
 LLM_PROVIDER3=gemini
 API_KEY3=tu_clave_de_gemini_api_aqui
-MODEL3=gemini-2.5-flash-lite
+MODEL3=gemini-2.5-pro
 ```
 *(Nota: Puedes configurar 1, 2 o los 3 modelos. Si dejas las claves vacías, los modelos fallan o no hay conexión a internet, la aplicación utilizará automáticamente el extractor local inteligente basado en expresiones regulares sin interrumpir el servicio).*
 
