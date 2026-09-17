@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.4.0`
+# cac-elrocho 🩺 `v0.5.0`
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con validación por Inteligencia Artificial (LLM)**
 
@@ -8,12 +8,15 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.4.0`
-* 🤖 **Arquitectura Multi-Modelo LLM (3 Slots)**: Control soberano desde `.env` para configurar hasta 3 modelos con sus respectivas claves (`LLM_PROVIDER1..3`, `API_KEY1..3`, `MODEL1..3`).
-* 🔄 **Failover Secuencial y Contingencia RegEx**: Conmutación automática e inmediata ante límites de cuota (`429 ResourceExhausted`), modelos discontinuados (`404`) o sobrecargas transitorias (`503`). Si todos fallan, conmuta de forma segura al extractor local por patrones RegEx.
-* 🏷️ **Transparencia en la Interfaz (UI)**: Etiqueta dinámica en cabecera (`✨ Motor LLM Activo (N mod.)` o `⚠️ Extractor RegEx (Sin LLM)`) y banner de previsualización que identifica el slot y modelo exacto utilizado o la contingencia activa.
-* 🩺 **Sanitización Clínica de Metadatos**: Desacoplamiento estricto del médico solicitante (facultativo) respecto a motivos de consulta / revisiones y separación limpia del nombre del laboratorio emisor.
-* 📏 **Auditoría Simplificada**: Interfaz renovada para "Auditoría de los rangos de referencia aplicados", con tarjetas a 3 líneas y criterios desplegables en acordeón.
+## ✨ Novedades de la Versión `v0.5.0`
+* 📄 **Extracción Robusta con LLM Multimodal**: Ingesta binaria nativa de PDFs en Gemini API para procesar directamente maquetación, glifos y tablas de analíticas complejas o escaneadas sin depender de OCR plano.
+* 🩺 **Validación Cruzada de Coherencia y Sanitización**:
+  * Cotejo de marcas de anormalidad (`*`, negrita, indicadores `H`/`L`) contra los valores extraídos para evitar interpretaciones erróneas de límites de referencia o notas clínicas.
+  * Descarte de falsos positivos en analitos sin marcar por similitud de caracteres (ej. cifras en Hierro sérico).
+  * Normalización y escalado numérico automático de unidades (Hematíes a millones, Plaquetas y Leucocitos a miles).
+* 🤖 **Nuevo Esquema de Modelos Recomendados**: Configuración escalonada en `.env` recomendando `gemini-2.5-flash` (Slot 1: rápido y preciso), `gemini-2.5-flash-lite` (Slot 2: respaldo ultraligero) y `gemini-2.5-pro` (Slot 3: razonamiento profundo), con failover automático ante cuotas y contingencia RegEx local.
+* 🧪 **Ampliación del Catálogo de Analitos**: Cobertura ampliada para Coagulación y Hemostasia (TP, Quick, INR, TTPA, Fibrinógeno, Dímero D), Inmunología/Alergias (IgE Total y alérgenos específicos) y perfil de orina.
+* 🔄 **Regeneración Dinámica y Resumen de Dictamen**: Nuevos botones para regenerar el dictamen clínico completo a partir de las mediciones corregidas por el usuario o resumirlo de forma concisa enfocándose en los parámetros patológicos, con aviso proactivo de desincronización.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
 
 ---
@@ -115,7 +118,7 @@ http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máqui
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.4.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.5.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho

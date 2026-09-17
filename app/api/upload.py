@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import Paciente, Informe, Analito, Medicion, AuditoriaRango
-from app.schemas import AnaliticaPreviewResponse, ConfirmacionRequest
-from app.services.llm_service import analyze_pdf_with_llm
+from app.schemas import AnaliticaPreviewResponse, ConfirmacionRequest, RegenerateDictamenRequest, RegenerateDictamenResponse
+from app.services.llm_service import analyze_pdf_with_llm, generate_clinical_summary_from_measurements
 from app.services.metrics import calculate_ratios
-from app.services.analito_normalizer import normalize_analito, CANONICAL_ANALITOS
+from app.services.analito_normalizer import normalize_analito, normalize_valor_numerico, CANONICAL_ANALITOS
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,27 @@ def sanitize_filename(name: str) -> str:
     return clean[:80] if clean else "laboratorio"
 
 router = APIRouter(prefix="/upload", tags=["Carga de Analíticas"])
+
+@router.post("/regenerate-dictamen", response_model=RegenerateDictamenResponse)
+async def regenerate_dictamen_endpoint(req: RegenerateDictamenRequest, db: Session = Depends(get_db)):
+    """
+    Regenera dinámicamente el dictamen clínico y las alertas IA utilizando el LLM,
+    basándose exclusivamente en las mediciones actuales de la tabla (incluyendo las correcciones del usuario).
+    """
+    paciente = db.query(Paciente).first()
+    pac_nom = paciente.nombre_completo if paciente else "Paciente"
+    resultado = await generate_clinical_summary_from_measurements(
+        mediciones=req.mediciones,
+        fecha=req.fecha,
+        laboratorio=req.laboratorio,
+        facultativo=req.facultativo,
+        paciente_nombre=pac_nom,
+        modo=req.modo or "completo"
+    )
+    return RegenerateDictamenResponse(
+        dictamen_global=resultado.get("dictamen_global", "Dictamen actualizado con las mediciones vigentes."),
+        alertas_ia=resultado.get("alertas_ia", [])
+    )
 
 @router.post("", response_model=AnaliticaPreviewResponse)
 async def upload_pdf_for_analysis(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -185,10 +206,12 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 db.add(analito)
                 db.flush()
 
-            try:
-                num_val = float(str(item.valor).replace(",", ".").split()[0])
-            except (ValueError, TypeError, IndexError):
-                num_val = None
+            num_val, _ = normalize_valor_numerico(code_key, item.valor, item.unidad)
+            if num_val is None:
+                try:
+                    num_val = float(str(item.valor).replace(",", ".").split()[0])
+                except (ValueError, TypeError, IndexError):
+                    num_val = None
 
             # Si este analito canónico ya se procesó en este informe, resolvemos colisiones:
             # Priorizar siempre valores numéricos de suero sobre valores nulos o cualitativos
@@ -199,6 +222,7 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                     med_existente.valor_texto = None
                     med_existente.unidad = item.unidad or norm_unit
                     med_existente.ref_texto = item.rango_referencia
+                    med_existente.estado_semaforo = getattr(item, "estado_estimado", None) or "Normal"
                     mediciones_dict[code_key] = num_val
                 continue
 
@@ -208,7 +232,8 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 valor_numerico=num_val,
                 valor_texto=str(item.valor) if num_val is None else None,
                 unidad=item.unidad or norm_unit,
-                ref_texto=item.rango_referencia
+                ref_texto=item.rango_referencia,
+                estado_semaforo=getattr(item, "estado_estimado", None) or "Normal"
             )
             db.add(med)
             db.flush()

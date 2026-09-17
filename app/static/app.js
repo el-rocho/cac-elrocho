@@ -763,13 +763,13 @@ function renderUploadPreview(data) {
       bannerContainer.className = 'p-4 bg-purple-50 border border-purple-200 rounded-2xl text-xs space-y-3';
     }
     if (bannerHeader) {
-      const slotBadge = data.slot_utilizado ? `<span class="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold">Slot ${data.slot_utilizado}</span>` : '';
+      const modeloNombre = data.modelo_utilizado ? ` (${escapeHtml(data.modelo_utilizado)})` : '';
       bannerHeader.innerHTML = `
         <span class="flex items-center gap-1.5 text-purple-900 font-bold">
-          <span>✨</span> Datos Extraídos por LLM (${escapeHtml(data.modelo_utilizado || '')}) ${slotBadge}:
+          <span>✨</span> Datos Extraídos por LLM${modeloNombre}:
         </span>
         <span class="text-[11px] text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full font-medium">
-          Revisa y modifica antes de incorporar a la base de datos
+          Revisa los datos antes de incorporarlos a la base de datos
         </span>
       `;
     }
@@ -830,12 +830,16 @@ function renderUploadPreview(data) {
     });
   }
 
+  const syncNotice = document.getElementById('previewDictamenSyncNotice');
+  if (syncNotice) syncNotice.classList.add('hidden');
+
   const tbody = document.getElementById('previewTableBody');
   tbody.innerHTML = '';
   data.mediciones.forEach(m => {
     const tr = document.createElement('tr');
     tr.className = 'hover:bg-slate-50 transition-colors';
     tr.dataset.code = m.codigo || '';
+    tr.dataset.initialEstado = m.estado_estimado || 'Normal';
 
     tr.innerHTML = `
       <td class="p-2">
@@ -851,7 +855,7 @@ function renderUploadPreview(data) {
         <input type="text" class="preview-rango w-full text-[11px] text-center text-slate-500 bg-white border border-slate-200 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" value="${escapeHtml(m.rango_referencia || '')}" placeholder="Rango ref.">
       </td>
       <td class="p-2 text-center">
-        <span class="px-2 py-0.5 bg-purple-50 text-purple-700 font-semibold rounded text-[10px] whitespace-nowrap">${escapeHtml(m.estado_estimado || 'Normal')}</span>
+        <span class="preview-estado-badge px-2 py-0.5 font-semibold rounded text-[10px] whitespace-nowrap border">${escapeHtml(m.estado_estimado || 'Normal')}</span>
       </td>
       <td class="p-2 text-center">
         <button type="button" onclick="removePreviewRow(this)" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors" title="Eliminar fila">
@@ -859,10 +863,254 @@ function renderUploadPreview(data) {
         </button>
       </td>
     `;
+
+    const onValOrRangoChange = () => {
+      updateRowEstado(tr);
+      markPreviewDataChanged();
+    };
+
+    tr.querySelector('.preview-valor')?.addEventListener('input', onValOrRangoChange);
+    tr.querySelector('.preview-rango')?.addEventListener('input', onValOrRangoChange);
+    tr.querySelector('.preview-nombre')?.addEventListener('input', () => {
+      updateRowEstado(tr);
+      markPreviewDataChanged();
+    });
+    tr.querySelector('.preview-unidad')?.addEventListener('input', markPreviewDataChanged);
+
     tbody.appendChild(tr);
+    // Calcular de inmediato el estado reactivo con sus colores correspondientes
+    updateRowEstado(tr);
   });
 
   updatePreviewParamCount();
+}
+
+// Cálculo ultra-ligero y reactivo del estado clínico (ejecutado en <0.1ms en el navegador)
+function calculateEstadoFromValorAndRango(valStr, refStr, nombreStr = '', fallbackEstado = 'Normal') {
+  if (valStr === null || valStr === undefined || String(valStr).trim() === '') {
+    return { text: 'Pendiente', badgeClass: 'bg-slate-100 text-slate-500 border-slate-200' };
+  }
+
+  const rawVal = String(valStr).trim();
+  const rawRef = String(refStr || '').trim();
+
+  // 1. Chequeo cualitativo directo
+  const lowerVal = rawVal.toLowerCase();
+  if (lowerVal.includes('negativo') || lowerVal.includes('no reactivo') || lowerVal.includes('no detectado') || lowerVal.includes('ausente')) {
+    return { text: 'Normal', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (lowerVal.includes('positivo') || lowerVal.includes('reactivo') || lowerVal.includes('detectado') || lowerVal.includes('presente')) {
+    return { text: 'Atención', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' };
+  }
+
+  // 2. Extraer número (soporta decimales con coma o punto, ignora asteriscos ej: "* 1.5")
+  const numMatch = rawVal.replace(',', '.').match(/[-+]?\d+(?:\.\d+)?/);
+  if (!numMatch) {
+    return formatBadgeForEstado(fallbackEstado || 'Normal');
+  }
+  const val = parseFloat(numMatch[0]);
+  if (isNaN(val)) {
+    return formatBadgeForEstado(fallbackEstado || 'Normal');
+  }
+
+  // 3. Analizar rango de referencia si existe
+  if (rawRef) {
+    const cleanRef = rawRef.replace(',', '.');
+
+    // Patrón A: Rango Min - Max (ej: "59 - 160", "0.70 - 1.20", "10 a 20", "4.0 - 5.6")
+    const rangeMatch = cleanRef.match(/([0-9]+(?:\.[0-9]+)?)\s*(?:-|–|—|\ba\b|\bhasta\b)\s*([0-9]+(?:\.[0-9]+)?)/i);
+    if (rangeMatch) {
+      const min = parseFloat(rangeMatch[1]);
+      const max = parseFloat(rangeMatch[2]);
+      if (!isNaN(min) && !isNaN(max)) {
+        if (val < min) {
+          return { text: 'Bajo', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+        } else if (val > max) {
+          return { text: 'Alto', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' };
+        } else {
+          return { text: 'Normal', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        }
+      }
+    }
+
+    // Patrón B: Menor que (ej: "< 1.2", "<= 100", "Menos de 0.10", "Inf. 150", "Hasta 150")
+    const maxMatch = cleanRef.match(/(?:<=?|<|menos de|inferior a|inf\.?|hasta)\s*([0-9]+(?:\.[0-9]+)?)/i);
+    if (maxMatch) {
+      const max = parseFloat(maxMatch[1]);
+      if (!isNaN(max)) {
+        if (val > max) {
+          return { text: 'Alto', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' };
+        } else {
+          return { text: 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        }
+      }
+    }
+
+    // Patrón C: Mayor que (ej: "> 50", ">= 60", "Superior a 30", "Sup. 40", "mas de 20")
+    const minMatch = cleanRef.match(/(?:>=?|>|mas de|más de|superior a|sup\.?)\s*([0-9]+(?:\.[0-9]+)?)/i);
+    if (minMatch) {
+      const min = parseFloat(minMatch[1]);
+      if (!isNaN(min)) {
+        if (val < min) {
+          return { text: 'Bajo', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+        } else {
+          return { text: 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        }
+      }
+    }
+  }
+
+  // 4. Reglas específicas para biomarcadores clave cuando no hay rango explícito o para afinar
+  const cleanNom = String(nombreStr || '').trim().toLowerCase();
+  if (cleanNom.includes('hba1c')) {
+    if (val >= 5.7) return { text: 'Atención', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+    return { text: 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (cleanNom.includes('glucosa')) {
+    if (val > 100) return { text: 'Atención', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+    return { text: 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (cleanNom.includes('ldl')) {
+    if (val > 116) return { text: 'Atención', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+    return { text: 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (cleanNom.includes('colesterol total') || cleanNom === 'colesterol') {
+    if (val > 200) return { text: 'Alto', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' };
+    return { text: 'Normal', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (cleanNom.includes('vitamina d')) {
+    if (val < 20) return { text: 'Alerta', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' };
+    if (val < 30) return { text: 'Bajo', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+    return { text: 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+
+  return formatBadgeForEstado(fallbackEstado || 'Normal');
+}
+
+function formatBadgeForEstado(estado) {
+  const est = (estado || 'Normal').trim();
+  const lower = est.toLowerCase();
+  if (lower.includes('optimo') || lower.includes('óptimo') || lower.includes('bueno')) {
+    return { text: est || 'Óptimo', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+  if (lower.includes('atencion') || lower.includes('atención') || lower.includes('limite') || lower.includes('límite') || lower.includes('bajo')) {
+    return { text: est || 'Atención', badgeClass: 'bg-amber-100 text-amber-800 border-amber-300' };
+  }
+  if (lower.includes('alto') || lower.includes('alerta')) {
+    return { text: est || 'Alto', badgeClass: 'bg-rose-100 text-rose-800 border-rose-300' };
+  }
+  return { text: est || 'Normal', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+}
+
+function updateRowEstado(tr) {
+  if (!tr) return;
+  const valorInput = tr.querySelector('.preview-valor');
+  const rangoInput = tr.querySelector('.preview-rango');
+  const nombreInput = tr.querySelector('.preview-nombre');
+  const badge = tr.querySelector('.preview-estado-badge');
+  if (!badge) return;
+
+  const val = valorInput ? valorInput.value : '';
+  const ref = rangoInput ? rangoInput.value : '';
+  const nom = nombreInput ? nombreInput.value : '';
+  const initialEst = tr.dataset.initialEstado || badge.textContent || 'Normal';
+
+  const res = calculateEstadoFromValorAndRango(val, ref, nom, initialEst);
+  badge.textContent = res.text;
+  badge.className = `preview-estado-badge px-2 py-0.5 font-semibold rounded text-[10px] whitespace-nowrap border ${res.badgeClass} transition-colors`;
+}
+
+function markPreviewDataChanged() {
+  const notice = document.getElementById('previewDictamenSyncNotice');
+  if (notice) notice.classList.remove('hidden');
+}
+
+async function regeneratePreviewDictamen(modo = 'completo') {
+  const rows = document.querySelectorAll('#previewTableBody tr');
+  const mediciones = [];
+  rows.forEach(tr => {
+    const nombre = tr.querySelector('.preview-nombre')?.value.trim() || '';
+    const valor = tr.querySelector('.preview-valor')?.value.trim() || '';
+    const unidad = tr.querySelector('.preview-unidad')?.value.trim() || '';
+    const rango = tr.querySelector('.preview-rango')?.value.trim() || '';
+    const estado = tr.querySelector('.preview-estado-badge')?.textContent.trim() || 'Normal';
+    const codigo = tr.dataset.code || null;
+    if (nombre && valor !== '') {
+      mediciones.push({ codigo, nombre, valor, unidad, rango_referencia: rango, estado_estimado: estado });
+    }
+  });
+
+  if (mediciones.length === 0) {
+    alert('No hay mediciones en la tabla para evaluar.');
+    return;
+  }
+
+  const btnRegen = document.getElementById('btnRegenerateDictamen');
+  const btnRegenText = document.getElementById('btnRegenText');
+  const btnRegenIcon = document.getElementById('btnRegenIcon');
+
+  const btnSummary = document.getElementById('btnSummarizeDictamen');
+  const btnSummaryText = document.getElementById('btnSummaryText');
+  const btnSummaryIcon = document.getElementById('btnSummaryIcon');
+
+  if (btnRegen) btnRegen.disabled = true;
+  if (btnSummary) btnSummary.disabled = true;
+
+  if (modo === 'resumido') {
+    if (btnSummaryIcon) btnSummaryIcon.textContent = '⏳';
+    if (btnSummaryText) btnSummaryText.textContent = 'Resumiendo...';
+  } else {
+    if (btnRegenIcon) btnRegenIcon.textContent = '⏳';
+    if (btnRegenText) btnRegenText.textContent = 'Analizando...';
+  }
+
+  const fecha = document.getElementById('previewFechaInput')?.value.trim() || '';
+  const lab = document.getElementById('previewLabInput')?.value.trim() || '';
+  const fac = document.getElementById('previewFacultativoInput')?.value.trim() || '';
+
+  try {
+    const res = await fetch('/api/v1/upload/regenerate-dictamen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mediciones, fecha, laboratorio: lab, facultativo: fac, modo })
+    });
+
+    if (!res.ok) {
+      const errMsg = await getErrorMessage(res, 'Error al regenerar dictamen');
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    const dictInput = document.getElementById('previewDictamenInput');
+    if (dictInput) dictInput.value = data.dictamen_global || '';
+
+    const alertsContainer = document.getElementById('previewAlerts');
+    if (alertsContainer) {
+      alertsContainer.innerHTML = '';
+      if (data.alertas_ia && data.alertas_ia.length > 0) {
+        data.alertas_ia.forEach(al => {
+          const div = document.createElement('div');
+          div.className = 'flex items-center gap-1.5 bg-amber-50/80 border border-amber-200 px-2.5 py-1 rounded-lg text-amber-900';
+          div.innerHTML = `<span>⚠️</span> <span>${escapeHtml(al)}</span>`;
+          alertsContainer.appendChild(div);
+        });
+      }
+    }
+
+    const notice = document.getElementById('previewDictamenSyncNotice');
+    if (notice) notice.classList.add('hidden');
+
+  } catch (err) {
+    alert(`Error al regenerar dictamen: ${err.message}`);
+  } finally {
+    if (btnRegen) btnRegen.disabled = false;
+    if (btnRegenIcon) btnRegenIcon.textContent = '🔄';
+    if (btnRegenText) btnRegenText.textContent = 'Regenerar dictamen';
+
+    if (btnSummary) btnSummary.disabled = false;
+    if (btnSummaryIcon) btnSummaryIcon.textContent = '📝';
+    if (btnSummaryText) btnSummaryText.textContent = 'Resumir dictamen';
+  }
 }
 
 function addPreviewRow() {
@@ -870,6 +1118,7 @@ function addPreviewRow() {
   const tr = document.createElement('tr');
   tr.className = 'hover:bg-slate-50 transition-colors bg-purple-50/30';
   tr.dataset.code = '';
+  tr.dataset.initialEstado = 'Pendiente';
 
   tr.innerHTML = `
     <td class="p-2">
@@ -885,7 +1134,7 @@ function addPreviewRow() {
       <input type="text" class="preview-rango w-full text-[11px] text-center text-slate-500 bg-white border border-purple-300 rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-purple-500 focus:outline-none" placeholder="Rango ref.">
     </td>
     <td class="p-2 text-center">
-      <span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full">Nuevo</span>
+      <span class="preview-estado-badge px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-semibold rounded whitespace-nowrap">Pendiente</span>
     </td>
     <td class="p-2 text-center">
       <button type="button" onclick="removePreviewRow(this)" class="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors" title="Eliminar fila">
@@ -893,8 +1142,23 @@ function addPreviewRow() {
       </button>
     </td>
   `;
+
+  const onValOrRangoChange = () => {
+    updateRowEstado(tr);
+    markPreviewDataChanged();
+  };
+
+  tr.querySelector('.preview-valor')?.addEventListener('input', onValOrRangoChange);
+  tr.querySelector('.preview-rango')?.addEventListener('input', onValOrRangoChange);
+  tr.querySelector('.preview-nombre')?.addEventListener('input', () => {
+    updateRowEstado(tr);
+    markPreviewDataChanged();
+  });
+  tr.querySelector('.preview-unidad')?.addEventListener('input', markPreviewDataChanged);
+
   tbody.appendChild(tr);
   updatePreviewParamCount();
+  markPreviewDataChanged();
   tr.querySelector('.preview-nombre').focus();
 }
 
@@ -903,6 +1167,7 @@ function removePreviewRow(btn) {
   if (tr) {
     tr.remove();
     updatePreviewParamCount();
+    markPreviewDataChanged();
   }
 }
 
@@ -918,6 +1183,15 @@ async function confirmUploadData() {
   const fecha = document.getElementById('previewFechaInput').value.trim();
   const laboratorio = document.getElementById('previewLabInput').value.trim();
   const facultativo = document.getElementById('previewFacultativoInput').value.trim();
+
+  // Si se modificaron valores en la tabla y aún no se ha sincronizado el dictamen, ofrecer regenerarlo
+  const syncNotice = document.getElementById('previewDictamenSyncNotice');
+  if (syncNotice && !syncNotice.classList.contains('hidden')) {
+    const wantRegen = confirm('Has modificado valores en la tabla.\n\n¿Deseas regenerar el dictamen clínico automáticamente antes de guardar para que las observaciones concuerden con los nuevos valores?');
+    if (wantRegen) {
+      await regeneratePreviewDictamen();
+    }
+  }
   const dictamen = document.getElementById('previewDictamenInput').value.trim();
 
   if (!fecha) {
@@ -933,6 +1207,7 @@ async function confirmUploadData() {
     const valor = tr.querySelector('.preview-valor').value.trim();
     const unidad = tr.querySelector('.preview-unidad').value.trim();
     const rango = tr.querySelector('.preview-rango').value.trim();
+    const estado = tr.querySelector('.preview-estado-badge')?.textContent.trim() || 'Normal';
     const codigo = tr.dataset.code || null;
 
     if (nombre && valor !== '') {
@@ -941,7 +1216,8 @@ async function confirmUploadData() {
         nombre: nombre,
         valor: valor,
         unidad: unidad,
-        rango_referencia: rango
+        rango_referencia: rango,
+        estado_estimado: estado
       });
     }
   });
@@ -1017,7 +1293,16 @@ async function openEditInformeModal(informeId) {
     document.getElementById('editInformeFecha').value = data.fecha;
     document.getElementById('editInformeLab').value = data.laboratorio || '';
     document.getElementById('editInformeFacultativo').value = data.facultativo || '';
-    document.getElementById('editInformeDictamen').value = data.dictamen_global || '';
+    const dictamenEl = document.getElementById('editInformeDictamen');
+    if (dictamenEl) {
+      dictamenEl.value = data.dictamen_global || '';
+      // Auto-ajustar altura para que todo el texto sea visible inmediatamente
+      dictamenEl.style.height = 'auto';
+      dictamenEl.style.height = Math.max(90, Math.min(300, dictamenEl.scrollHeight + 6)) + 'px';
+    }
+
+    const syncNotice = document.getElementById('editDictamenSyncNotice');
+    if (syncNotice) syncNotice.classList.add('hidden');
 
     renderEditInformeRows(data.mediciones || []);
     document.getElementById('editInformeModal').classList.remove('hidden');
@@ -1029,6 +1314,93 @@ async function openEditInformeModal(informeId) {
 function closeEditInformeModal() {
   document.getElementById('editInformeModal').classList.add('hidden');
   currentEditingInformeId = null;
+}
+
+function markEditDictamenUnsynced() {
+  const notice = document.getElementById('editDictamenSyncNotice');
+  if (notice) notice.classList.remove('hidden');
+}
+
+async function regenerateEditInformeDictamen(modo = 'completo') {
+  const rows = document.querySelectorAll('#editTableBody tr');
+  const mediciones = [];
+  rows.forEach(tr => {
+    let nombre = tr.querySelector('.edit-nombre')?.value.trim() || '';
+    const customInput = tr.querySelector('.edit-nombre-custom');
+    if (customInput && !customInput.classList.contains('hidden') && customInput.value.trim()) {
+      nombre = customInput.value.trim();
+    }
+    const valor = tr.querySelector('.edit-valor')?.value.trim() || '';
+    const unidad = tr.querySelector('.edit-unidad')?.value.trim() || '';
+    const rango = tr.querySelector('.edit-rango')?.value.trim() || '';
+    const codigo = tr.dataset.code || null;
+    if (nombre && valor !== '') {
+      mediciones.push({ codigo, nombre, valor, unidad, rango_referencia: rango, estado_estimado: 'Normal' });
+    }
+  });
+
+  if (mediciones.length === 0) {
+    alert('No hay mediciones en la tabla para evaluar.');
+    return;
+  }
+
+  const btnRegen = document.getElementById('btnEditRegenerateDictamen');
+  const btnRegenText = document.getElementById('btnEditRegenText');
+  const btnRegenIcon = document.getElementById('btnEditRegenIcon');
+
+  const btnSummary = document.getElementById('btnEditSummarizeDictamen');
+  const btnSummaryText = document.getElementById('btnEditSummaryText');
+  const btnSummaryIcon = document.getElementById('btnEditSummaryIcon');
+
+  if (btnRegen) btnRegen.disabled = true;
+  if (btnSummary) btnSummary.disabled = true;
+
+  if (modo === 'resumido') {
+    if (btnSummaryIcon) btnSummaryIcon.textContent = '⏳';
+    if (btnSummaryText) btnSummaryText.textContent = 'Resumiendo...';
+  } else {
+    if (btnRegenIcon) btnRegenIcon.textContent = '⏳';
+    if (btnRegenText) btnRegenText.textContent = 'Analizando...';
+  }
+
+  const fecha = document.getElementById('editInformeFecha')?.value.trim() || '';
+  const lab = document.getElementById('editInformeLab')?.value.trim() || '';
+  const fac = document.getElementById('editInformeFacultativo')?.value.trim() || '';
+
+  try {
+    const res = await fetch('/api/v1/upload/regenerate-dictamen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mediciones, fecha, laboratorio: lab, facultativo: fac, modo })
+    });
+
+    if (!res.ok) {
+      const errMsg = await getErrorMessage(res, 'Error al regenerar dictamen');
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    const dictInput = document.getElementById('editInformeDictamen');
+    if (dictInput) {
+      dictInput.value = data.dictamen_global || '';
+      dictInput.style.height = 'auto';
+      dictInput.style.height = Math.max(90, Math.min(320, dictInput.scrollHeight + 6)) + 'px';
+    }
+
+    const notice = document.getElementById('editDictamenSyncNotice');
+    if (notice) notice.classList.add('hidden');
+
+  } catch (err) {
+    alert(`Error al regenerar dictamen: ${err.message}`);
+  } finally {
+    if (btnRegen) btnRegen.disabled = false;
+    if (btnRegenIcon) btnRegenIcon.textContent = '🔄';
+    if (btnRegenText) btnRegenText.textContent = 'Regenerar dictamen';
+
+    if (btnSummary) btnSummary.disabled = false;
+    if (btnSummaryIcon) btnSummaryIcon.textContent = '📝';
+    if (btnSummaryText) btnSummaryText.textContent = 'Resumir dictamen';
+  }
 }
 
 let canonicalCatalogCache = null;
@@ -1086,6 +1458,14 @@ function renderEditInformeRows(mediciones) {
         </button>
       </td>
     `;
+
+    const onEditRowChange = () => {
+      markEditDictamenUnsynced();
+    };
+    tr.querySelector('.edit-valor')?.addEventListener('input', onEditRowChange);
+    tr.querySelector('.edit-unidad')?.addEventListener('input', onEditRowChange);
+    tr.querySelector('.edit-rango')?.addEventListener('input', onEditRowChange);
+
     tbody.appendChild(tr);
   });
 
@@ -1137,8 +1517,18 @@ async function addEditMeasurementRow() {
       </button>
     </td>
   `;
+
+  const onEditRowChange = () => {
+    markEditDictamenUnsynced();
+  };
+  tr.querySelector('.edit-valor')?.addEventListener('input', onEditRowChange);
+  tr.querySelector('.edit-unidad')?.addEventListener('input', onEditRowChange);
+  tr.querySelector('.edit-rango')?.addEventListener('input', onEditRowChange);
+  tr.querySelector('.edit-nombre-custom')?.addEventListener('input', onEditRowChange);
+
   tbody.appendChild(tr);
   updateEditParamCount();
+  markEditDictamenUnsynced();
   tr.querySelector('.edit-select-analito').focus();
 }
 
@@ -1148,24 +1538,27 @@ function handleCatalogSelect(selectEl) {
   const hiddenNombre = tr.querySelector('.edit-nombre');
   const unidadInput = tr.querySelector('.edit-unidad');
   const rangoInput = tr.querySelector('.edit-rango');
-  const selectedVal = selectEl.value;
+  const val = selectEl.value;
 
-  if (selectedVal === '__custom__') {
+  if (val === '__custom__') {
     customInput.classList.remove('hidden');
     customInput.focus();
     tr.dataset.code = '';
     hiddenNombre.value = '';
-  } else if (selectedVal) {
+    markEditDictamenUnsynced();
+  } else if (val) {
     customInput.classList.add('hidden');
+    tr.dataset.code = val;
     const opt = selectEl.selectedOptions[0];
-    tr.dataset.code = selectedVal;
     hiddenNombre.value = opt.dataset.nombre || '';
     if (opt.dataset.unidad) unidadInput.value = opt.dataset.unidad;
     if (opt.dataset.ref) rangoInput.value = opt.dataset.ref;
+    markEditDictamenUnsynced();
   } else {
     customInput.classList.add('hidden');
     tr.dataset.code = '';
     hiddenNombre.value = '';
+    markEditDictamenUnsynced();
   }
 }
 
@@ -1174,6 +1567,7 @@ function removeEditMeasurementRow(btn) {
   if (tr) {
     tr.remove();
     updateEditParamCount();
+    markEditDictamenUnsynced();
   }
 }
 
@@ -1185,6 +1579,14 @@ function updateEditParamCount() {
 
 async function saveEditedInforme() {
   if (!currentEditingInformeId) return;
+
+  const syncNotice = document.getElementById('editDictamenSyncNotice');
+  if (syncNotice && !syncNotice.classList.contains('hidden')) {
+    const wantRegen = confirm('Has modificado valores en la tabla.\n\n¿Deseas regenerar el dictamen clínico automáticamente antes de guardar para que las observaciones concuerden con los nuevos valores?');
+    if (wantRegen) {
+      await regenerateEditInformeDictamen();
+    }
+  }
 
   const fecha = document.getElementById('editInformeFecha').value.trim();
   const laboratorio = document.getElementById('editInformeLab').value.trim();

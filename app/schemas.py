@@ -108,6 +108,17 @@ class AnaliticaPreviewResponse(BaseModel):
     modelo_utilizado: Optional[str] = None
     slot_utilizado: Optional[int] = None
 
+class RegenerateDictamenRequest(BaseModel):
+    mediciones: List[MedicionExtraida]
+    fecha: str
+    laboratorio: str
+    facultativo: Optional[str] = None
+    modo: Optional[str] = "completo" # "completo" | "resumido"
+
+class RegenerateDictamenResponse(BaseModel):
+    dictamen_global: str
+    alertas_ia: List[str]
+
 class ConfirmacionRequest(BaseModel):
     temp_id: str
     fecha: str

@@ -2,6 +2,33 @@
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
+## [v0.5.0] - 2026-09-17
+
+### 📄 Extracción Robusta con LLM Multimodal y Validación Cruzada
+* **Ingesta Multimodal Nativa de Documentos PDF**: Integración directa del binario PDF con la API de Google Gemini (`types.Part.from_bytes`), permitiendo al modelo interpretar directamente la estructura visual, tablas y glifos del documento original y reduciendo drásticamente las imprecisiones de extracción de texto plano.
+* **Validación Cruzada de Coherencia Analítica (Marcas de Laboratorio vs. Valores)**:
+  * **Comprobación de marcas de anormalidad**: Si el documento incluye asteriscos (`*`), negritas o indicadores (`H`, `L`), el sistema verifica que el valor extraído sea patológico y no un artefacto de OCR o nota aclaratoria (por ejemplo, asegurando la captura de Bilirrubina patológica frente a notas de límite de detección).
+  * **Descarte de falsos positivos**: Si un analito carece de marcas de alteración clínica en el informe, se descartan lecturas erróneas por similitud de caracteres tipográficos (ej. diferenciación precisa de cifras en Hierro sérico).
+* **Normalización Numérica y Escalado Automático (`normalize_valor_numerico`)**:
+  * Limpieza automática de prefijos, asteriscos y notación de millares y comas en formato español.
+  * Escalado automático de unidades clínicas canónicas: Hematíes a millones (x10^6/µL), Plaquetas y Leucocitos a miles (x10^3/µL).
+
+### 🤖 Modelos Recomendados y Rendimiento Óptimo
+* **Nuevo Esquema de Modelos LLM Recomendados**: Actualización de recomendaciones en configuración (`.env.example` y documentación) priorizando `gemini-2.5-flash` (Slot 1: balance óptimo de velocidad y precisión multimodal), `gemini-2.5-flash-lite` (Slot 2: respaldo ultraligero y alta disponibilidad) y `gemini-2.5-pro` (Slot 3: razonamiento profundo), todos accesibles mediante la API gratuita de Google AI Studio.
+* **Persistencia del sistema Multi-Slot con Failover**: Mantenimiento del esquema de hasta 3 slots con conmutación automática ante cuota agotada o fallos y extractor RegEx local como red de seguridad.
+
+### 🧪 Ampliación del Catálogo de Analitos
+* **Coagulación y Hemostasia**: Cobertura e indexación de Tiempo de Protrombina (TP), Índice de Quick, INR, Ratio TP, TTPA / Cefalina, Fibrinógeno y Dímero D.
+* **Inmunología y Alergología**: Detección dinámica y normalización de Inmunoglobulina E Total (IgE) y anticuerpos IgE específicos (gramíneas como *Cynodon dactylon*, *Lolium perenne*, ciprés/arizónica, epitelios, etc.).
+* **Perfil de Orina**: Extracción de pH, densidad y parámetros sistemáticos.
+
+### 🔄 Regeneración Dinámica y Resumen de Dictamen Clínico
+* **Botón "🔄 Regenerar dictamen"**: Reevaluación clínica automatizada basada exclusivamente en las mediciones de la tabla con las correcciones manuales realizadas por el usuario.
+* **Botón "📝 Resumir dictamen"**: Generación de síntesis clínica concisa (2-3 frases) centrada exclusivamente en los parámetros alterados o fuera de rango.
+* **Aviso Proactivo de Desincronización**: Detección visual interactiva en los modales de previsualización y edición cuando se modifican valores en la tabla, alertando para mantener el dictamen actualizado antes de guardar.
+* **Áreas de Texto Flexibles**: Campos de dictamen autoextensibles y redimensionables para facilitar la lectura de valoraciones extensas.
+
+---
 
 ## [v0.4.0] - 2026-09-16
 

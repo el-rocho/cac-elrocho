@@ -547,6 +547,178 @@ CANONICAL_CATALOG = {
         "unidad": "U/L",
         "ref": "38 - 174 U/L",
         "orden": 675
+    },
+
+    # 10. Inmunología y Alergología (Anticuerpos IgE)
+    "IGE_TOTAL": {
+        "nombre": "Inmunoglobulina E Total (IgE)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "UI/mL",
+        "ref": "< 100 UI/mL",
+        "orden": 1100
+    },
+    "IGE_CYNODON_DACTYLON": {
+        "nombre": "IgE Cynodon dactylon (Grama mayor)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1110
+    },
+    "IGE_LOLIUM_PERENNE": {
+        "nombre": "IgE Lolium perenne (Ballico / Ray-grass)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1120
+    },
+    "IGE_CUPRESSUS_ARIZONICA": {
+        "nombre": "IgE Cupressus arizonica (Arizónica)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1130
+    },
+    "IGE_OLEA_EUROPAEA": {
+        "nombre": "IgE Olea europaea (Olivo)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1140
+    },
+    "IGE_PLANTAGO_LANCEOLATA": {
+        "nombre": "IgE Plantago lanceolata (Llantén)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1150
+    },
+    "IGE_PARIETARIA_JUDAICA": {
+        "nombre": "IgE Parietaria judaica",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1160
+    },
+    "IGE_SALSOLA_KALI": {
+        "nombre": "IgE Salsola kali (Barrilla)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1170
+    },
+    "IGE_ARTEMISIA_VULGARIS": {
+        "nombre": "IgE Artemisia vulgaris (Ajenjo)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1180
+    },
+    "IGE_DERMATOPHAGOIDES_PTERONYSSINUS": {
+        "nombre": "IgE D. pteronyssinus (Ácaro)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1190
+    },
+    "IGE_DERMATOPHAGOIDES_FARINAE": {
+        "nombre": "IgE D. farinae (Ácaro)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1200
+    },
+    "IGE_EPITELIO_GATO": {
+        "nombre": "IgE Epitelio de Gato",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1210
+    },
+    "IGE_EPITELIO_PERRO": {
+        "nombre": "IgE Epitelio de Perro",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1220
+    },
+    "IGE_ALTERNARIA_ALTERNATA": {
+        "nombre": "IgE Alternaria alternata (Hongo)",
+        "categoria": "inmunologia",
+        "grupo": "🌸 Alergología e Inmunología",
+        "unidad": "kU/L",
+        "ref": "< 0.35 kU/L",
+        "orden": 1230
+    },
+
+    # 11. Coagulación y Hemostasia
+    "TIEMPO_PROTROMBINA": {
+        "nombre": "Tiempo de Protrombina (TP)",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "segundos",
+        "ref": "10.0 - 14.5 s",
+        "orden": 1300
+    },
+    "INDICE_QUICK": {
+        "nombre": "Índice de Quick",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "%",
+        "ref": "70 - 120 %",
+        "orden": 1310
+    },
+    "RATIO_TP": {
+        "nombre": "Ratio de Protrombina",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "ratio",
+        "ref": "0.80 - 1.20",
+        "orden": 1320
+    },
+    "INR": {
+        "nombre": "INR",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "ratio",
+        "ref": "0.80 - 1.20",
+        "orden": 1330
+    },
+    "TTPA": {
+        "nombre": "Tiempo de Tromboplastina Parcial (TTPA)",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "segundos",
+        "ref": "20 - 39 s",
+        "orden": 1340
+    },
+    "FIBRINOGENO": {
+        "nombre": "Fibrinógeno",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "mg/dL",
+        "ref": "200 - 400 mg/dL",
+        "orden": 1350
+    },
+    "DIMERO_D": {
+        "nombre": "Dímero D",
+        "categoria": "coagulacion",
+        "grupo": "⏱️ Coagulación y Hemostasia",
+        "unidad": "ng/mL",
+        "ref": "< 500 ng/mL",
+        "orden": 1360
     }
 }
 
@@ -557,6 +729,12 @@ CANONICAL_CATALOG["HEMATÍES"] = CANONICAL_CATALOG["HEMATIES"]
 CANONICAL_CATALOG["PROTEÍNA_C_REACTIVA_(PCR)"] = CANONICAL_CATALOG["PROTEINA_C_REACTIVA"]
 CANONICAL_CATALOG["FÓSFORO"] = CANONICAL_CATALOG["FOSFORO"]
 CANONICAL_CATALOG["CREATIN_KINASA_(CK)"] = CANONICAL_CATALOG["CREATIN_KINASA"]
+CANONICAL_CATALOG["TP"] = CANONICAL_CATALOG["TIEMPO_PROTROMBINA"]
+CANONICAL_CATALOG["QUICK"] = CANONICAL_CATALOG["INDICE_QUICK"]
+CANONICAL_CATALOG["APTT"] = CANONICAL_CATALOG["TTPA"]
+CANONICAL_CATALOG["CEFALINA"] = CANONICAL_CATALOG["TTPA"]
+CANONICAL_CATALOG["FIBRINÓGENO"] = CANONICAL_CATALOG["FIBRINOGENO"]
+CANONICAL_CATALOG["DÍMERO_D"] = CANONICAL_CATALOG["DIMERO_D"]
 
 # Compatibilidad con clave canónica antigua
 CANONICAL_ANALITOS = {
@@ -574,6 +752,8 @@ def get_analito_group(code: str) -> str:
     if item:
         return item["grupo"]
     code_u = _normalize_str_key(code)
+    if any(k in code_u for k in ["PROTROMB", "QUICK", "INR", "TTPA", "TROMBOPLAST", "APTT", "CEFALINA", "FIBRINOG", "DIMERO"]):
+        return "⏱️ Coagulación y Hemostasia"
     if code_u.startswith("IGE_") or "ALERG" in code_u:
         return "🌸 Alergología e Inmunología"
     if "ORINA" in code_u or "URIN" in code_u:
@@ -590,6 +770,8 @@ def get_analito_order(code: str) -> int:
     if item:
         return item["orden"]
     code_u = _normalize_str_key(code)
+    if any(k in code_u for k in ["PROTROMB", "QUICK", "INR", "TTPA", "TROMBOPLAST", "APTT", "CEFALINA", "FIBRINOG", "DIMERO"]):
+        return 1325
     if any(k in code_u for k in ["NEUTR", "LINFO", "MONO", "EOSIN", "BASO", "LEUCO", "HEMAT", "PLAQUET"]):
         return 825
     if any(k in code_u for k in ["VSG", "KATZ"]):
@@ -622,8 +804,13 @@ def normalize_analito(
     - Impide que analitos de orina sobrescriban analitos séricos.
     """
     nom = (nombre or "").strip()
+    # Limpiar asteriscos de positividad o notas de OCR al inicio o final del nombre
+    nom = re.sub(r"^[\s\*#•\-]+|[\s\*#•\-]+$", "", nom).strip()
     nom_lower = nom.lower()
-    uni = (unidad or "").strip().lower()
+    uni = (unidad or "").strip()
+    # Corregir erratas frecuentes de OCR en unidades de alérgenos (ej: KkU/L, KkUIL, ku/l)
+    if re.search(r"(?i)\bkk?u[\s/]*i?l\b", uni):
+        uni = "kU/L"
     val_str = str(valor or "").strip()
     
     # 1. Si viene un código sugerido válido del LLM, comprobar que no tenga conflicto flagrante
@@ -634,7 +821,10 @@ def normalize_analito(
             pass  # Descartar código incorrecto y analizar semánticamente
         else:
             std = CANONICAL_CATALOG[cand_code]
-            return cand_code, std["nombre"], std["categoria"], unidad or std["unidad"]
+            unit_ret = unidad or std["unidad"]
+            if cand_code in ["HEMATIES", "HEMATÍES"] and any(u in (unidad or "").lower() for u in ["ul", "µl", "mm3"]):
+                unit_ret = "x10^6/µL"
+            return cand_code, std["nombre"], std["categoria"], unit_ret
 
     # 2. Desambiguación de Orina / Sistemático / Sedimento
     val_lower = val_str.lower()
@@ -678,6 +868,64 @@ def normalize_analito(
         # Ratio PSA
         if "psa" in nom_lower and any(k in nom_lower for k in ["l/t", "libre", "fracción", "fraccion"]):
             return "RATIO_PSA_L_T", "Ratio PSA Libre / Total", "bioquimica", "%"
+
+    # 3.5 Alergología e Inmunología (Anticuerpos IgE específicos y totales)
+    es_ige = (
+        (codigo_sugerido and codigo_sugerido.upper().startswith("IGE_"))
+        or "ige" in nom_lower
+        or "alérgeno" in nom_lower or "alergeno" in nom_lower
+        or "anticuerpo" in nom_lower and any(k in nom_lower for k in ["específico", "especifico", "alerg"])
+        or any(k in nom_lower for k in [
+            "cynodon", "lolium", "cupressus", "ballico", "grama mayor", "grama de olor", 
+            "arizonica", "arizónica", "olea europaea", "dermatophagoides", "parietaria", 
+            "salsola", "artemisia", "alternaria", "anthoxanthum"
+        ])
+    )
+    if es_ige:
+        # IgE Total
+        if ("total" in nom_lower or "inmunoglobulina e total" in nom_lower or (codigo_sugerido and codigo_sugerido.upper() == "IGE_TOTAL")) and not any(k in nom_lower for k in ["cynodon", "lolium", "cupressus", "especific", "ballico", "grama"]):
+            return "IGE_TOTAL", "Inmunoglobulina E Total (IgE)", "inmunologia", uni or "UI/mL"
+
+        # IgE Específicas catalogadas
+        if "cynodon" in nom_lower or "grama mayor" in nom_lower:
+            return "IGE_CYNODON_DACTYLON", "IgE Cynodon dactylon (Grama mayor)", "inmunologia", uni or "kU/L"
+        if "lolium" in nom_lower or "ballico" in nom_lower or "ray-grass" in nom_lower:
+            return "IGE_LOLIUM_PERENNE", "IgE Lolium perenne (Ballico / Ray-grass)", "inmunologia", uni or "kU/L"
+        if "cupressus" in nom_lower or "arizonica" in nom_lower or "arizónica" in nom_lower:
+            return "IGE_CUPRESSUS_ARIZONICA", "IgE Cupressus arizonica (Arizónica)", "inmunologia", uni or "kU/L"
+        if "olea" in nom_lower or "olivo" in nom_lower:
+            return "IGE_OLEA_EUROPAEA", "IgE Olea europaea (Olivo)", "inmunologia", uni or "kU/L"
+        if "plantago" in nom_lower or "llantén" in nom_lower or "llanten" in nom_lower:
+            return "IGE_PLANTAGO_LANCEOLATA", "IgE Plantago lanceolata (Llantén)", "inmunologia", uni or "kU/L"
+        if "parietaria" in nom_lower:
+            return "IGE_PARIETARIA_JUDAICA", "IgE Parietaria judaica", "inmunologia", uni or "kU/L"
+        if "salsola" in nom_lower or "barrilla" in nom_lower:
+            return "IGE_SALSOLA_KALI", "IgE Salsola kali (Barrilla)", "inmunologia", uni or "kU/L"
+        if "artemisia" in nom_lower or "ajenjo" in nom_lower:
+            return "IGE_ARTEMISIA_VULGARIS", "IgE Artemisia vulgaris (Ajenjo)", "inmunologia", uni or "kU/L"
+        if "pteronyssinus" in nom_lower:
+            return "IGE_DERMATOPHAGOIDES_PTERONYSSINUS", "IgE D. pteronyssinus (Ácaro)", "inmunologia", uni or "kU/L"
+        if "farinae" in nom_lower:
+            return "IGE_DERMATOPHAGOIDES_FARINAE", "IgE D. farinae (Ácaro)", "inmunologia", uni or "kU/L"
+        if "gato" in nom_lower:
+            return "IGE_EPITELIO_GATO", "IgE Epitelio de Gato", "inmunologia", uni or "kU/L"
+        if "perro" in nom_lower:
+            return "IGE_EPITELIO_PERRO", "IgE Epitelio de Perro", "inmunologia", uni or "kU/L"
+        if "alternaria" in nom_lower:
+            return "IGE_ALTERNARIA_ALTERNATA", "IgE Alternaria alternata (Hongo)", "inmunologia", uni or "kU/L"
+
+        # Otros alérgenos o anticuerpos específicos dinámicos
+        clean_nom = re.sub(r"(?i)^anticuerpos\s+ige\s+espec[íi]ficos?\s*[:-]?\s*", "", nom).strip()
+        if not clean_nom.lower().startswith("ige"):
+            clean_nom = f"IgE {clean_nom}"
+
+        if codigo_sugerido and codigo_sugerido.upper().startswith("IGE_"):
+            code_gen = codigo_sugerido.upper()
+        else:
+            cand_slug = re.sub(r"[^A-Z0-9_]", "", _normalize_str_key(clean_nom).replace(" ", "_"))[:25]
+            code_gen = cand_slug if cand_slug.startswith("IGE_") else f"IGE_{cand_slug}"
+
+        return code_gen, clean_nom, "inmunologia", uni or "kU/L"
 
     # 4. Analitos de Suero y Bioquímica General
     # 4.1 Glucosa basal en sangre
@@ -736,17 +984,18 @@ def normalize_analito(
         return "FERRITINA", "Ferritina", "bioquimica", unidad or "ng/mL"
     if "hierro" in nom_lower and "orina" not in nom_lower:
         return "HIERRO", "Hierro", "bioquimica", unidad or "µg/dL"
-    if any(k in nom_lower for k in ["proteina c reactiva", "proteína c reactiva", "pcr"]) and "orina" not in nom_lower:
-        return "PROTEINA_C_REACTIVA", "Proteína C Reactiva (PCR)", "bioquimica", unidad or "mg/dL"
+    if any(k in nom_lower for k in ["proteina c reactiva", "proteína c reactiva"]) or re.search(r"\bpcr\b", nom_lower):
+        if "orina" not in nom_lower:
+            return "PROTEINA_C_REACTIVA", "Proteína C Reactiva (PCR)", "bioquimica", unidad or "mg/dL"
     if "factor reumatoide" in nom_lower:
         return "FACTOR_REUMATOIDE", "Factor Reumatoide", "bioquimica", unidad or "UI/mL"
 
     # 4.7 Enzimas e Iones
-    if "got" in nom_lower or "ast" in nom_lower or "aspartato" in nom_lower:
+    if re.search(r"\b(got|ast)\b", nom_lower) or "aspartato" in nom_lower:
         return "GOT_AST", "GOT / AST", "bioquimica", unidad or "U/L"
-    if "gpt" in nom_lower or "alt" in nom_lower or "alanina" in nom_lower:
+    if re.search(r"\b(gpt|alt)\b", nom_lower) or "alanina" in nom_lower:
         return "GPT_ALT", "GPT / ALT", "bioquimica", unidad or "U/L"
-    if "ggt" in nom_lower or "gamma" in nom_lower:
+    if re.search(r"\bggt\b", nom_lower) or "gamma glutamil" in nom_lower or "g-gt" in nom_lower:
         return "GGT", "GGT", "bioquimica", unidad or "U/L"
     if "fosfatasa alcalina" in nom_lower:
         return "FOSFATASA_ALCALINA", "Fosfatasa Alcalina", "bioquimica", unidad or "U/L"
@@ -767,7 +1016,8 @@ def normalize_analito(
 
     # 4.8 Hemograma
     if "hematíes" in nom_lower or "hematies" in nom_lower:
-        return "HEMATIES", "Hematíes", "hemograma", unidad or "x10^6/µL"
+        unit_ret = "x10^6/µL" if not unidad or any(u in (unidad or "").lower() for u in ["ul", "µl", "mm3"]) else unidad
+        return "HEMATIES", "Hematíes", "hemograma", unit_ret
     if "hemoglobina" in nom_lower and not es_orina:
         return "HEMOGLOBINA", "Hemoglobina", "hemograma", unidad or "g/dL"
     if "hematocrito" in nom_lower:
@@ -787,6 +1037,101 @@ def normalize_analito(
     if "leucocitos" in nom_lower and not es_orina:
         return "LEUCOCITOS", "Leucocitos", "hemograma", "x10^3/µL"
 
+    # 4.9 Coagulación y Hemostasia
+    if "tiempo de protrombina" in nom_lower or (nom_lower.startswith("tiempo") and "protromb" in nom_lower):
+        return "TIEMPO_PROTROMBINA", "Tiempo de Protrombina (TP)", "coagulacion", unidad or "segundos"
+    if "quick" in nom_lower or "actividad de protrombina" in nom_lower:
+        return "INDICE_QUICK", "Índice de Quick", "coagulacion", "%"
+    if nom_lower == "inr" or "inr" in nom_lower.split():
+        return "INR", "INR", "coagulacion", "ratio"
+    if "ratio" in nom_lower and any(k in nom_lower for k in ["tp", "protrombina", "coagula"]):
+        return "RATIO_TP", "Ratio de Protrombina", "coagulacion", "ratio"
+    if nom_lower == "ratio" and (not codigo_sugerido or codigo_sugerido == "RATIO_TP"):
+        return "RATIO_TP", "Ratio de Protrombina", "coagulacion", "ratio"
+    if any(k in nom_lower for k in ["tromboplastina", "ttpa", "aptt", "cefalina"]):
+        return "TTPA", "Tiempo de Tromboplastina Parcial (TTPA)", "coagulacion", unidad or "segundos"
+    if "fibrinógeno" in nom_lower or "fibrinogeno" in nom_lower:
+        return "FIBRINOGENO", "Fibrinógeno", "coagulacion", unidad or "mg/dL"
+    if "dímero d" in nom_lower or "dimero d" in nom_lower or "dimerod" in nom_lower:
+        return "DIMERO_D", "Dímero D", "coagulacion", unidad or "ng/mL"
+
     # Fallback genérico limpio
     clean_code = re.sub(r"[^A-Z0-9_]", "", nom.upper().replace(" ", "_"))[:30]
-    return clean_code, nom, "bioquimica", unidad or "-"
+    cat_fallback = "inmunologia" if clean_code.startswith("IGE_") or "ALERG" in clean_code else "bioquimica"
+    return clean_code, nom, cat_fallback, unidad or "-"
+
+
+def normalize_valor_numerico(
+    codigo: str,
+    valor: Any,
+    unidad: Optional[str] = None
+) -> Tuple[Optional[float], str]:
+    """
+    Convierte y normaliza de forma segura un valor analítico (texto o numérico) a:
+    (num_val: Optional[float], text_val: str)
+    
+    Aplica correcciones clínicas y de formato:
+    - Interpreta notación de millares y comas decimales en español (ej: '4.900.000', '1.250,5').
+    - Limpia asteriscos de alerta o símbolos OCR (ej: '* 1.5' -> 1.5).
+    - Escala Hematíes si vienen en millones sin escalar (ej: '4.900.000' -> 4.90).
+    - Escala Plaquetas si vienen sin escalar en miles (ej: '240.000' -> 240).
+    - Escala Leucocitos si vienen sin escalar (ej: '7.500' -> 7.50).
+    """
+    if valor is None:
+        return None, ""
+    
+    val_raw = str(valor).strip()
+    if not val_raw:
+        return None, ""
+        
+    # Limpiar prefijos de alerta o símbolos (ej: * 1.5 -> 1.5, # 4.9 -> 4.9)
+    cleaned = re.sub(r"^[\s\*#•\-]+", "", val_raw).strip()
+    if not cleaned:
+        return None, val_raw
+
+    # Tomar primer token si viene con unidad pegada (ej: "4.900.000 /ul")
+    first_tok = cleaned.split()[0] if cleaned else ""
+    
+    # Manejar formatos de números con puntos y comas
+    if first_tok.count(".") > 1:
+        num_str = first_tok.replace(".", "").replace(",", ".")
+    elif "," in first_tok and "." in first_tok:
+        if first_tok.rfind(",") > first_tok.rfind("."):
+            num_str = first_tok.replace(".", "").replace(",", ".")
+        else:
+            num_str = first_tok.replace(",", "")
+    elif "," in first_tok:
+        num_str = first_tok.replace(",", ".")
+    else:
+        num_str = first_tok
+
+    try:
+        num_val = float(num_str)
+    except (ValueError, TypeError):
+        return None, val_raw
+
+    code_up = (codigo or "").upper()
+    if code_up in ["HEMATIES", "HEMATÍES"]:
+        # Rango canónico: 4.60 - 6.20 x10^6/µL
+        if num_val > 100_000:
+            num_val = round(num_val / 1_000_000.0, 3)
+            return num_val, f"{num_val:.2f}"
+        return num_val, f"{num_val:.2f}" if first_tok.count(".") > 1 else first_tok
+
+    if code_up == "PLAQUETAS":
+        # Rango canónico: 130 - 450 x10^3/µL
+        if num_val > 10_000:
+            num_val = round(num_val / 1_000.0, 1)
+            formatted = f"{int(num_val)}" if num_val.is_integer() else f"{num_val:.1f}"
+            return num_val, formatted
+        return num_val, first_tok
+
+    if code_up == "LEUCOCITOS":
+        # Rango canónico: 4.00 - 11.00 x10^3/µL
+        if num_val > 100:
+            num_val = round(num_val / 1_000.0, 2)
+            return num_val, f"{num_val:.2f}"
+        return num_val, first_tok
+
+    return num_val, first_tok
+

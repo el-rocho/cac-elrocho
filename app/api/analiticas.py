@@ -13,7 +13,7 @@ from app.schemas import (
     PacienteInfo, PacienteUpdateRequest
 )
 from app.services.metrics import get_cell_format, calculate_ratios
-from app.services.analito_normalizer import get_analito_group, normalize_analito, get_analito_order
+from app.services.analito_normalizer import get_analito_group, normalize_analito, get_analito_order, normalize_valor_numerico
 
 router = APIRouter(prefix="/analiticas", tags=["Analíticas"])
 
@@ -667,10 +667,12 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
             db.add(analito)
             db.flush()
 
-        try:
-            num_val = float(str(item.valor).replace(",", ".").split()[0])
-        except (ValueError, TypeError, IndexError):
-            num_val = None
+        num_val, _ = normalize_valor_numerico(code_key, item.valor, item.unidad)
+        if num_val is None:
+            try:
+                num_val = float(str(item.valor).replace(",", ".").split()[0])
+            except (ValueError, TypeError, IndexError):
+                num_val = None
 
         if code_key in analitos_procesados:
             med_existente = analitos_procesados[code_key]
@@ -688,7 +690,8 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
             valor_numerico=num_val,
             valor_texto=str(item.valor) if num_val is None else None,
             unidad=item.unidad or norm_unit,
-            ref_texto=item.rango_referencia
+            ref_texto=item.rango_referencia,
+            estado_semaforo=getattr(item, "estado_estimado", None) or "Normal"
         )
         db.add(med)
         db.flush()
