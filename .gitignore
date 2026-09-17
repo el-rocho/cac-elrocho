@@ -51,5 +51,11 @@ wheels/
 .DS_Store
 Thumbs.db
 
-# Scripts locales de desarrollo
+# Scripts locales de desarrollo y utilidades locales
 dev.bat
+run_dev.ps1
+*.bat
+!dev.bat.example
+*.ps1
+!run_dev.ps1.example
+scripts/

@@ -161,14 +161,18 @@ tudominio.com {
 Si prefieres ejecutar la aplicación de forma nativa con Python:
 
 ### En Windows:
+**Opción A (Símbolo del sistema / CMD):**
 ```cmd
-# Si es la primera vez, copia la plantilla de desarrollo local:
 copy dev.bat.example dev.bat
-
-# Ejecuta el script de arranque:
 .\dev.bat
 ```
-*(El script local `dev.bat` creará automáticamente el entorno virtual, instalará las dependencias si no existen y arrancará el servidor en http://localhost:8000).*
+
+**Opción B (PowerShell):**
+```powershell
+Copy-Item run_dev.ps1.example run_dev.ps1
+.\run_dev.ps1
+```
+*(El script creará automáticamente el entorno virtual, instalará las dependencias si no existen y arrancará el servidor en http://localhost:8000).*
 
 ### En Linux / macOS:
 ```bash
