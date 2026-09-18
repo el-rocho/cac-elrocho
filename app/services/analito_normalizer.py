@@ -84,6 +84,22 @@ CANONICAL_CATALOG = {
         "ref": "< 0.50",
         "orden": 82
     },
+    "APOB": {
+        "nombre": "Apolipoproteína B (ApoB)",
+        "categoria": "bioquimica",
+        "grupo": "🧬 Metabolismo Lipídico y Riesgo Cardiovascular",
+        "unidad": "mg/dL",
+        "ref": "< 100 mg/dL",
+        "orden": 85
+    },
+    "LPA": {
+        "nombre": "Lipoproteína (a) [Lp(a)]",
+        "categoria": "bioquimica",
+        "grupo": "🧬 Metabolismo Lipídico y Riesgo Cardiovascular",
+        "unidad": "mg/dL",
+        "ref": "< 50 mg/dL",
+        "orden": 86
+    },
 
     # 2. Metabolismo Hidrocarbonado y Glucídico
     "GLUCOSE": {
@@ -110,6 +126,22 @@ CANONICAL_CATALOG = {
         "ref": "< 38.8 mmol/mol",
         "orden": 120
     },
+    "INSULINA": {
+        "nombre": "Insulina Basal",
+        "categoria": "bioquimica",
+        "grupo": "🩸 Metabolismo Hidrocarbonado (Glucemia)",
+        "unidad": "µUI/mL",
+        "ref": "2.6 - 24.9 µUI/mL",
+        "orden": 125
+    },
+    "HOMA_IR": {
+        "nombre": "Índice HOMA-IR",
+        "categoria": "bioquimica",
+        "grupo": "🩸 Metabolismo Hidrocarbonado (Glucemia)",
+        "unidad": "ratio",
+        "ref": "< 2.5",
+        "orden": 126
+    },
 
     # 3. Función Renal y Depuración
     "CREATININE": {
@@ -119,6 +151,14 @@ CANONICAL_CATALOG = {
         "unidad": "mg/dL",
         "ref": "0.70 - 1.20 mg/dL",
         "orden": 200
+    },
+    "EGFR": {
+        "nombre": "Filtrado Glomerular Estimado (eGFR CKD-EPI)",
+        "categoria": "bioquimica",
+        "grupo": "🧪 Función Renal y Depuración",
+        "unidad": "mL/min/1.73m²",
+        "ref": "> 60 mL/min/1.73m²",
+        "orden": 205
     },
     "UREA": {
         "nombre": "Urea",
@@ -161,6 +201,14 @@ CANONICAL_CATALOG = {
         "unidad": "ng/dL",
         "ref": "0.71 - 1.85 ng/dL",
         "orden": 310
+    },
+    "T3_LIBRE": {
+        "nombre": "T3 Libre",
+        "categoria": "bioquimica",
+        "grupo": "🦋 Eje Tiroideo y Metabolismo Óseo",
+        "unidad": "pg/mL",
+        "ref": "2.0 - 4.4 pg/mL",
+        "orden": 315
     },
     "VITAMIN_D": {
         "nombre": "25-OH Vitamina D",
@@ -261,6 +309,22 @@ CANONICAL_CATALOG = {
         "unidad": "UI/mL",
         "ref": "< 30 UI/mL",
         "orden": 530
+    },
+    "VITAMINA_B12": {
+        "nombre": "Vitamina B12",
+        "categoria": "bioquimica",
+        "grupo": "🛡️ Metabolismo Férrico e Inflamatorio",
+        "unidad": "pg/mL",
+        "ref": "200 - 900 pg/mL",
+        "orden": 540
+    },
+    "ACIDO_FOLICO": {
+        "nombre": "Ácido Fólico (Folato)",
+        "categoria": "bioquimica",
+        "grupo": "🛡️ Metabolismo Férrico e Inflamatorio",
+        "unidad": "ng/mL",
+        "ref": "> 4.0 ng/mL",
+        "orden": 545
     },
 
     # 7. Enzimas Hepáticas e Iones Séricos
@@ -516,6 +580,14 @@ CANONICAL_CATALOG = {
         "ref": "Negativo",
         "orden": 1010
     },
+    "UACR": {
+        "nombre": "Cociente Albúmina/Creatinina (uACR)",
+        "categoria": "orina",
+        "grupo": "📋 Sistemático y Sedimento de Orina",
+        "unidad": "mg/g",
+        "ref": "< 30 mg/g",
+        "orden": 1015
+    },
     "DENSIDAD_URINE": {
         "nombre": "Densidad (Orina)",
         "categoria": "orina",
@@ -735,6 +807,17 @@ CANONICAL_CATALOG["APTT"] = CANONICAL_CATALOG["TTPA"]
 CANONICAL_CATALOG["CEFALINA"] = CANONICAL_CATALOG["TTPA"]
 CANONICAL_CATALOG["FIBRINÓGENO"] = CANONICAL_CATALOG["FIBRINOGENO"]
 CANONICAL_CATALOG["DÍMERO_D"] = CANONICAL_CATALOG["DIMERO_D"]
+CANONICAL_CATALOG["APO_B"] = CANONICAL_CATALOG["APOB"]
+CANONICAL_CATALOG["LIPOPROTEIN_A"] = CANONICAL_CATALOG["LPA"]
+CANONICAL_CATALOG["LP_A"] = CANONICAL_CATALOG["LPA"]
+CANONICAL_CATALOG["FG_ESTIMADO"] = CANONICAL_CATALOG["EGFR"]
+CANONICAL_CATALOG["MDRD"] = CANONICAL_CATALOG["EGFR"]
+CANONICAL_CATALOG["CKD_EPI"] = CANONICAL_CATALOG["EGFR"]
+CANONICAL_CATALOG["ALBUMINURIA"] = CANONICAL_CATALOG["UACR"]
+CANONICAL_CATALOG["MICROALBUMINURIA"] = CANONICAL_CATALOG["UACR"]
+CANONICAL_CATALOG["FT3"] = CANONICAL_CATALOG["T3_LIBRE"]
+CANONICAL_CATALOG["FOLATO"] = CANONICAL_CATALOG["ACIDO_FOLICO"]
+CANONICAL_CATALOG["B12"] = CANONICAL_CATALOG["VITAMINA_B12"]
 
 # Compatibilidad con clave canónica antigua
 CANONICAL_ANALITOS = {
@@ -834,6 +917,8 @@ def normalize_analito(
         or (es_cualitativo_orina and any(k in nom_lower for k in ["glucosa", "albúmina", "albumina", "proteína", "proteina", "densidad", "nitrito", "urobilin", "ceton"]))
     )
     if es_orina:
+        if any(k in nom_lower for k in ["uacr", "cociente albúmina/creatinina", "cociente albumina/creatinina", "microalbuminuria", "albuminuria"]):
+            return "UACR", "Cociente Albúmina/Creatinina (uACR)", "orina", unidad or "mg/g"
         if any(k in nom_lower for k in ["glucosa", "glucosuria"]):
             return "GLUCOSE_URINE", "Glucosa (Orina)", "orina", unidad or "Cualitativo"
         if any(k in nom_lower for k in ["albúmina", "albumina", "proteína", "proteina", "prot"]):
@@ -932,14 +1017,22 @@ def normalize_analito(
     if any(k in nom_lower for k in ["glucosa", "glucemia", "glicemia"]) and not es_orina:
         return "GLUCOSE", "Glucosa Basal", "bioquimica", unidad or "mg/dL"
 
-    # 4.2 HbA1c
+    # 4.2 HbA1c, Insulina y HOMA
     if any(k in nom_lower for k in ["hba1c", "hemoglobina glicada", "hemoglobina glicosilada"]):
         if "ifcc" in nom_lower or "mmol" in uni:
             return "HBA1C_IFCC", "HbA1c (IFCC)", "bioquimica", "mmol/mol"
         return "HBA1C", "HbA1c", "bioquimica", "%"
+    if "insulina" in nom_lower:
+        return "INSULINA", "Insulina Basal", "bioquimica", unidad or "µUI/mL"
+    if "homa" in nom_lower:
+        return "HOMA_IR", "Índice HOMA-IR", "bioquimica", "ratio"
 
     # 4.3 Fracciones Lipídicas en sangre (solo si NO son cocientes)
     if not es_cociente:
+        if "apob" in nom_lower or "apolipoproteina b" in nom_lower or "apolipoproteína b" in nom_lower:
+            return "APOB", "Apolipoproteína B (ApoB)", "bioquimica", unidad or "mg/dL"
+        if "lp(a)" in nom_lower or "lpa" in nom_lower or "lipoproteina a" in nom_lower or "lipoproteína a" in nom_lower:
+            return "LPA", "Lipoproteína (a) [Lp(a)]", "bioquimica", unidad or "mg/dL"
         if "hdl" in nom_lower:
             return "HDL", "HDL-Colesterol", "bioquimica", unidad or "mg/dL"
         if "ldl" in nom_lower:
@@ -950,6 +1043,8 @@ def normalize_analito(
             return "CHOLESTEROL_TOTAL", "Colesterol Total", "bioquimica", unidad or "mg/dL"
 
     # 4.4 Renal
+    if any(k in nom_lower for k in ["filtrado glomerular", "fg estimado", "egfr", "ckd-epi", "mdrd"]):
+        return "EGFR", "Filtrado Glomerular Estimado (eGFR CKD-EPI)", "bioquimica", unidad or "mL/min/1.73m²"
     if "creatinina" in nom_lower and not es_orina:
         return "CREATININE", "Creatinina", "bioquimica", unidad or "mg/dL"
     if "urea" in nom_lower and "nitrógeno" not in nom_lower and "bun" not in nom_lower and not es_orina:
@@ -968,6 +1063,8 @@ def normalize_analito(
         return "TSH", "TSH", "bioquimica", unidad or "µUI/mL"
     if any(k in nom_lower for k in ["t4 libre", "t4l", "ft4"]):
         return "T4_LIBRE", "T4 Libre", "bioquimica", unidad or "ng/dL"
+    if any(k in nom_lower for k in ["t3 libre", "t3l", "ft3", "triyodotironina libre"]):
+        return "T3_LIBRE", "T3 Libre", "bioquimica", unidad or "pg/mL"
     if any(k in nom_lower for k in ["vitamina d", "25-oh", "calcidiol"]):
         return "VITAMIN_D", "25-OH Vitamina D", "bioquimica", unidad or "ng/mL"
     if "parathormona" in nom_lower or "pth" in nom_lower:
@@ -979,11 +1076,15 @@ def normalize_analito(
     if "ca 19" in nom_lower or "ca19" in nom_lower:
         return "CA_19_9", "CA 19-9", "bioquimica", unidad or "UI/mL"
 
-    # 4.6 Hierro y Proteínas
+    # 4.6 Hierro, Vitaminas y Proteínas
     if "ferritina" in nom_lower:
         return "FERRITINA", "Ferritina", "bioquimica", unidad or "ng/mL"
     if "hierro" in nom_lower and "orina" not in nom_lower:
         return "HIERRO", "Hierro", "bioquimica", unidad or "µg/dL"
+    if any(k in nom_lower for k in ["vitamina b12", "b12", "cobalamina"]):
+        return "VITAMINA_B12", "Vitamina B12", "bioquimica", unidad or "pg/mL"
+    if any(k in nom_lower for k in ["ácido fólico", "acido folico", "folato", "folatos"]):
+        return "ACIDO_FOLICO", "Ácido Fólico (Folato)", "bioquimica", unidad or "ng/mL"
     if any(k in nom_lower for k in ["proteina c reactiva", "proteína c reactiva"]) or re.search(r"\bpcr\b", nom_lower):
         if "orina" not in nom_lower:
             return "PROTEINA_C_REACTIVA", "Proteína C Reactiva (PCR)", "bioquimica", unidad or "mg/dL"

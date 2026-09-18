@@ -139,6 +139,7 @@ async function loadSummary() {
     }
 
     // Renderizar KPIs
+    const stripHtml = (html) => (html || '').replace(/<[^>]*>?/gm, '');
     const container = document.getElementById('kpi-container');
     container.innerHTML = '';
     data.kpis.forEach(kpi => {
@@ -147,23 +148,94 @@ async function loadSummary() {
       const labelHtml = kpi.main_label 
         ? `<div class="text-[11px] font-medium text-slate-500 mt-1 truncate" title="${kpi.main_label}">${kpi.main_label}</div>` 
         : '';
+      const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-extrabold' : 'text-slate-900 font-extrabold');
+      
+      const subtitlesList = (kpi.subtitles && kpi.subtitles.length > 0)
+        ? kpi.subtitles
+        : [kpi.subtitle_1, kpi.subtitle_2, kpi.subtitle_3].filter(Boolean);
+
+      const subtitlesHtml = subtitlesList.length > 0
+        ? `<div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
+            ${subtitlesList.map(sub => `
+              <div class="text-xs font-medium text-slate-600 truncate" title="${stripHtml(sub)}">${sub}</div>
+            `).join('')}
+          </div>`
+        : '';
+
       card.innerHTML = `
         <div>
           <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide truncate" title="${kpi.title}">
             ${kpi.title}
           </div>
           ${labelHtml}
-          <div class="text-xl font-extrabold text-slate-900 ${kpi.main_label ? 'mt-0.5' : 'mt-1'}">${kpi.main_value} <span class="text-xs font-normal text-slate-500">${kpi.unit}</span></div>
-          <div class="text-xs font-medium text-slate-600 mt-1 truncate" title="${kpi.subtitle_1 || ''}">${kpi.subtitle_1 || '&nbsp;'}</div>
-          <div class="text-xs font-medium text-slate-600 mt-0.5 truncate" title="${kpi.subtitle_2 || ''}">${kpi.subtitle_2 || '&nbsp;'}</div>
-          <div class="text-xs font-medium text-slate-600 mt-0.5 truncate" title="${kpi.subtitle_3 || ''}">${kpi.subtitle_3 || '&nbsp;'}</div>
+          <div class="text-xl ${valColorClass} ${kpi.main_label ? 'mt-0.5' : 'mt-1'}">${kpi.main_value} <span class="text-xs font-normal text-slate-500">${kpi.unit}</span></div>
+          ${subtitlesHtml}
         </div>
-        <div class="mt-2.5 inline-flex items-center self-start px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
+        <div class="mt-3.5 inline-flex items-center self-start px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
           ${kpi.badge_text}
         </div>
       `;
       container.appendChild(card);
     });
+
+    // Renderizar Tarjeta Ancho Completo: Otros Valores de Interés
+    const otrosContainer = document.getElementById('otros-valores-card');
+    if (otrosContainer) {
+      if (data.otros_valores && data.otros_valores.length > 0) {
+        otrosContainer.classList.remove('hidden');
+        const gridColsClass = data.otros_valores.length === 1 ? 'grid-cols-1' :
+                              data.otros_valores.length === 2 ? 'grid-cols-1 sm:grid-cols-2' :
+                              data.otros_valores.length === 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' :
+                              'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+        otrosContainer.innerHTML = `
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-base">📌</span>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Otros valores de interés clínico</h3>
+                <span class="text-[11px] font-medium text-slate-400 hidden sm:inline">· Paneles complementarios dinámicos</span>
+              </div>
+              <span class="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                ${data.otros_valores.length} módulos disponibles
+              </span>
+            </div>
+            <div class="grid ${gridColsClass} gap-3.5">
+              ${data.otros_valores.map(sec => `
+                <div class="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3.5 flex flex-col justify-between hover:bg-slate-50 transition-colors">
+                  <div>
+                    <div class="flex items-center justify-between gap-1 mb-2.5">
+                      <div class="flex items-center gap-1.5 font-bold text-slate-800 text-xs truncate" title="${sec.titulo}">
+                        <span>${sec.icono || '🔹'}</span>
+                        <span class="truncate">${sec.titulo}</span>
+                      </div>
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${sec.badge_class} shrink-0">
+                        ${sec.badge_text}
+                      </span>
+                    </div>
+                    <div class="space-y-1.5">
+                      ${sec.items.map(item => `
+                        <div class="flex items-baseline justify-between text-xs py-0.5 border-b border-slate-200/40 last:border-0">
+                          <span class="text-slate-600 font-medium truncate mr-2" title="${item.label}${item.ref ? ' (' + item.ref + ')' : ''}">
+                            ${item.label}
+                          </span>
+                          <span class="font-bold ${item.is_altered ? 'text-rose-600' : 'text-slate-900'} shrink-0 text-right">
+                            ${item.val} <span class="text-[10px] font-normal text-slate-500">${item.unit || ''}</span>
+                          </span>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                  ${sec.nota ? `<div class="text-[10px] text-slate-400 mt-2.5 italic truncate" title="${sec.nota}">${sec.nota}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        otrosContainer.classList.add('hidden');
+        otrosContainer.innerHTML = '';
+      }
+    }
   } catch (err) {
     console.error('Fallo al cargar summary:', err);
   }

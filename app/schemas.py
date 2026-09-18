@@ -10,11 +10,30 @@ class KpiCard(BaseModel):
     main_label: Optional[str] = None
     main_value: str
     unit: str
-    subtitle_1: str
-    subtitle_2: str
+    main_value_class: Optional[str] = "text-slate-900"
+    is_altered: Optional[bool] = False
+    subtitle_1: Optional[str] = ""
+    subtitle_2: Optional[str] = ""
     subtitle_3: Optional[str] = ""
+    subtitles: Optional[List[str]] = []
     badge_text: str
     badge_class: str
+
+class MetricaSimple(BaseModel):
+    label: str
+    val: str
+    unit: str = ""
+    ref: Optional[str] = ""
+    is_altered: Optional[bool] = False
+
+class OtrosValoresSeccion(BaseModel):
+    id: str
+    titulo: str
+    icono: Optional[str] = ""
+    badge_text: str
+    badge_class: str
+    items: List[MetricaSimple]
+    nota: Optional[str] = None
 
 class DashboardSummaryResponse(BaseModel):
     paciente: Dict[str, Any]
@@ -24,6 +43,7 @@ class DashboardSummaryResponse(BaseModel):
     dictamen_global: str
     dictamen_subtitulo: str
     kpis: List[KpiCard]
+    otros_valores: Optional[List[OtrosValoresSeccion]] = []
     motor_llm_info: Optional[Dict[str, Any]] = None
     app_version: Optional[str] = None
 

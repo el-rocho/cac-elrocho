@@ -72,6 +72,11 @@
       <!-- Inyectado dinámicamente -->
     </section>
 
+    <!-- TARJETA OTROS VALORES DE INTERÉS (ANCHO COMPLETO DINÁMICO) -->
+    <section id="otros-valores-card" class="hidden">
+      <!-- Inyectado dinámicamente -->
+    </section>
+
     <!-- TABS NAVIGATION -->
     <div class="border-b border-slate-200 flex flex-wrap gap-2 text-sm font-semibold">
       <button onclick="setTab('eval')" id="tab-btn-eval" class="pb-3 px-4 border-b-2 tab-active transition-colors">
@@ -99,12 +104,12 @@
         <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-amber-500"></span> Metabolismo Glucídico (Glucosa y HbA1c)
+              <span class="w-3 h-3 rounded-full bg-amber-500"></span> Metabolismo Glucídico (Glucosa, HbA1c y Ratio TG/HDL)
             </h3>
             <span class="px-2.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-bold rounded-full">Vigilancia Preventiva</span>
           </div>
           <p class="text-sm text-slate-600 leading-relaxed">
-            Las glucemias basales en ayunas muestran una evolución sistemáticamente monitorizada. En caso de que la <strong>Hemoglobina Glicada (HbA1c)</strong> alcance o rebase el <strong>5.7%</strong> (38.80 mmol/mol IFCC), las guías clínicas internacionales de la ADA establecen este valor como dintel orientativo para prevención de prediabetes, recomendando pautas activas de estilo de vida, ejercicio y control de carbohidratos refinados.
+            Las glucemias basales en ayunas muestran una evolución sistemáticamente monitorizada. En caso de que la <strong>Hemoglobina Glicada (HbA1c)</strong> alcance o rebase el <strong>5.7%</strong> (38.80 mmol/mol IFCC), las guías clínicas de la ADA establecen este valor como dintel orientativo para prevención de prediabetes. Asimismo, el <strong>ratio Triglicéridos / HDL (TG/HDL &lt; 2.0)</strong> se evalúa aquí como un marcador sustitutivo precoz y sensible de <strong>resistencia a la insulina</strong> y sobrecarga metabólica hepática, alertando sobre alteraciones glucídicas incipientes incluso antes de que la glucemia basal o la HbA1c se eleven.
           </p>
         </div>
 
@@ -112,12 +117,12 @@
         <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-yellow-500"></span> Perfil Lipídico y Riesgo Cardiovascular
+              <span class="w-3 h-3 rounded-full bg-yellow-500"></span> Perfil Lipídico y Riesgo Cardiovascular (Colesterol, Ratios y TG/HDL)
             </h3>
             <span class="px-2.5 py-0.5 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full">Control y Cocientes</span>
           </div>
           <p class="text-sm text-slate-600 leading-relaxed">
-            El sistema audita de forma continua el colesterol total, fracciones HDL y LDL y triglicéridos. Los <strong>índices aterogénicos unificados</strong> (Castelli I: Col.T / HDL &lt; 5.0, Castelli II: LDL / HDL &lt; 4.3 y Triglicéridos / HDL &lt; 2.0) evalúan el equilibrio lipídico según la práctica clínica estándar en España. Asimismo, se evalúa el LDL frente a las directrices de la SEA 2023 (&lt; 116 mg/dL).
+            El sistema audita de forma continua el colesterol total, fracciones HDL y LDL y triglicéridos. Los <strong>índices aterogénicos</strong> (Castelli I: Col.T / HDL &lt; 5.0 y Castelli II: LDL / HDL &lt; 3.0) evalúan el balance lipídico frente a las directrices de la SEA 2023 (LDL &lt; 116 mg/dL). Paralelamente, el <strong>ratio Triglicéridos / HDL (TG/HDL &lt; 2.0)</strong> se integra en este perfil como un indicador clave del <strong>fenotipo aterogénico lipídico</strong>: valores superiores a 2.0 reflejan un predominio de partículas LDL pequeñas y densas (sdLDL), altamente oxidables y aterogénicas, complementando el cálculo del riesgo vascular global.
           </p>
         </div>
 
@@ -125,38 +130,51 @@
         <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-emerald-500"></span> Función Renal y Depuración
+              <span class="w-3 h-3 rounded-full bg-emerald-500"></span> Función Renal y Depuración (eGFR y Albuminuria)
             </h3>
-            <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Monitorización Continua</span>
+            <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Consenso KDIGO / ESC</span>
           </div>
           <p class="text-sm text-slate-600 leading-relaxed">
-            Supervisión simultánea de <strong>Creatinina sérica</strong>, <strong>Urea</strong> y <strong>Ácido Úrico</strong> para asegurar un filtrado glomerular preservado, una adecuada tasa de depuración y ausencia de hiperuricemia.
+            Supervisión simultánea de <strong>Creatinina sérica</strong>, <strong>Filtrado Glomerular Estimado (eGFR por CKD-EPI)</strong>, <strong>Urea</strong>, <strong>Ácido Úrico</strong> y <strong>Albuminuria / uACR</strong>, siguiendo las directrices de prevención cardiorrenal para la detección precoz de cualquier pérdida funcional.
           </p>
         </div>
 
-        <!-- Próstata -->
+        <!-- Hepática -->
         <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-emerald-500"></span> Marcador Prostático (PSA Total y Libre)
+              <span class="w-3 h-3 rounded-full bg-teal-500"></span> Función Hepática y Enzimas
             </h3>
-            <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Evaluación Urológica</span>
+            <span class="px-2.5 py-0.5 bg-teal-100 text-teal-800 text-xs font-bold rounded-full">Integridad Hepatocelular</span>
           </div>
           <p class="text-sm text-slate-600 leading-relaxed">
-            Seguimiento longitudinal del <strong>PSA Total</strong> (&lt; 4.0 ng/mL) y cálculo automatizado del <strong>Ratio PSA Libre / Total</strong> (&gt; 20%), indicador clave para diferenciar hiperplasia benigna de otras alteraciones.
+            Monitorización de transaminasas (<strong>GPT / ALT</strong> de alta especificidad hepatocelular y <strong>GOT / AST</strong>), colestasis y vía biliar (<strong>GGT</strong> y <strong>Fosfatasa Alcalina</strong>) y función excretora mediante <strong>Bilirrubina total</strong>.
           </p>
         </div>
 
-        <!-- Vitamina D y Tiroides -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm md:col-span-2">
+        <!-- Hemograma y Hierro -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div class="flex justify-between items-center mb-3">
             <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-emerald-500"></span> Vitamina D y Eje Tiroideo
+              <span class="w-3 h-3 rounded-full bg-indigo-500"></span> Hemograma y Metabolismo Férrico
             </h3>
-            <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">Suficiencia y Metabolismo</span>
+            <span class="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-xs font-bold rounded-full">Serie Hematológica</span>
           </div>
           <p class="text-sm text-slate-600 leading-relaxed">
-            Control de los niveles de <strong>25-OH Vitamina D</strong> frente al dintel óptimo de suficiencia (&gt; 30 ng/mL) y seguimiento del eje tiroideo mediante <strong>TSH</strong> (eutiroideo: 0.27 - 4.29 µUI/mL), T4 y T3 total.
+            Evaluación conjunta de <strong>Hemoglobina</strong>, <strong>Hematocrito</strong>, índices eritrocitarios (<strong>VCM</strong>), recuentos de <strong>Leucocitos</strong> y <strong>Plaquetas</strong>, y depósitos corporales de hierro mediante <strong>Ferritina</strong> y <strong>Hierro sérico</strong>.
+          </p>
+        </div>
+
+        <!-- Tiroides y Paneles Complementarios -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-purple-500"></span> Eje Tiroideo y Paneles Dinámicos
+            </h3>
+            <span class="px-2.5 py-0.5 bg-purple-100 text-purple-800 text-xs font-bold rounded-full">Tiroides y Vigilancia</span>
+          </div>
+          <p class="text-sm text-slate-600 leading-relaxed">
+            Control de <strong>TSH</strong> y <strong>T4 Libre / T3 Libre</strong> para descarte de disfunción tiroidea subclínica. En la tarjeta inferior de <em>Otros valores de interés</em> se supervisan dinámicamente el cribado urológico (<strong>PSA Total/Libre</strong> en varones), metabolismo fosfocálcico y <strong>Vitamina D</strong>, e inflamación.
           </p>
         </div>
 
