@@ -125,11 +125,55 @@ class TestClinicalTrends(unittest.TestCase):
             self.assertIn("trend_global", kpi)
             self.assertIn("trend_badge_text", kpi)
             self.assertIn("trend_badge_class", kpi)
+            self.assertIn("notas_pie", kpi)
             for f in kpi["filas"]:
                 self.assertIn("label", f)
                 self.assertIn("val", f)
                 self.assertIn("var_symbol", f)
                 self.assertIn("trend_symbol", f)
+
+    def test_analitos_historicos_y_notas_pie(self):
+        client = TestClient(app)
+        response = client.get("/api/v1/analiticas/summary")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        kpis_by_title = {k["title"]: k for k in data["kpis"]}
+
+        # Tarjeta Metabolismo Glucídico:
+        # Última analítica (2023-01-13) no tiene HbA1c ni HDL.
+        # Rescata HbA1c (2022-09-07) y ratio TG/HDL histórico (2018-09-27) con notas ¹ y ²
+        metab = kpis_by_title.get("Metabolismo Glucídico")
+        self.assertIsNotNone(metab)
+        filas_metab = {f["label"]: f for f in metab["filas"]}
+        self.assertIn("HbA1c", filas_metab)
+        self.assertTrue(filas_metab["HbA1c"]["es_historico"])
+        self.assertEqual(filas_metab["HbA1c"]["fecha_origen"], "2022-09-07")
+        self.assertEqual(filas_metab["HbA1c"]["footnote_symbol"], "¹")
+
+        self.assertIn("TG/HDL", filas_metab)
+        self.assertTrue(filas_metab["TG/HDL"]["es_historico"])
+        self.assertEqual(filas_metab["TG/HDL"]["fecha_origen"], "2018-09-27")
+        self.assertEqual(filas_metab["TG/HDL"]["footnote_symbol"], "²")
+
+        # Comprobar que hay 2 notas al pie en la tarjeta de metabolismo
+        self.assertEqual(len(metab["notas_pie"]), 2)
+        self.assertEqual(metab["notas_pie"][0]["simbolo"], "¹")
+        self.assertIn("07/09/2022", metab["notas_pie"][0]["texto"])
+        self.assertEqual(metab["notas_pie"][1]["simbolo"], "²")
+        self.assertIn("27/09/2018", metab["notas_pie"][1]["texto"])
+
+        # Tarjeta Perfil Lipídico:
+        # Colesterol Total es actual (2023-01-13).
+        # HDL y LDL son de 2018-09-27. Deben compartir el símbolo ¹
+        lipidos = kpis_by_title.get("Perfil Lipídico")
+        self.assertIsNotNone(lipidos)
+        filas_lip = {f["label"]: f for f in lipidos["filas"]}
+        self.assertTrue(filas_lip["HDL"]["es_historico"])
+        self.assertEqual(filas_lip["HDL"]["footnote_symbol"], "¹")
+        self.assertTrue(filas_lip["LDL"]["es_historico"])
+        self.assertEqual(filas_lip["LDL"]["footnote_symbol"], "¹")
+        self.assertEqual(len(lipidos["notas_pie"]), 1)
+        self.assertIn("27/09/2018", lipidos["notas_pie"][0]["texto"])
 
 if __name__ == "__main__":
     unittest.main()

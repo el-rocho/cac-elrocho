@@ -168,6 +168,10 @@ async function loadSummary() {
         mainTrendTitle = 'Tendencia estable';
       }
 
+      const mainFootnoteHtml = (kpi.main_is_historical && kpi.main_footnote_symbol) ? `
+        <sup class="text-amber-700 font-bold text-xs ml-0.5" title="Dato de informe anterior: ${kpi.main_fecha_origen || ''}">${kpi.main_footnote_symbol}</sup>
+      ` : '';
+
       const mainIndicatorsHtml = (mainVarBadgeHtml || kpi.main_clinical_trend) ? `
         <span class="inline-flex items-center gap-1.5 ml-2" title="Variación vs control anterior y tendencia">
           ${mainVarBadgeHtml}
@@ -184,16 +188,25 @@ async function loadSummary() {
         rowsHtml = `
           <div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
             ${kpi.filas.map(f => {
+              const isHistorical = f.es_historico;
+              const footnoteSymHtml = (isHistorical && f.footnote_symbol) ? `
+                <sup class="text-amber-700 font-bold text-[10px] ml-0.5" title="Dato de informe anterior: ${f.fecha_origen || ''}">${f.footnote_symbol}</sup>
+              ` : '';
               const varBadgeHtml = f.var_delta ? `
                 <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight text-center" title="Variación vs control anterior">
                   ${f.var_delta}
                 </span>
               ` : '';
               const isAltered = f.is_altered;
-              const valClass = isAltered ? 'text-rose-600 font-bold' : 'text-slate-900 font-semibold';
+              const isUndetermined = f.val === '-' || !f.val;
+              const valClass = isAltered 
+                ? 'text-rose-600 font-bold' 
+                : (isUndetermined ? 'text-slate-400 font-medium' : 'text-slate-900 font-semibold');
               
               let dotClass = 'bg-slate-300';
-              let trendTitle = 'Sin tendencia (datos insuficientes)';
+              let trendTitle = isUndetermined 
+                ? 'No determinado en este informe' 
+                : (isHistorical ? `Dato histórico previo (${f.fecha_origen || ''})` : 'Sin tendencia (datos insuficientes)');
               if (f.clinical_trend === 'FAVORABLE') {
                 dotClass = 'bg-emerald-500';
                 trendTitle = 'Tendencia favorable';
@@ -205,12 +218,18 @@ async function loadSummary() {
                 trendTitle = 'Tendencia estable';
               }
 
+              const rowContainerClass = isHistorical
+                ? 'flex items-center justify-between text-xs py-1 px-1.5 rounded bg-amber-50/70 border border-amber-200/80 my-0.5'
+                : 'flex items-center justify-between text-xs py-0.5 border-b border-slate-100/60 last:border-0';
+
+              const rowTitle = isHistorical ? `Analítica previa de fecha ${f.fecha_origen || ''}` : f.label;
+
               return `
-                <div class="flex items-center justify-between text-xs py-0.5 border-b border-slate-100/60 last:border-0">
+                <div class="${rowContainerClass}" title="${rowTitle}">
                   <span class="text-slate-600 font-medium truncate mr-1" title="${f.label}">${f.label}</span>
                   <div class="flex items-center gap-1.5 shrink-0">
                     <span class="${valClass}">
-                      ${f.val} <span class="text-[10px] font-normal text-slate-400">${f.unit || ''}</span>
+                      ${f.val} <span class="text-[10px] font-normal text-slate-400">${f.unit || ''}</span>${footnoteSymHtml}
                     </span>
                     <span class="min-w-[42px] flex justify-end">
                       ${varBadgeHtml}
@@ -248,6 +267,17 @@ async function loadSummary() {
         </span>
       ` : '';
 
+      const footnotesHtml = (kpi.notas_pie && kpi.notas_pie.length > 0) ? `
+        <div class="mt-2 pt-1.5 border-t border-slate-100 w-full space-y-0.5">
+          ${kpi.notas_pie.map(n => `
+            <div class="text-[10px] text-amber-800/90 font-medium flex items-center gap-1" title="Fecha en analítica previa">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+              <span>${n.texto}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : '';
+
       card.innerHTML = `
         <div>
           <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide truncate" title="${kpi.title}">
@@ -257,6 +287,7 @@ async function loadSummary() {
           <div class="text-xl ${valColorClass} ${kpi.main_label ? 'mt-0.5' : 'mt-1'} flex items-baseline flex-wrap">
             <span>${kpi.main_value}</span>
             <span class="text-xs font-normal text-slate-500 ml-1">${kpi.unit}</span>
+            ${mainFootnoteHtml}
             ${mainIndicatorsHtml}
           </div>
           ${rowsHtml}
@@ -266,6 +297,7 @@ async function loadSummary() {
             ${kpi.badge_text}
           </div>
           ${trendBadgeHtml}
+          ${footnotesHtml}
         </div>
       `;
       container.appendChild(card);

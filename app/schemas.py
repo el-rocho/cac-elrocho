@@ -13,6 +13,9 @@ class AnalitoFila(BaseModel):
     var_delta: Optional[str] = None       # '+0.3', '-6', ''
     trend_symbol: Optional[str] = None    # '↗', '↘', '→'
     clinical_trend: Optional[str] = None  # 'FAVORABLE', 'ESTABLE', 'DESFAVORABLE'
+    es_historico: Optional[bool] = False
+    fecha_origen: Optional[str] = None    # '27/09/2018' o '2018-09-27'
+    footnote_symbol: Optional[str] = None # '¹', '²', '³'
 
 class KpiCard(BaseModel):
     id: Optional[str] = None
@@ -28,6 +31,9 @@ class KpiCard(BaseModel):
     main_var_delta: Optional[str] = None
     main_trend_symbol: Optional[str] = None
     main_clinical_trend: Optional[str] = None
+    main_is_historical: Optional[bool] = False
+    main_fecha_origen: Optional[str] = None
+    main_footnote_symbol: Optional[str] = None
     subtitle_1: Optional[str] = ""
     subtitle_2: Optional[str] = ""
     subtitle_3: Optional[str] = ""
@@ -38,6 +44,7 @@ class KpiCard(BaseModel):
     trend_global: Optional[str] = "sin_tendencia"
     trend_badge_text: Optional[str] = "Sin tendencia"
     trend_badge_class: Optional[str] = "bg-slate-100 text-slate-600 border-slate-200"
+    notas_pie: Optional[List[Dict[str, str]]] = []
 
 class MetricaSimple(BaseModel):
     label: str
