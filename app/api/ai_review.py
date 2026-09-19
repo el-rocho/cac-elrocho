@@ -35,12 +35,127 @@ def get_auditorias_rango(db: Session = Depends(get_db)):
         })
     return resultado
 
+
+def detectar_cambios_de_rango(db: Session) -> List[AuditoriaRango]:
+    """
+    Escanea cronológicamente las analíticas y detecta cambios en los rangos de referencia
+    utilizados por los laboratorios para cada analito. Registra las discrepancias en
+    AuditoriaRango si no están ya registradas.
+    """
+    from app.services.analito_normalizer import parse_reference_bounds
+
+    informes = db.query(Informe).order_by(Informe.fecha.asc()).all()
+    if not informes:
+        return []
+
+    analitos = db.query(Analito).all()
+    auditorias_creadas = []
+
+    for analito in analitos:
+        meds = (
+            db.query(Medicion, Informe)
+            .join(Informe, Medicion.informe_id == Informe.id)
+            .filter(Medicion.analito_id == analito.id)
+            .order_by(Informe.fecha.asc())
+            .all()
+        )
+        if len(meds) < 2:
+            continue
+
+        prev_ref_str = None
+        prev_bounds = (None, None)
+
+        for med, inf in meds:
+            ref_str = (med.ref_texto or "").strip()
+            if not ref_str or ref_str.lower() in ["-", "sin referencia", "no especificado"]:
+                continue
+
+            bounds = parse_reference_bounds(ref_str)
+            if bounds == (None, None):
+                continue
+
+            if prev_ref_str is None:
+                prev_ref_str = ref_str
+                prev_bounds = bounds
+                continue
+
+            # Comprobar si hubo un cambio real en los límites numéricos
+            if bounds != prev_bounds:
+                # Comprobar si ya existe una auditoría para este analito, informe y rango
+                existente = (
+                    db.query(AuditoriaRango)
+                    .filter_by(
+                        analito_id=analito.id,
+                        informe_id=inf.id,
+                        rango_nuevo=ref_str
+                    )
+                    .first()
+                )
+                if not existente:
+                    lab_name = inf.laboratorio or "El laboratorio"
+                    if analito.codigo == "LDL" and bounds[1] and bounds[1] <= 116.0:
+                        explicacion = (
+                            f"{lab_name} actualizó el dintel de normalidad de LDL a {ref_str}, "
+                            f"aplicando los objetivos de prevención cardiovascular más estrictos de las guías SEA/ESC."
+                        )
+                    elif analito.codigo == "UREA":
+                        explicacion = (
+                            f"{lab_name} adoptó el intervalo de referencia de {ref_str} "
+                            f"según la metodología y reactivos enzimáticos (ureasa) del analizador actual."
+                        )
+                    elif analito.codigo in ["LINFOCITOS_ABS", "NEUTROFILOS_ABS", "LEUCOCITOS", "PLAQUETAS"]:
+                        explicacion = (
+                            f"{lab_name} calibró el intervalo de normalidad hemocitométrico a {ref_str}."
+                        )
+                    else:
+                        explicacion = (
+                            f"{lab_name} actualizó los criterios de normalidad de {analito.nombre_visible} "
+                            f"de '{prev_ref_str}' a '{ref_str}'."
+                        )
+
+                    audit = AuditoriaRango(
+                        analito_id=analito.id,
+                        informe_id=inf.id,
+                        rango_anterior=prev_ref_str,
+                        rango_nuevo=ref_str,
+                        explicacion_ia=explicacion,
+                        fecha_deteccion=datetime.utcnow(),
+                        aplicado_en_historico=False
+                    )
+                    db.add(audit)
+                    auditorias_creadas.append(audit)
+
+                prev_ref_str = ref_str
+                prev_bounds = bounds
+
+    if auditorias_creadas:
+        db.commit()
+
+    return db.query(AuditoriaRango).order_by(AuditoriaRango.fecha_deteccion.desc()).all()
+
+
+@router.post("/detectar")
+def detectar_nuevos_rangos(db: Session = Depends(get_db)):
+    """
+    Ejecuta el escaneo de auditoría para detectar actualizaciones de rangos de laboratorio
+    a lo largo de todo el histórico y devuelve la lista completa.
+    """
+    items = detectar_cambios_de_rango(db)
+    return {
+        "status": "success",
+        "message": f"Detección completada: {len(items)} criterio(s) de rangos supervisados.",
+        "total_detectados": len(items)
+    }
+
+
 @router.post("/aplicar-criterio/{auditoria_id}")
 def aplicar_criterio_historico(auditoria_id: int, db: Session = Depends(get_db)):
     """
     Aplica el rango de normalidad actualizado detectado en la auditoría
     a todo el historial clínico pasado de ese analito.
     """
+    from app.services.analito_normalizer import evaluar_estado_semaforo
+
     audit = db.query(AuditoriaRango).filter_by(id=auditoria_id).first()
     if not audit:
         raise HTTPException(status_code=404, detail="Registro de auditoría no encontrado")
@@ -52,11 +167,13 @@ def aplicar_criterio_historico(auditoria_id: int, db: Session = Depends(get_db))
     # 1. Actualizar el rango por defecto del catálogo canónico
     analito.ref_texto_defecto = audit.rango_nuevo
 
-    # 2. Homologar las referencias en las mediciones históricas
+    # 2. Homologar las referencias en las mediciones históricas y actualizar semáforos
     mediciones = db.query(Medicion).filter_by(analito_id=analito.id).all()
     count_mediciones = len(mediciones)
     for med in mediciones:
         med.ref_texto = audit.rango_nuevo
+        if med.valor_numerico is not None:
+            med.estado_semaforo = evaluar_estado_semaforo(med.valor_numerico, audit.rango_nuevo)
 
     # 3. Marcar la auditoría como aplicada
     audit.aplicado_en_historico = True
@@ -99,6 +216,9 @@ def aplicar_todos_criterios_historico(db: Session = Depends(get_db)):
             total_mediciones += len(mediciones)
             for med in mediciones:
                 med.ref_texto = audit.rango_nuevo
+                if med.valor_numerico is not None:
+                    from app.services.analito_normalizer import evaluar_estado_semaforo
+                    med.estado_semaforo = evaluar_estado_semaforo(med.valor_numerico, audit.rango_nuevo)
 
         audit.aplicado_en_historico = True
         audit.fecha_aplicacion = now

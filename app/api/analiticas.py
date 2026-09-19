@@ -7,13 +7,17 @@ from app.config import settings
 from app.database import get_db
 from app.models import Paciente, Informe, Analito, Medicion
 from app.schemas import (
-    DashboardSummaryResponse, KpiCard, AnalitoFila, TablesResponse, TableRow,
+    DashboardSummaryResponse, KpiCard, AnalitoFila, TablesResponse, TableRow, TableCell,
     ChartsResponse, ChartConfig, ChartDataset, AuditFileItem,
     InformeDetailResponse, InformeUpdateRequest, MedicionDetail,
     PacienteInfo, PacienteUpdateRequest, MetricaSimple, OtrosValoresSeccion
 )
 from app.services.metrics import get_cell_format, calculate_ratios
-from app.services.analito_normalizer import get_analito_group, normalize_analito, get_analito_order, normalize_valor_numerico
+from app.services.analito_normalizer import (
+    get_analito_group, normalize_analito, get_analito_order,
+    normalize_valor_numerico, standardize_medicion, evaluar_estado_semaforo,
+    es_medicion_alterada
+)
 from app.services.clinical_trends import (
     calcular_variacion_reciente,
     calcular_tendencia_longitudinal,
@@ -177,6 +181,47 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             return float(str(v).replace(",", "."))
         except Exception:
             return default
+
+    analitos_cache = {a.codigo: a for a in db.query(Analito).all()}
+
+    def get_analyte_record(cod):
+        m = m_map.get(cod)
+        if m and (m.valor_numerico is not None or m.valor_texto):
+            return m, m.analito or analitos_cache.get(cod)
+        for inf in reversed(informes[:-1]):
+            for past_m in inf.mediciones:
+                if past_m.analito and past_m.analito.codigo == cod:
+                    if past_m.valor_numerico is not None or past_m.valor_texto:
+                        return past_m, past_m.analito or analitos_cache.get(cod)
+        return None, analitos_cache.get(cod)
+
+    def check_is_altered(cod: str, val_str: Any, fallback_ref: Optional[str] = None) -> bool:
+        if val_str is None or val_str == "" or val_str == "-":
+            return False
+
+        str_val = str(val_str).lower().strip()
+        if cod == "ANA" or "anticuerpos" in cod.lower():
+            if "positivo" in str_val or ("detecta" in str_val and "no se detecta" not in str_val):
+                return True
+            if "negativo" in str_val or "no se detecta" in str_val:
+                return False
+
+        val_num = parse_num(val_str)
+        med_obj, an_obj = get_analyte_record(cod)
+
+        ref_str = None
+        estado_semaforo = None
+        if med_obj:
+            ref_str = med_obj.ref_texto
+            estado_semaforo = med_obj.estado_semaforo
+
+        if not ref_str and an_obj and an_obj.ref_texto_defecto:
+            ref_str = an_obj.ref_texto_defecto
+        if not ref_str:
+            ref_str = fallback_ref
+
+        return es_medicion_alterada(val_num, ref_str, estado_semaforo)
+
 
     # Helper para formatear valores con resaltado en rojo si están fuera de rango
     def fmt_val(v, decimals=None, is_altered=False):
@@ -388,12 +433,12 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     ins_num = parse_num(ins)
     homa_num = parse_num(homa)
 
-    # Criterios de alteración
-    glu_alt = bool(glu_num is not None and (glu_num >= 100.0 or glu_num < 65.0))
-    hba_alt = bool(hba_num is not None and hba_num >= 5.7)
-    tg_hdl_alt = bool(r_tg_num is not None and r_tg_num >= 2.0)
-    ins_alt = bool(ins_num is not None and (ins_num > 24.9 or ins_num < 2.6))
-    homa_alt = bool(homa_num is not None and homa_num >= 2.5)
+    # Criterios de alteración unificados según el laboratorio y rangos oficiales
+    glu_alt = check_is_altered("GLUCOSE", glu, fallback_ref="60 - 100")
+    hba_alt = check_is_altered("HBA1C", hba, fallback_ref="< 5.7")
+    tg_hdl_alt = check_is_altered("RATIO_TG_HDL", ratio_tg_hdl, fallback_ref="< 2.0")
+    ins_alt = check_is_altered("INSULINA", ins, fallback_ref="2.6 - 24.9")
+    homa_alt = check_is_altered("HOMA_IR", homa, fallback_ref="< 2.5")
 
     glu_atencion = bool((hba_num and hba_num >= 6.5) or (glu_num and glu_num >= 126.0))
     glu_seguimiento = bool(hba_alt or glu_alt or tg_hdl_alt or ins_alt or homa_alt)
@@ -533,14 +578,14 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     apob_num = parse_num(apob)
     lpa_num = parse_num(lpa)
 
-    col_alt = bool(col_num is not None and col_num > 200.0)
-    ldl_alt = bool(ldl_num is not None and ldl_num > 116.0)
-    hdl_alt = bool(hdl_num is not None and hdl_num < 40.0)
-    tg_alt = bool(tg_num is not None and tg_num > 150.0)
-    r_col_hdl_alt = bool(r_col_hdl_num is not None and r_col_hdl_num >= 5.0)
-    r_ldl_hdl_alt = bool(r_ldl_hdl_num is not None and r_ldl_hdl_num >= 3.0)
-    apob_alt = bool(apob_num is not None and apob_num >= 100.0)
-    lpa_alt = bool(lpa_num is not None and lpa_num >= 50.0)
+    col_alt = check_is_altered("CHOLESTEROL_TOTAL", col_t, fallback_ref="< 200")
+    ldl_alt = check_is_altered("LDL", ldl, fallback_ref="< 116")
+    hdl_alt = check_is_altered("HDL", hdl, fallback_ref="> 40")
+    tg_alt = check_is_altered("TRIGLYCERIDES", tg, fallback_ref="< 150")
+    r_col_hdl_alt = check_is_altered("RATIO_COL_HDL", ratio_col_hdl, fallback_ref="< 5.0")
+    r_ldl_hdl_alt = check_is_altered("RATIO_LDL_HDL", ratio_ldl_hdl, fallback_ref="< 3.0")
+    apob_alt = check_is_altered("APOB", apob, fallback_ref="< 100")
+    lpa_alt = check_is_altered("LPA", lpa, fallback_ref="< 50")
 
     lipid_atencion = bool((ldl_num and ldl_num >= 160.0) or (col_num and col_num >= 240.0) or (tg_num and tg_num >= 300.0))
     lipid_seguimiento = bool(col_alt or ldl_alt or hdl_alt or tg_alt or r_col_hdl_alt or r_ldl_hdl_alt or tg_hdl_alt or apob_alt or lpa_alt)
@@ -628,13 +673,19 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     urea_num = parse_num(urea)
     uacr_num = parse_num(uacr)
 
-    # Cálculo dinámico de eGFR (CKD-EPI 2021) si no viene explícito
+    # Cálculo dinámico de eGFR (CKD-EPI 2021) teniendo en cuenta la edad a la fecha de la analítica
     if (egfr == "-" or not egfr) and creat_num:
         edad_anios = None
         if paciente and paciente.fecha_nacimiento:
-            e_str = calcular_edad(paciente.fecha_nacimiento)
-            if e_str and e_str != "-":
-                edad_anios = e_str.split()[0]
+            fn_d = parse_date_safe(paciente.fecha_nacimiento)
+            ref_fecha_str = creat_date or ultimo_informe.fecha
+            inf_ref_d = parse_date_safe(ref_fecha_str)
+            if fn_d and inf_ref_d:
+                edad_anios = inf_ref_d.year - fn_d.year - ((inf_ref_d.month, inf_ref_d.day) < (fn_d.month, fn_d.day))
+            else:
+                e_str = calcular_edad(paciente.fecha_nacimiento)
+                if e_str and e_str != "-":
+                    edad_anios = e_str.split()[0]
         sexo_p = paciente.sexo if paciente else "Masculino"
         c_calc = calcular_egfr(creat_num, edad_anios, sexo_p)
         if c_calc is not None:
@@ -644,11 +695,11 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     egfr_num = parse_num(egfr)
 
-    creat_alt = bool(creat_num is not None and (creat_num > 1.20 or creat_num < 0.60))
-    egfr_alt = bool(egfr_num is not None and egfr_num < 90.0)
-    urea_alt = bool(urea_num is not None and (urea_num > 45.0 or urea_num < 15.0))
-    urico_alt = bool(urico_num is not None and (urico_num > 7.0 or urico_num < 3.0))
-    uacr_alt = bool(uacr_num is not None and uacr_num >= 30.0)
+    creat_alt = check_is_altered("CREATININE", creat, fallback_ref="0.60 - 1.20")
+    egfr_alt = check_is_altered("EGFR", egfr, fallback_ref="> 60.0")
+    urea_alt = check_is_altered("UREA", urea, fallback_ref="17.0 - 49.2")
+    urico_alt = check_is_altered("URIC_ACID", urico, fallback_ref="3.0 - 7.0")
+    uacr_alt = check_is_altered("UACR", uacr, fallback_ref="< 30.0")
 
     renal_atencion = bool((creat_num and creat_num >= 1.4) or (egfr_num and egfr_num < 60.0) or (urico_num and urico_num >= 8.5))
     renal_seguimiento = bool(creat_alt or egfr_alt or urea_alt or urico_alt or uacr_alt)
@@ -713,28 +764,46 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     )
 
     # =========================================================================
-    # 4. FUNCIÓN HEPÁTICA (ALT, AST, GGT, FA, Bilirrubina)
+    # 4. FUNCIÓN HEPÁTICA (ALT, AST, GGT, FA, Bilirrubina, Albúmina, TP/INR)
     # =========================================================================
     alt, alt_date, alt_hist = get_analyte_meta("GPT_ALT", "-")
     ast, ast_date, ast_hist = get_analyte_meta("GOT_AST", "-")
     ggt, ggt_date, ggt_hist = get_analyte_meta("GGT", "-")
     fa, fa_date, fa_hist = get_analyte_meta("FOSFATASA_ALCALINA", "-")
     bili, bili_date, bili_hist = get_analyte_meta("BILIRRUBINA_TOTAL", "-")
+    alb, alb_date, alb_hist = get_analyte_meta("ALBUMINA", "-")
+    inr, inr_date, inr_hist = get_analyte_meta("INR", "-")
+    tp, tp_date, tp_hist = get_analyte_meta("TIEMPO_PROTROMBINA", "-")
 
     alt_num = parse_num(alt)
     ast_num = parse_num(ast)
     ggt_num = parse_num(ggt)
     fa_num = parse_num(fa)
     bili_num = parse_num(bili)
+    alb_num = parse_num(alb)
 
-    alt_alt = bool(alt_num is not None and alt_num > 55.0)
-    ast_alt = bool(ast_num is not None and ast_num > 45.0)
-    ggt_alt = bool(ggt_num is not None and ggt_num > 78.0)
-    fa_alt = bool(fa_num is not None and fa_num > 126.0)
-    bili_alt = bool(bili_num is not None and bili_num > 1.2)
+    tp_num = parse_num(tp)
+    inr_num = parse_num(inr)
 
-    hep_atencion = bool((alt_num and alt_num >= 90.0) or (ast_num and ast_num >= 80.0) or (ggt_num and ggt_num >= 120.0) or (bili_num and bili_num >= 2.0))
-    hep_seguimiento = bool(alt_alt or ast_alt or ggt_alt or fa_alt or bili_alt)
+    alt_alt = check_is_altered("GPT_ALT", alt, fallback_ref="< 55.0")
+    ast_alt = check_is_altered("GOT_AST", ast, fallback_ref="< 45.0")
+    ggt_alt = check_is_altered("GGT", ggt, fallback_ref="< 78.0")
+    fa_alt = check_is_altered("FOSFATASA_ALCALINA", fa, fallback_ref="< 126.0")
+    bili_alt = check_is_altered("BILIRRUBINA_TOTAL", bili, fallback_ref="< 1.2")
+    alb_alt = check_is_altered("ALBUMINA", alb, fallback_ref="3.5 - 5.2")
+    tp_alt = check_is_altered("TIEMPO_PROTROMBINA", tp, fallback_ref="10.0 - 14.5")
+    inr_alt = check_is_altered("INR", inr, fallback_ref="0.8 - 1.2")
+
+    hep_atencion = bool(
+        (alt_num and alt_num >= 90.0)
+        or (ast_num and ast_num >= 80.0)
+        or (ggt_num and ggt_num >= 120.0)
+        or (bili_num and bili_num >= 2.0)
+        or (alb_num and alb_num < 3.0)
+        or (inr_num and inr_num >= 1.5)
+        or (tp_num and tp_num >= 16.0)
+    )
+    hep_seguimiento = bool(alt_alt or ast_alt or ggt_alt or fa_alt or bili_alt or alb_alt or tp_alt or inr_alt)
     hep_badge, hep_badge_cls, hep_tag, hep_tag_cls = get_clean_badge(hep_atencion, hep_seguimiento)
 
     main_hep_cod = "GPT_ALT" if alt != "-" else "GOT_AST"
@@ -761,6 +830,15 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     f, l, c_tr = build_fila("BILIRRUBINA_TOTAL", "Bilirrubina", bili, "mg/dL", bili_alt, 1, es_historico=bili_hist, fecha_origen=bili_date)
     hep_filas.append(f); hep_subtitles.append(l); hep_evals["BILIRRUBINA_TOTAL"] = c_tr
+
+    f, l, c_tr = build_fila("ALBUMINA", "Albúmina", alb, "g/dL", alb_alt, 1, es_historico=alb_hist, fecha_origen=alb_date)
+    hep_filas.append(f); hep_subtitles.append(l); hep_evals["ALBUMINA"] = c_tr
+
+    f, l, c_tr = build_fila("TIEMPO_PROTROMBINA", "Tiempo Protrombina", tp, "s", tp_alt, 1, es_historico=tp_hist, fecha_origen=tp_date)
+    hep_filas.append(f); hep_subtitles.append(l); hep_evals["TIEMPO_PROTROMBINA"] = c_tr
+
+    f, l, c_tr = build_fila("INR", "INR", inr, "", inr_alt, 2, es_historico=inr_hist, fecha_origen=inr_date)
+    hep_filas.append(f); hep_subtitles.append(l); hep_evals["INR"] = c_tr
 
     hep_main_sym, hep_notas = asignar_notas_pie_tarjeta(main_hep_hist, main_hep_date, hep_filas, ultimo_informe.fecha)
     hep_t_state, hep_t_badge, hep_t_cls = evaluar_tendencia_global_tarjeta(hep_evals, "funcion_hepatica")
@@ -814,13 +892,13 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     ferr_num = parse_num(ferr)
     hierro_num = parse_num(hierro)
 
-    hb_alt = bool(hb_num is not None and (hb_num < 13.0 or hb_num > 18.0))
-    hto_alt = bool(hto_num is not None and (hto_num < 40.0 or hto_num > 52.0))
-    vcm_alt = bool(vcm_num is not None and (vcm_num < 80.0 or vcm_num > 96.0))
-    leuc_alt = bool(leuc_num is not None and (leuc_num < 4.0 or leuc_num > 11.0))
-    plaq_alt = bool(plaq_num is not None and (plaq_num < 140.0 or plaq_num > 450.0))
-    ferr_alt = bool(ferr_num is not None and (ferr_num < 30.0 or ferr_num > 300.0))
-    hierro_alt = bool(hierro_num is not None and (hierro_num < 59.0 or hierro_num > 160.0))
+    hb_alt = check_is_altered("HEMOGLOBINA", hb, fallback_ref="13.0 - 18.0")
+    hto_alt = check_is_altered("HEMATOCRITO", hto, fallback_ref="40.0 - 52.0")
+    vcm_alt = check_is_altered("VCM", vcm, fallback_ref="80.0 - 100.0")
+    leuc_alt = check_is_altered("LEUCOCITOS", leuc, fallback_ref="4.0 - 11.0")
+    plaq_alt = check_is_altered("PLAQUETAS", plaq, fallback_ref="140.0 - 450.0")
+    ferr_alt = check_is_altered("FERRITINA", ferr, fallback_ref="30.0 - 300.0")
+    hierro_alt = check_is_altered("HIERRO", hierro, fallback_ref="59.0 - 160.0")
 
     hemo_atencion = bool((hb_num and (hb_num < 11.5 or hb_num > 18.5)) or (plaq_num and (plaq_num < 100 or plaq_num > 600)) or (leuc_num and (leuc_num < 3.0 or leuc_num > 14.0)))
     hemo_seguimiento = bool(hb_alt or hto_alt or vcm_alt or leuc_alt or plaq_alt or ferr_alt or hierro_alt)
@@ -897,9 +975,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     t4l_num = parse_num(t4l)
     t3l_num = parse_num(t3l)
 
-    tsh_alt = bool(tsh_num is not None and (tsh_num < 0.27 or tsh_num > 4.29))
-    t4l_alt = bool(t4l_num is not None and (t4l_num < 0.71 or t4l_num > 1.85))
-    t3l_alt = bool(t3l_num is not None and (t3l_num < 2.0 or t3l_num > 4.4))
+    tsh_alt = check_is_altered("TSH", tsh, fallback_ref="0.27 - 4.29")
+    t4l_alt = check_is_altered("T4_LIBRE", t4l, fallback_ref="0.71 - 1.85")
+    t3l_alt = check_is_altered("T3_LIBRE", t3l, fallback_ref="2.0 - 4.4")
 
     tsh_atencion = bool(tsh_num and (tsh_num > 10.0 or tsh_num < 0.1))
     tsh_seguimiento = bool(tsh_alt or t4l_alt or t3l_alt)
@@ -977,7 +1055,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             if r_psa_stored != "-":
                 ratio_psa_calc = round(parse_num(r_psa_stored) * (100 if parse_num(r_psa_stored) < 1 else 1))
 
-        psa_alt = bool(psa_num and psa_num >= 4.0)
+        psa_alt = check_is_altered("PSA_TOTAL", psa_t, fallback_ref="< 4.0")
         psa_seg = bool(psa_num and psa_num > 2.5) or (ratio_psa_calc is not None and ratio_psa_calc < 20)
         psa_b_text, psa_b_cls, _, _ = get_clean_badge(psa_alt, psa_seg)
 
@@ -985,7 +1063,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         if psa_t != "-":
             p_items.append(MetricaSimple(label="PSA Total", val=fmt(psa_t, 2), unit="ng/mL", is_altered=psa_alt or psa_seg))
         if psa_f != "-":
-            p_items.append(MetricaSimple(label="PSA Libre", val=fmt(psa_f, 2), unit="ng/mL", is_altered=False))
+            p_items.append(MetricaSimple(label="PSA Libre", val=fmt(psa_f, 2), unit="ng/mL", is_altered=check_is_altered("PSA_FREE", psa_f)))
         if ratio_psa_calc is not None:
             p_items.append(MetricaSimple(label="Ratio PSA Libre / Total", val=f"{ratio_psa_calc}%", unit="%", is_altered=(ratio_psa_calc < 20)))
 
@@ -1012,10 +1090,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         pth_num = parse_num(pth)
 
         vitd_def = bool(vitd_num and vitd_num < 15.0)
-        vitd_ins = bool(vitd_num and vitd_num < 30.0)
-        ca_alt = bool(ca_num and (ca_num < 8.2 or ca_num > 10.6))
-        p_alt = bool(p_num and (p_num < 2.5 or p_num > 5.0))
-        pth_alt = bool(pth_num and (pth_num < 14.5 or pth_num > 87.1))
+        vitd_ins = check_is_altered("VITAMIN_D", vitd, fallback_ref="> 30.0")
+        ca_alt = check_is_altered("CALCIO_TOTAL", calcio, fallback_ref="8.2 - 10.6")
+        p_alt = check_is_altered("FOSFORO", fosforo, fallback_ref="2.5 - 5.0")
+        pth_alt = check_is_altered("PTH_INTACTA", pth, fallback_ref="14.5 - 87.1")
 
         vitd_atencion = vitd_def or (ca_num and (ca_num < 7.5 or ca_num > 11.5))
         vitd_seguimiento = vitd_ins or ca_alt or p_alt or pth_alt
@@ -1041,22 +1119,27 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             nota=""
         ))
 
-    # C) INFLAMACIÓN / AUTOINMUNIDAD (PCR, VSG, Factor Reumatoide)
+    # C) INFLAMACIÓN / AUTOINMUNIDAD (PCR, VSG, Factor Reumatoide, Anti-CCP, ANA)
     pcr = get_v("PROTEINA_C_REACTIVA", "-")
     vsg = get_v("VSG_1H", "-")
     fr = get_v("FACTOR_REUMATOIDE", "-")
+    anti_ccp = get_v("ANTI_CCP", "-")
+    ana = get_v("ANA", "-")
 
-    if pcr != "-" or vsg != "-" or fr != "-":
+    if pcr != "-" or vsg != "-" or fr != "-" or anti_ccp != "-" or ana != "-":
         pcr_num = parse_num(pcr)
         vsg_num = parse_num(vsg)
         fr_num = parse_num(fr)
+        anti_ccp_num = parse_num(anti_ccp)
 
-        pcr_alt = bool(pcr_num and pcr_num > 0.5)
-        vsg_alt = bool(vsg_num and vsg_num > 10)
-        fr_alt = bool(fr_num and fr_num >= 30)
+        pcr_alt = check_is_altered("PROTEINA_C_REACTIVA", pcr, fallback_ref="< 0.5")
+        vsg_alt = check_is_altered("VSG_1H", vsg, fallback_ref="< 10")
+        fr_alt = check_is_altered("FACTOR_REUMATOIDE", fr, fallback_ref="< 30")
+        anti_ccp_alt = check_is_altered("ANTI_CCP", anti_ccp, fallback_ref="< 7.0")
+        ana_alt = check_is_altered("ANA", ana)
 
-        inf_atencion = bool(pcr_num and pcr_num >= 2.0)
-        inf_seguimiento = pcr_alt or vsg_alt or fr_alt
+        inf_atencion = bool((pcr_num and pcr_num >= 2.0) or (anti_ccp_num and anti_ccp_num >= 10.0) or ana_alt)
+        inf_seguimiento = pcr_alt or vsg_alt or fr_alt or anti_ccp_alt or ana_alt
         inf_b_text, inf_b_cls, _, _ = get_clean_badge(inf_atencion, inf_seguimiento)
 
         inf_items = []
@@ -1066,6 +1149,10 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             inf_items.append(MetricaSimple(label="VSG 1ª Hora", val=fmt(vsg), unit="mm", is_altered=vsg_alt))
         if fr != "-":
             inf_items.append(MetricaSimple(label="Factor Reumatoide", val=fmt(fr), unit="UI/mL", is_altered=fr_alt))
+        if anti_ccp != "-":
+            inf_items.append(MetricaSimple(label="Anticuerpos Anti-CCP", val=fmt(anti_ccp, 1), unit="UI/mL", is_altered=anti_ccp_alt))
+        if ana != "-":
+            inf_items.append(MetricaSimple(label="Anticuerpos Anti-Nucleares (ANA)", val=str(ana), unit="", is_altered=ana_alt))
 
         otros_valores.append(OtrosValoresSeccion(
             id="inflamacion",
@@ -1085,8 +1172,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         b12_num = parse_num(b12)
         fol_num = parse_num(fol)
 
-        b12_alt = bool(b12_num and b12_num < 200)
-        fol_alt = bool(fol_num and fol_num < 4.0)
+        b12_alt = check_is_altered("VITAMINA_B12", b12, fallback_ref="> 200")
+        fol_alt = check_is_altered("ACIDO_FOLICO", fol, fallback_ref="> 4.0")
 
         vit_seguimiento = b12_alt or fol_alt
         vit_b_text, vit_b_cls, _, _ = get_clean_badge(False, vit_seguimiento)
@@ -1117,9 +1204,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         ca19_num = parse_num(ca19)
         ca125_num = parse_num(ca125)
 
-        cea_alt = bool(cea_num and cea_num > 5.0)
-        ca19_alt = bool(ca19_num and ca19_num > 34.0)
-        ca125_alt = bool(ca125_num and ca125_num > 35.0)
+        cea_alt = check_is_altered("CEA", cea, fallback_ref="< 5.0")
+        ca19_alt = check_is_altered("CA_19_9", ca19, fallback_ref="< 34.0")
+        ca125_alt = check_is_altered("CA_125_II", ca125, fallback_ref="< 35.0")
 
         tm_items = []
         if cea != "-":
@@ -1246,9 +1333,22 @@ def get_tables(db: Session = Depends(get_db)):
         meds = db.query(Medicion).filter_by(analito_id=a.id).all()
         if not meds:
             continue
-        med_by_inf = {m.informe_id: (m.valor_numerico if m.valor_numerico is not None else m.valor_texto) for m in meds}
+        med_obj_by_inf = {m.informe_id: m for m in meds}
         
-        vals = [med_by_inf.get(inf_id, None) for inf_id in informe_ids]
+        vals = []
+        cells = []
+        for inf_id in informe_ids:
+            if inf_id in med_obj_by_inf:
+                m = med_obj_by_inf[inf_id]
+                v = m.valor_numerico if m.valor_numerico is not None else m.valor_texto
+                r = (m.ref_texto or a.ref_texto_defecto or "").strip()
+                st = m.estado_semaforo or evaluar_estado_semaforo(m.valor_numerico, r)
+                is_alt = st in ["Alto", "Bajo", "Atencion", "Alerta", "Alérgeno"] or (isinstance(v, (int, float)) and evaluar_estado_semaforo(v, r) != "Normal")
+                vals.append(v)
+                cells.append(TableCell(val=v, ref=r, status=st, is_altered=is_alt))
+            else:
+                vals.append(None)
+                cells.append(TableCell(val=None, ref="", status="Normal", is_altered=False))
         
         # Calcular promedio reciente (últimos 18 meses)
         recent_vals = [vals[i] for i in recent_indices if i < len(vals)]
@@ -1265,10 +1365,57 @@ def get_tables(db: Session = Depends(get_db)):
             unit=a.unidad_estandar,
             ref=a.ref_texto_defecto or "",
             vals=vals,
+            cells=cells,
             recentAvg=avg_recent,
             avg=avg_recent,
             group=get_analito_group(a.codigo)
         ))
+
+    # Si eGFR no vino explícito del laboratorio en ninguna analítica, generar la fila calculada
+    if not any(r.name in ["Filtrado Glomerular (eGFR)", "eGFR"] for r in bio_rows):
+        creat_row = next((r for r in bio_rows if r.name == "Creatinina"), None)
+        if creat_row and any(v is not None for v in creat_row.vals):
+            paciente = db.query(Paciente).first()
+            sexo_p = paciente.sexo if paciente else "Masculino"
+            fn_d = parse_date_safe(paciente.fecha_nacimiento) if paciente and paciente.fecha_nacimiento else None
+
+            egfr_vals = []
+            egfr_cells = []
+            for idx, inf in enumerate(informes):
+                c_val = creat_row.vals[idx] if idx < len(creat_row.vals) else None
+                if c_val is not None:
+                    inf_d = parse_date_safe(inf.fecha)
+                    edad_inf = 50
+                    if fn_d and inf_d:
+                        edad_inf = inf_d.year - fn_d.year - ((inf_d.month, inf_d.day) < (fn_d.month, fn_d.day))
+                    egfr_calc = calcular_egfr(float(c_val), edad_inf, sexo_p)
+                    if egfr_calc is not None:
+                        is_alt = egfr_calc < 60.0
+                        st = "Bajo" if is_alt else "Normal"
+                        egfr_vals.append(egfr_calc)
+                        egfr_cells.append(TableCell(val=egfr_calc, ref="> 60 mL/min/1.73m²", status=st, is_altered=is_alt))
+                    else:
+                        egfr_vals.append(None)
+                        egfr_cells.append(TableCell(val=None, ref="", status="Normal", is_altered=False))
+                else:
+                    egfr_vals.append(None)
+                    egfr_cells.append(TableCell(val=None, ref="", status="Normal", is_altered=False))
+
+            recent_egfr = [egfr_vals[i] for i in recent_indices if i < len(egfr_vals) and egfr_vals[i] is not None]
+            avg_recent_egfr = f"{sum(recent_egfr) / len(recent_egfr):.1f}" if recent_egfr else "-"
+
+            egfr_table_row = TableRow(
+                name="Filtrado Glomerular (eGFR)",
+                unit="mL/min/1.73m²",
+                ref="> 60 mL/min/1.73m²",
+                vals=egfr_vals,
+                cells=egfr_cells,
+                recentAvg=avg_recent_egfr,
+                avg=avg_recent_egfr,
+                group="🧪 Función Renal y Depuración"
+            )
+            creat_idx = bio_rows.index(creat_row)
+            bio_rows.insert(creat_idx + 1, egfr_table_row)
 
     # Paneles de muestra para demostración
     hem_data = [
@@ -1629,20 +1776,17 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
             db.add(analito)
             db.flush()
 
-        num_val, _ = normalize_valor_numerico(code_key, item.valor, item.unidad)
-        if num_val is None:
-            try:
-                num_val = float(str(item.valor).replace(",", ".").split()[0])
-            except (ValueError, TypeError, IndexError):
-                num_val = None
+        num_val, clean_val, std_unit, std_ref = standardize_medicion(
+            code_key, item.valor, item.unidad, item.rango_referencia
+        )
 
         if code_key in analitos_procesados:
             med_existente = analitos_procesados[code_key]
             if med_existente.valor_numerico is None and num_val is not None:
                 med_existente.valor_numerico = num_val
                 med_existente.valor_texto = None
-                med_existente.unidad = item.unidad or norm_unit
-                med_existente.ref_texto = item.rango_referencia
+                med_existente.unidad = std_unit or norm_unit
+                med_existente.ref_texto = std_ref or item.rango_referencia
                 mediciones_dict[code_key] = num_val
             continue
 
@@ -1650,9 +1794,9 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
             informe_id=informe.id,
             analito_id=analito.id,
             valor_numerico=num_val,
-            valor_texto=str(item.valor) if num_val is None else None,
-            unidad=item.unidad or norm_unit,
-            ref_texto=item.rango_referencia,
+            valor_texto=clean_val if num_val is None else None,
+            unidad=std_unit or norm_unit,
+            ref_texto=std_ref or item.rango_referencia,
             estado_semaforo=getattr(item, "estado_estimado", None) or "Normal"
         )
         db.add(med)

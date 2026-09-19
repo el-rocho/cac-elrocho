@@ -74,11 +74,18 @@ class DashboardSummaryResponse(BaseModel):
     motor_llm_info: Optional[Dict[str, Any]] = None
     app_version: Optional[str] = None
 
+class TableCell(BaseModel):
+    val: Optional[Any] = None
+    ref: Optional[str] = None
+    status: Optional[str] = "Normal"
+    is_altered: bool = False
+
 class TableRow(BaseModel):
     name: str
     unit: str
     ref: str
     vals: List[Any] # Floats, strings or None
+    cells: Optional[List[TableCell]] = None
     recentAvg: str
     avg: Optional[str] = "-"
     group: Optional[str] = None

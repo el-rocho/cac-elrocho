@@ -2,6 +2,38 @@
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
+## [v0.6.0] - 2026-09-19
+
+### 📊 Rediseño y Calibración Cardiometabólica del Cuadro de Mando
+* **6 Tarjetas KPI Principales Reorganizadas**: Enfoque clínico prioritario en Perfil Lipídico Avanzado, Metabolismo Glucídico y Riesgo Aterogénico, Función Renal y Filtrado Glomerular, Metabolismo del Hierro, Perfil Hepático y Enzimas, y Eje Tiroideo / Vigilancia.
+* **Formato de 1 Analito por Fila**: Presentación visual limpia y ordenada de cada parámetro con sus unidades y rangos.
+* **Preservación Histórica Rigurosa**:
+  * Asociación de valores mediante superíndices de fecha y notas al pie explicativas cuando un analito proviene de una determinación previa.
+  * Bloqueo estricto de cálculo de ratios (Castelli I, II, TG/HDL) entre mediciones pertenecientes a fechas o informes diferentes, evitando cocientes distorsionados.
+
+### 📈 Tendencias Longitudinales y Variaciones Analíticas
+* **Semáforo y Tendencia en Tarjetas KPI**: Indicadores visuales de dirección (ascendente, descendente, estable) y puntos de estado global en cada panel.
+* **Variaciones Porcentuales Contextuales**: Cálculo automático del cambio relativo frente al control anterior, distinguiendo si la tendencia representa mejoría o deterioro clínico.
+* **Guía Médica Desplegable**: Panel de orientación con umbrales clínicos según directrices de la OMS (2024 para hemoglobina/anemia, ferritina, VCM, leucocitos y plaquetas) y notas sobre interpretación contextual.
+
+### 🧪 Armonización Automática de Unidades y Escalas (`db_harmonizer`)
+* **Estandarización Preventiva en Base de Datos**: Rutina ejecutada automáticamente durante el inicio (`lifespan`) para normalizar discrepancias históricas en magnitudes analíticas:
+  * Fórmula leucocitaria absoluta (Linfocitos, Neutrófilos, Monocitos, Eosinófilos, Basófilos) en `/µL`.
+  * Leucocitos y Plaquetas en `x10^3/µL`.
+  * Hematíes en `x10^6/µL` (resolviendo inconsistencias entre notación con punto de millares y formato decimal).
+  * Homologación proporcional de rangos de normalidad.
+* **Estandarización en Ingesta y Edición**: Función `standardize_medicion` integrada en la subida, confirmación y edición de analíticas.
+
+### 🔍 Auditoría y Detección Proactiva de Rangos de Referencia con IA
+* **Escaneo Automático de Variaciones Metodológicas (`/api/v1/ai/detectar`)**: Detección cronológica de cambios en los criterios de referencia de los laboratorios (ej. directrices SEA/ESC en LDL, analizadores enzimáticos de urea o hematimetría).
+* **Homologación Retrospectiva**: Capacidad de extender los rangos de referencia actualizados a todo el historial clínico, recalculando automáticamente el estado del semáforo.
+
+### 🛡️ Estabilidad y Robustez en la Extracción y Almacenamiento
+* **Cálculo Automático de eGFR**: Generación e inserción calculada de Filtrado Glomerular (CKD-EPI) en la tabla evolutiva cuando no viene explícito en el informe y se dispone de creatinina, edad y sexo.
+* **Semaforización Celular en Tabla Histórica**: Evaluación individualizada del estado clínico (`TableCell`) para cada analítica histórica.
+* **Nuevos Analitos**: Soporte ampliado para Anticuerpos Anti-CCP, ANA y marcadores tumorales (CEA, CA 19-9, CA-125).
+
+---
 ## [v0.5.0] - 2026-09-17
 
 ### 📄 Extracción Robusta con LLM Multimodal y Validación Cruzada

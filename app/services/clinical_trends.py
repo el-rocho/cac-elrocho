@@ -229,6 +229,33 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "unit": "mg/dL",
         "decimals": 1
     },
+    "ALBUMINA": {
+        "var_threshold": 0.2,
+        "slope_threshold": 0.15,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 3.5,
+        "opt_max": 5.0,
+        "unit": "g/dL",
+        "decimals": 1
+    },
+    "INR": {
+        "var_threshold": 0.08,
+        "slope_threshold": 0.05,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 0.85,
+        "opt_max": 1.15,
+        "unit": "ratio",
+        "decimals": 2
+    },
+    "TIEMPO_PROTROMBINA": {
+        "var_threshold": 0.8,
+        "slope_threshold": 0.5,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 10.0,
+        "opt_max": 14.5,
+        "unit": "s",
+        "decimals": 1
+    },
     "HEMOGLOBINA": {
         "var_threshold": 0.5,
         "slope_threshold": 0.4,
@@ -251,8 +278,8 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "var_threshold": 1.5,
         "slope_threshold": 1.0,
         "direction": DIR_RANGE_OPTIMAL,
-        "opt_min": 82.0,
-        "opt_max": 96.0,
+        "opt_min": 80.0,
+        "opt_max": 100.0,
         "unit": "fL",
         "decimals": 1
     },
@@ -272,6 +299,78 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "opt_min": 140.0,
         "opt_max": 400.0,
         "unit": "mil/µL",
+        "decimals": 0
+    },
+    "RDW": {
+        "var_threshold": 0.5,
+        "slope_threshold": 0.4,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 11.0,
+        "opt_max": 16.0,
+        "unit": "%",
+        "decimals": 1
+    },
+    "VPM": {
+        "var_threshold": 0.6,
+        "slope_threshold": 0.4,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 7.0,
+        "opt_max": 13.0,
+        "unit": "fL",
+        "decimals": 1
+    },
+    "HEMATIES": {
+        "var_threshold": 0.3,
+        "slope_threshold": 0.2,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 4.2,
+        "opt_max": 5.9,
+        "unit": "x10^6/µL",
+        "decimals": 2
+    },
+    "NEUTROFILOS_ABS": {
+        "var_threshold": 500.0,
+        "slope_threshold": 400.0,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 1500.0,
+        "opt_max": 7500.0,
+        "unit": "/µL",
+        "decimals": 0
+    },
+    "LINFOCITOS_ABS": {
+        "var_threshold": 400.0,
+        "slope_threshold": 300.0,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 1000.0,
+        "opt_max": 4500.0,
+        "unit": "/µL",
+        "decimals": 0
+    },
+    "MONOCITOS_ABS": {
+        "var_threshold": 150.0,
+        "slope_threshold": 100.0,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 200.0,
+        "opt_max": 1000.0,
+        "unit": "/µL",
+        "decimals": 0
+    },
+    "EOSINOFILOS_ABS": {
+        "var_threshold": 100.0,
+        "slope_threshold": 80.0,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 20.0,
+        "opt_max": 500.0,
+        "unit": "/µL",
+        "decimals": 0
+    },
+    "BASOFILOS_ABS": {
+        "var_threshold": 30.0,
+        "slope_threshold": 20.0,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 0.0,
+        "opt_max": 200.0,
+        "unit": "/µL",
         "decimals": 0
     },
     "FERRITINA": {
@@ -328,6 +427,33 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "unit": "ng/mL",
         "decimals": 2
     },
+    "PSA_FREE": {
+        "var_threshold": 0.10,
+        "slope_threshold": 0.08,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 0.0,
+        "opt_max": 2.0,
+        "unit": "ng/mL",
+        "decimals": 2
+    },
+    "RATIO_PSA_L_T": {
+        "var_threshold": 0.05,
+        "slope_threshold": 0.03,
+        "direction": DIR_HIGHER_IS_BETTER,
+        "opt_min": 0.20,
+        "opt_max": 1.00,
+        "unit": "ratio",
+        "decimals": 2
+    },
+    "IGG": {
+        "var_threshold": 100.0,
+        "slope_threshold": 80.0,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 540.0,
+        "opt_max": 1822.0,
+        "unit": "mg/dL",
+        "decimals": 0
+    },
     "VITAMINA_D": {
         "var_threshold": 4.0,
         "slope_threshold": 3.0,
@@ -345,6 +471,51 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "opt_max": 0.5,
         "unit": "mg/dL",
         "decimals": 2
+    },
+    "CALCIO_TOTAL": {
+        "var_threshold": 0.4,
+        "slope_threshold": 0.3,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 8.5,
+        "opt_max": 10.5,
+        "unit": "mg/dL",
+        "decimals": 1
+    },
+    "CALCIO_CORREGIDO": {
+        "var_threshold": 0.4,
+        "slope_threshold": 0.3,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 8.8,
+        "opt_max": 10.2,
+        "unit": "mg/dL",
+        "decimals": 2
+    },
+    "BETA_2_MICROGLOBULINA": {
+        "var_threshold": 0.3,
+        "slope_threshold": 0.2,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 0.0,
+        "opt_max": 2.5,
+        "unit": "mcg/mL",
+        "decimals": 2
+    },
+    "ANTI_CCP": {
+        "var_threshold": 1.0,
+        "slope_threshold": 0.8,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 0.0,
+        "opt_max": 7.0,
+        "unit": "UI/mL",
+        "decimals": 1
+    },
+    "ANA": {
+        "var_threshold": 0.0,
+        "slope_threshold": 0.0,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 0.0,
+        "opt_max": 1.0,
+        "unit": "",
+        "decimals": 0
     }
 }
 
@@ -363,7 +534,7 @@ CARD_CONFIG: Dict[str, Dict[str, List[str]]] = {
     },
     "funcion_hepatica": {
         "primary": ["GPT_ALT", "GOT_AST"],
-        "secondary": ["GGT", "FOSFATASA_ALCALINA", "BILIRRUBINA_TOTAL"]
+        "secondary": ["GGT", "FOSFATASA_ALCALINA", "BILIRRUBINA_TOTAL", "ALBUMINA", "INR", "TIEMPO_PROTROMBINA"]
     },
     "hemograma_hierro": {
         "primary": ["HEMOGLOBINA", "HEMATOCRITO", "FERRITINA"],

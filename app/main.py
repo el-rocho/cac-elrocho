@@ -10,10 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 
 from app.config import settings
-from app.database import init_db
+from app.database import init_db, SessionLocal
 from app.seed_data import run_seed
 from app.services.watcher import inbox_watcher
 from app.services.backup_service import backfill_informe_hashes
+from app.services.db_harmonizer import harmonize_database_records
 from app.api.router import api_router
 
 # Configuración de logging
@@ -33,6 +34,13 @@ async def lifespan(app: FastAPI):
     
     # Backfill de hashes SHA-256 para informes existentes
     backfill_informe_hashes()
+
+    # Armonización automática de unidades y escalas en la base de datos
+    try:
+        with SessionLocal() as db_session:
+            harmonize_database_records(db_session)
+    except Exception as e:
+        logger.warning(f"Aviso al armonizar base de datos: {e}")
 
     # Iniciar monitor de buzón en segundo plano
     inbox_watcher.start()

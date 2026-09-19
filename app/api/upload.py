@@ -13,7 +13,7 @@ from app.models import Paciente, Informe, Analito, Medicion, AuditoriaRango
 from app.schemas import AnaliticaPreviewResponse, ConfirmacionRequest, RegenerateDictamenRequest, RegenerateDictamenResponse
 from app.services.llm_service import analyze_pdf_with_llm, generate_clinical_summary_from_measurements
 from app.services.metrics import calculate_ratios
-from app.services.analito_normalizer import normalize_analito, normalize_valor_numerico, CANONICAL_ANALITOS
+from app.services.analito_normalizer import normalize_analito, normalize_valor_numerico, standardize_medicion, CANONICAL_ANALITOS
 
 logger = logging.getLogger(__name__)
 
@@ -206,12 +206,9 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 db.add(analito)
                 db.flush()
 
-            num_val, _ = normalize_valor_numerico(code_key, item.valor, item.unidad)
-            if num_val is None:
-                try:
-                    num_val = float(str(item.valor).replace(",", ".").split()[0])
-                except (ValueError, TypeError, IndexError):
-                    num_val = None
+            num_val, clean_val, std_unit, std_ref = standardize_medicion(
+                code_key, item.valor, item.unidad, item.rango_referencia
+            )
 
             # Si este analito canónico ya se procesó en este informe, resolvemos colisiones:
             # Priorizar siempre valores numéricos de suero sobre valores nulos o cualitativos
@@ -220,8 +217,8 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 if med_existente.valor_numerico is None and num_val is not None:
                     med_existente.valor_numerico = num_val
                     med_existente.valor_texto = None
-                    med_existente.unidad = item.unidad or norm_unit
-                    med_existente.ref_texto = item.rango_referencia
+                    med_existente.unidad = std_unit or norm_unit
+                    med_existente.ref_texto = std_ref or item.rango_referencia
                     med_existente.estado_semaforo = getattr(item, "estado_estimado", None) or "Normal"
                     mediciones_dict[code_key] = num_val
                 continue
@@ -230,9 +227,9 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 informe_id=informe.id,
                 analito_id=analito.id,
                 valor_numerico=num_val,
-                valor_texto=str(item.valor) if num_val is None else None,
-                unidad=item.unidad or norm_unit,
-                ref_texto=item.rango_referencia,
+                valor_texto=clean_val if num_val is None else None,
+                unidad=std_unit or norm_unit,
+                ref_texto=std_ref or item.rango_referencia,
                 estado_semaforo=getattr(item, "estado_estimado", None) or "Normal"
             )
             db.add(med)

@@ -433,7 +433,7 @@ async function loadTables() {
       <tr>
         <th class="p-3 sticky left-0 bg-slate-800 z-10">Parámetro</th>
         <th class="p-3">Unidad</th>
-        <th class="p-3 text-center">Ref. Oficial</th>
+        <th class="p-3 text-center" title="Rango de referencia oficial vigente según la analítica más reciente o consenso clínico">Ref. Oficial</th>
     `;
     const infList = data.informes || [];
     data.dates.forEach((d, idx) => {
@@ -490,14 +490,33 @@ async function loadTables() {
       let cells = `
         <td class="p-3 font-bold sticky left-0 bg-white shadow-sm">${row.name}</td>
         <td class="p-3 text-slate-500">${row.unit}</td>
-        <td class="p-3 text-center text-slate-500 text-[11px]">${row.ref}</td>
+        <td class="p-3 text-center text-slate-600 font-medium text-[11px]" title="Rango oficial vigente: ${escapeHtml(row.ref)}">${row.ref || '-'}</td>
       `;
-      row.vals.forEach(v => {
+      row.vals.forEach((v, idx) => {
+        const cellObj = (row.cells && row.cells[idx]) ? row.cells[idx] : null;
         if (v === null || v === undefined) {
           cells += `<td class="p-3 text-center text-slate-300">-</td>`;
         } else {
-          const fmt = getCellFormatClient(row.name, v);
-          cells += `<td class="p-3 text-center"><span class="${fmt.cls}" title="${fmt.title}">${v}</span></td>`;
+          let fmt = getCellFormatClient(row.name, v);
+          let title = fmt.title;
+          let cellCls = fmt.cls;
+
+          if (cellObj) {
+            const cRef = cellObj.ref || row.ref || 'Sin referencia';
+            const cStatus = cellObj.status || 'Normal';
+            const isAltered = cellObj.is_altered || cStatus === 'Alto' || cStatus === 'Bajo' || cStatus === 'Atencion' || cStatus === 'Alerta';
+
+            if (isAltered) {
+              if (cStatus === 'Alto' || cStatus === 'Atencion' || cStatus === 'Alerta') {
+                cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+              } else if (cStatus === 'Bajo') {
+                cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+              }
+            }
+            title = `${row.name}: ${v} ${row.unit || ''} | Rango del informe: ${cRef} (${cStatus}) | Ref. vigente: ${row.ref || '-'}`;
+          }
+
+          cells += `<td class="p-3 text-center"><span class="${cellCls}" title="${escapeHtml(title)}">${v}</span></td>`;
         }
       });
 
@@ -661,10 +680,18 @@ async function loadAiAuditorias(manualTrigger = false) {
   if (syncBtn) syncBtn.disabled = true;
 
   if (!list.hasChildNodes() || manualTrigger) {
-    list.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">Consultando registros de auditoría y rangos de referencia...</div>';
+    list.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">Consultando y analizando registros de auditoría y rangos de referencia...</div>';
   }
 
   try {
+    if (manualTrigger) {
+      try {
+        await fetch('/api/v1/ai/detectar', { method: 'POST' });
+      } catch (e) {
+        console.warn('Error al disparar escaneo de auditorías:', e);
+      }
+    }
+
     const res = await fetch('/api/v1/ai/auditorias');
     if (!res.ok) throw new Error('Error al obtener auditorías');
     const items = await res.json();
@@ -687,6 +714,8 @@ async function loadAiAuditorias(manualTrigger = false) {
         showAiAuditoriaAlert('✓ Comprobación completada: No hay nuevos criterios pendientes de laboratorio.', 'success');
       }
       return;
+    } else if (manualTrigger) {
+      showAiAuditoriaAlert(`✓ Detección completada: ${items.length} criterio(s) de rangos identificados.`, 'success');
     }
 
     list.innerHTML = '';
@@ -822,6 +851,7 @@ async function applyAuditCriteria(auditId, analitoName, newRange) {
     await loadAiAuditorias(false);
     if (typeof loadSummary === 'function') loadSummary();
     if (typeof loadAllCategories === 'function') loadAllCategories();
+    if (typeof loadTables === 'function') loadTables();
   } catch (err) {
     alert(`Error al aplicar criterio: ${err.message}`);
   }
@@ -843,6 +873,7 @@ async function applyAllAuditCriteria() {
     await loadAiAuditorias(false);
     if (typeof loadSummary === 'function') loadSummary();
     if (typeof loadAllCategories === 'function') loadAllCategories();
+    if (typeof loadTables === 'function') loadTables();
   } catch (err) {
     alert(`Error al homologar criterios: ${err.message}`);
   }
@@ -2272,5 +2303,18 @@ async function deleteAuditFile(id, fecha) {
     alert('Error al eliminar: ' + err.message);
   }
 }
+
+// ============================================================================
+// Acordeón exclusivo para tarjetas del panel de valoración clínica
+// ============================================================================
+document.addEventListener('toggle', (event) => {
+  if (event.target && event.target.matches && event.target.matches('#tab-eval details') && event.target.open) {
+    document.querySelectorAll('#tab-eval details').forEach((d) => {
+      if (d !== event.target && d.open) {
+        d.open = false;
+      }
+    });
+  }
+}, true);
 
 
