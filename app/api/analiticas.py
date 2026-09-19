@@ -7,13 +7,20 @@ from app.config import settings
 from app.database import get_db
 from app.models import Paciente, Informe, Analito, Medicion
 from app.schemas import (
-    DashboardSummaryResponse, KpiCard, TablesResponse, TableRow,
+    DashboardSummaryResponse, KpiCard, AnalitoFila, TablesResponse, TableRow,
     ChartsResponse, ChartConfig, ChartDataset, AuditFileItem,
     InformeDetailResponse, InformeUpdateRequest, MedicionDetail,
     PacienteInfo, PacienteUpdateRequest, MetricaSimple, OtrosValoresSeccion
 )
 from app.services.metrics import get_cell_format, calculate_ratios
 from app.services.analito_normalizer import get_analito_group, normalize_analito, get_analito_order, normalize_valor_numerico
+from app.services.clinical_trends import (
+    calcular_variacion_reciente,
+    calcular_tendencia_longitudinal,
+    interpretar_tendencia_clinica,
+    evaluar_tendencia_global_tarjeta,
+    parse_date_safe
+)
 
 router = APIRouter(prefix="/analiticas", tags=["Analíticas"])
 
@@ -164,6 +171,103 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         else:
             return "🟢 Normal", "bg-emerald-50 text-emerald-700 border-emerald-200", "Normal", "bg-emerald-100 text-emerald-800"
 
+    # Construir historial cronológico de todas las determinaciones para cálculo de variación y tendencia
+    fecha_ref = parse_date_safe(ultimo_informe.fecha) or date.today()
+    hist_series: Dict[str, List[Tuple[date, float]]] = {}
+
+    for inf in informes:
+        inf_d = parse_date_safe(inf.fecha)
+        if not inf_d:
+            continue
+        m_loc = {}
+        for m in inf.mediciones:
+            if m.analito and m.valor_numerico is not None:
+                cod = m.analito.codigo
+                val_f = float(m.valor_numerico)
+                m_loc[cod] = val_f
+                if cod not in hist_series:
+                    hist_series[cod] = []
+                hist_series[cod].append((inf_d, val_f))
+
+        # Ratios calculadas en cada control
+        if "TRIGLYCERIDES" in m_loc and "HDL" in m_loc and m_loc["HDL"] > 0:
+            if "RATIO_TG_HDL" not in hist_series:
+                hist_series["RATIO_TG_HDL"] = []
+            hist_series["RATIO_TG_HDL"].append((inf_d, round(m_loc["TRIGLYCERIDES"] / m_loc["HDL"], 2)))
+
+        if "CHOLESTEROL_TOTAL" in m_loc and "HDL" in m_loc and m_loc["HDL"] > 0:
+            if "RATIO_COL_HDL" not in hist_series:
+                hist_series["RATIO_COL_HDL"] = []
+            hist_series["RATIO_COL_HDL"].append((inf_d, round(m_loc["CHOLESTEROL_TOTAL"] / m_loc["HDL"], 2)))
+
+        # Friedewald para LDL cuando no esté medido directamente
+        if "LDL" not in m_loc and "CHOLESTEROL_TOTAL" in m_loc and "HDL" in m_loc and "TRIGLYCERIDES" in m_loc:
+            if m_loc["TRIGLYCERIDES"] < 400:
+                ldl_calc = round(m_loc["CHOLESTEROL_TOTAL"] - m_loc["HDL"] - (m_loc["TRIGLYCERIDES"] / 5.0), 1)
+                if ldl_calc > 0:
+                    m_loc["LDL"] = ldl_calc
+                    if "LDL" not in hist_series:
+                        hist_series["LDL"] = []
+                    hist_series["LDL"].append((inf_d, ldl_calc))
+
+        if "LDL" in m_loc and "HDL" in m_loc and m_loc["HDL"] > 0:
+            if "RATIO_LDL_HDL" not in hist_series:
+                hist_series["RATIO_LDL_HDL"] = []
+            hist_series["RATIO_LDL_HDL"].append((inf_d, round(m_loc["LDL"] / m_loc["HDL"], 2)))
+
+        if "CREATININE" in m_loc:
+            edad_inf = None
+            if paciente and paciente.fecha_nacimiento:
+                fn_d = parse_date_safe(paciente.fecha_nacimiento)
+                if fn_d:
+                    edad_inf = inf_d.year - fn_d.year - ((inf_d.month, inf_d.day) < (fn_d.month, fn_d.day))
+            sexo_p = paciente.sexo if paciente else "Masculino"
+            c_calc = calcular_egfr(m_loc["CREATININE"], edad_inf, sexo_p)
+            if c_calc is not None:
+                if "EGFR" not in hist_series:
+                    hist_series["EGFR"] = []
+                if not any(p[0] == inf_d for p in hist_series.get("EGFR", [])):
+                    hist_series["EGFR"].append((inf_d, float(c_calc)))
+
+    def get_analyte_trend_info(cod: str, val_actual_str: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+        pts = hist_series.get(cod, [])
+        v_act = parse_num(val_actual_str)
+        if v_act is None:
+            return None, None, None, None
+
+        val_anterior = None
+        if len(pts) >= 2:
+            val_anterior = pts[-2][1]
+        elif len(pts) == 1 and pts[0][1] != v_act:
+            val_anterior = pts[0][1]
+
+        var_sym, var_delta, _, _ = calcular_variacion_reciente(v_act, val_anterior, cod)
+        trend_sym, slope, n = calcular_tendencia_longitudinal(pts, fecha_referencia=fecha_ref, ventana_meses=24, min_muestras=3, cod_analito=cod)
+        clin_trend = interpretar_tendencia_clinica(cod, trend_sym, v_act)
+        return var_sym, var_delta, trend_sym, clin_trend
+
+    def build_fila(cod: str, label: str, val_str: str, unit: str, is_altered: bool, decimals: Optional[int] = None) -> Tuple[AnalitoFila, str, Optional[str]]:
+        var_sym, var_delta, trend_sym, clin_trend = get_analyte_trend_info(cod, val_str)
+        fila = AnalitoFila(
+            codigo=cod,
+            label=label,
+            val=fmt(val_str, decimals),
+            unit=unit,
+            is_altered=is_altered,
+            var_symbol=var_sym,
+            var_delta=var_delta,
+            trend_symbol=trend_sym,
+            clinical_trend=clin_trend
+        )
+
+        var_txt = var_delta or ""
+        trend_txt = trend_sym or ""
+        ind = " ".join([p for p in [var_txt, trend_txt] if p])
+        linea = f"{label}: {fmt_val(val_str, decimals, is_altered)} {unit}".strip()
+        if ind:
+            linea = f"{linea}  {ind}"
+        return fila, linea, clin_trend
+
     # =========================================================================
     # 1. METABOLISMO GLUCÍDICO (Glucosa, HbA1c, TG/HDL, Insulina...)
     # =========================================================================
@@ -198,17 +302,28 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     glu_seguimiento = bool(hba_alt or glu_alt or tg_hdl_alt or ins_alt or homa_alt)
     glu_badge, glu_badge_cls, glu_tag, glu_tag_cls = get_clean_badge(glu_atencion, glu_seguimiento)
 
+    glu_v_sym, glu_v_delta, glu_tr_sym, glu_clin_tr = get_analyte_trend_info("GLUCOSE", glu)
+    glu_filas = []
     glu_subtitles = []
+    glu_evals = {"GLUCOSE": glu_clin_tr}
+
     if hba != "-":
-        glu_subtitles.append(f"HbA1c: {fmt_val(hba, 1, hba_alt)}%")
+        f, l, c_tr = build_fila("HBA1C", "HbA1c", hba, "%", hba_alt, 1)
+        glu_filas.append(f); glu_subtitles.append(l); glu_evals["HBA1C"] = c_tr
     if ratio_tg_hdl != "-":
-        glu_subtitles.append(f"TG/HDL: {fmt_val(ratio_tg_hdl, 2, tg_hdl_alt)}")
+        f, l, c_tr = build_fila("RATIO_TG_HDL", "TG/HDL", ratio_tg_hdl, "", tg_hdl_alt, 2)
+        glu_filas.append(f); glu_subtitles.append(l); glu_evals["RATIO_TG_HDL"] = c_tr
     if ins != "-":
-        glu_subtitles.append(f"Insulina: {fmt_val(ins, 1, ins_alt)} µUI/mL")
+        f, l, c_tr = build_fila("INSULINA", "Insulina", ins, "µUI/mL", ins_alt, 1)
+        glu_filas.append(f); glu_subtitles.append(l); glu_evals["INSULINA"] = c_tr
     if homa != "-":
-        glu_subtitles.append(f"HOMA-IR: {fmt_val(homa, 2, homa_alt)}")
+        f, l, c_tr = build_fila("HOMA_IR", "HOMA-IR", homa, "", homa_alt, 2)
+        glu_filas.append(f); glu_subtitles.append(l); glu_evals["HOMA_IR"] = c_tr
+
+    glu_t_state, glu_t_badge, glu_t_cls = evaluar_tendencia_global_tarjeta(glu_evals, "metabolismo_glucidico")
 
     card_metabolismo = KpiCard(
+        id="metabolismo_glucidico",
         title="Metabolismo Glucídico",
         tag=glu_tag,
         tag_class=glu_tag_cls,
@@ -217,12 +332,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         unit="mg/dL",
         main_value_class="text-rose-600 font-extrabold" if glu_alt else "text-slate-900 font-extrabold",
         is_altered=glu_alt,
+        main_var_symbol=glu_v_sym,
+        main_var_delta=glu_v_delta,
+        main_trend_symbol=glu_tr_sym,
+        main_clinical_trend=glu_clin_tr,
         subtitle_1=glu_subtitles[0] if len(glu_subtitles) > 0 else "",
         subtitle_2=glu_subtitles[1] if len(glu_subtitles) > 1 else "",
         subtitle_3=glu_subtitles[2] if len(glu_subtitles) > 2 else "",
         subtitles=glu_subtitles,
+        filas=glu_filas,
         badge_text=glu_badge,
-        badge_class=glu_badge_cls
+        badge_class=glu_badge_cls,
+        trend_global=glu_t_state,
+        trend_badge_text=glu_t_badge,
+        trend_badge_class=glu_t_cls
     )
 
     # =========================================================================
@@ -271,25 +394,40 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     lipid_seguimiento = bool(col_alt or ldl_alt or hdl_alt or tg_alt or r_col_hdl_alt or r_ldl_hdl_alt or tg_hdl_alt or apob_alt or lpa_alt)
     lipid_badge, lipid_badge_cls, lipid_tag, lipid_tag_cls = get_clean_badge(lipid_atencion, lipid_seguimiento)
 
+    col_v_sym, col_v_delta, col_tr_sym, col_clin_tr = get_analyte_trend_info("CHOLESTEROL_TOTAL", col_t)
+    lip_filas = []
     lip_subtitles = []
+    lip_evals = {"CHOLESTEROL_TOTAL": col_clin_tr}
+
     if ldl != "-":
-        lip_subtitles.append(f"LDL: {fmt_val(ldl, 0, ldl_alt)} mg/dL")
+        f, l, c_tr = build_fila("LDL", "LDL", ldl, "mg/dL", ldl_alt, 0)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["LDL"] = c_tr
     if hdl != "-":
-        lip_subtitles.append(f"HDL: {fmt_val(hdl, 0, hdl_alt)} mg/dL")
+        f, l, c_tr = build_fila("HDL", "HDL", hdl, "mg/dL", hdl_alt, 0)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["HDL"] = c_tr
     if tg != "-":
-        lip_subtitles.append(f"TG: {fmt_val(tg, 0, tg_alt)} mg/dL")
+        f, l, c_tr = build_fila("TRIGLYCERIDES", "TG", tg, "mg/dL", tg_alt, 0)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["TRIGLYCERIDES"] = c_tr
     if ratio_col_hdl != "-":
-        lip_subtitles.append(f"Col/HDL: {fmt_val(ratio_col_hdl, 2, r_col_hdl_alt)}")
+        f, l, c_tr = build_fila("RATIO_COL_HDL", "Col/HDL", ratio_col_hdl, "", r_col_hdl_alt, 2)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["RATIO_COL_HDL"] = c_tr
     if ratio_ldl_hdl != "-":
-        lip_subtitles.append(f"LDL/HDL: {fmt_val(ratio_ldl_hdl, 2, r_ldl_hdl_alt)}")
+        f, l, c_tr = build_fila("RATIO_LDL_HDL", "LDL/HDL", ratio_ldl_hdl, "", r_ldl_hdl_alt, 2)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["RATIO_LDL_HDL"] = c_tr
     if ratio_tg_hdl != "-":
-        lip_subtitles.append(f"TG/HDL: {fmt_val(ratio_tg_hdl, 2, tg_hdl_alt)}")
+        f, l, c_tr = build_fila("RATIO_TG_HDL", "TG/HDL", ratio_tg_hdl, "", tg_hdl_alt, 2)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["RATIO_TG_HDL"] = c_tr
     if apob != "-":
-        lip_subtitles.append(f"ApoB: {fmt_val(apob, 0, apob_alt)} mg/dL")
+        f, l, c_tr = build_fila("APOB", "ApoB", apob, "mg/dL", apob_alt, 0)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["APOB"] = c_tr
     if lpa != "-":
-        lip_subtitles.append(f"Lp(a): {fmt_val(lpa, 0, lpa_alt)} mg/dL")
+        f, l, c_tr = build_fila("LPA", "Lp(a)", lpa, "mg/dL", lpa_alt, 0)
+        lip_filas.append(f); lip_subtitles.append(l); lip_evals["LPA"] = c_tr
+
+    lip_t_state, lip_t_badge, lip_t_cls = evaluar_tendencia_global_tarjeta(lip_evals, "perfil_lipidico")
 
     card_lipidos = KpiCard(
+        id="perfil_lipidico",
         title="Perfil Lipídico",
         tag=lipid_tag,
         tag_class=lipid_tag_cls,
@@ -298,12 +436,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         unit="mg/dL",
         main_value_class="text-rose-600 font-extrabold" if col_alt else "text-slate-900 font-extrabold",
         is_altered=col_alt,
+        main_var_symbol=col_v_sym,
+        main_var_delta=col_v_delta,
+        main_trend_symbol=col_tr_sym,
+        main_clinical_trend=col_clin_tr,
         subtitle_1=lip_subtitles[0] if len(lip_subtitles) > 0 else "",
         subtitle_2=lip_subtitles[1] if len(lip_subtitles) > 1 else "",
         subtitle_3=lip_subtitles[2] if len(lip_subtitles) > 2 else "",
         subtitles=lip_subtitles,
+        filas=lip_filas,
         badge_text=lipid_badge,
-        badge_class=lipid_badge_cls
+        badge_class=lipid_badge_cls,
+        trend_global=lip_t_state,
+        trend_badge_text=lip_t_badge,
+        trend_badge_class=lip_t_cls
     )
 
     # =========================================================================
@@ -345,19 +491,32 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     renal_seguimiento = bool(creat_alt or egfr_alt or urea_alt or urico_alt or uacr_alt)
     renal_badge, renal_badge_cls, renal_tag, renal_tag_cls = get_clean_badge(renal_atencion, renal_seguimiento)
 
+    creat_v_sym, creat_v_delta, creat_tr_sym, creat_clin_tr = get_analyte_trend_info("CREATININE", creat)
+    ren_filas = []
     ren_subtitles = []
+    ren_evals = {"CREATININE": creat_clin_tr}
+
     if egfr != "-":
-        ren_subtitles.append(f"eGFR: {fmt_val(egfr, 1, egfr_alt)} mL/min")
+        f, l, c_tr = build_fila("EGFR", "eGFR", egfr, "mL/min", egfr_alt, 1)
+        ren_filas.append(f); ren_subtitles.append(l); ren_evals["EGFR"] = c_tr
     if urea != "-":
-        ren_subtitles.append(f"Urea: {fmt_val(urea, 0, urea_alt)} mg/dL")
+        f, l, c_tr = build_fila("UREA", "Urea", urea, "mg/dL", urea_alt, 0)
+        ren_filas.append(f); ren_subtitles.append(l); ren_evals["UREA"] = c_tr
     if urico != "-":
-        ren_subtitles.append(f"Ác. Úrico: {fmt_val(urico, 1, urico_alt)} mg/dL")
+        f, l, c_tr = build_fila("URIC_ACID", "Ác. Úrico", urico, "mg/dL", urico_alt, 1)
+        ren_filas.append(f); ren_subtitles.append(l); ren_evals["URIC_ACID"] = c_tr
     if uacr != "-":
-        ren_subtitles.append(f"uACR: {fmt_val(uacr, 1, uacr_alt)} mg/g")
+        f, l, c_tr = build_fila("UACR", "uACR", uacr, "mg/g", uacr_alt, 1)
+        ren_filas.append(f); ren_subtitles.append(l); ren_evals["UACR"] = c_tr
     elif prot_u != "-":
+        f = AnalitoFila(label="Albúmina orina", val=prot_u, unit="")
+        ren_filas.append(f)
         ren_subtitles.append(f"Albúmina orina: {prot_u}")
 
+    ren_t_state, ren_t_badge, ren_t_cls = evaluar_tendencia_global_tarjeta(ren_evals, "funcion_renal")
+
     card_renal = KpiCard(
+        id="funcion_renal",
         title="Función Renal",
         tag=renal_tag,
         tag_class=renal_tag_cls,
@@ -366,12 +525,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         unit="mg/dL",
         main_value_class="text-rose-600 font-extrabold" if creat_alt else "text-slate-900 font-extrabold",
         is_altered=creat_alt,
+        main_var_symbol=creat_v_sym,
+        main_var_delta=creat_v_delta,
+        main_trend_symbol=creat_tr_sym,
+        main_clinical_trend=creat_clin_tr,
         subtitle_1=ren_subtitles[0] if len(ren_subtitles) > 0 else "",
         subtitle_2=ren_subtitles[1] if len(ren_subtitles) > 1 else "",
         subtitle_3=ren_subtitles[2] if len(ren_subtitles) > 2 else "",
         subtitles=ren_subtitles,
+        filas=ren_filas,
         badge_text=renal_badge,
-        badge_class=renal_badge_cls
+        badge_class=renal_badge_cls,
+        trend_global=ren_t_state,
+        trend_badge_text=ren_t_badge,
+        trend_badge_class=ren_t_cls
     )
 
     # =========================================================================
@@ -399,17 +566,30 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     hep_seguimiento = bool(alt_alt or ast_alt or ggt_alt or fa_alt or bili_alt)
     hep_badge, hep_badge_cls, hep_tag, hep_tag_cls = get_clean_badge(hep_atencion, hep_seguimiento)
 
+    main_hep_cod = "GPT_ALT" if alt != "-" else "GOT_AST"
+    main_hep_val = alt if alt != "-" else ast
+    hep_v_sym, hep_v_delta, hep_tr_sym, hep_clin_tr = get_analyte_trend_info(main_hep_cod, main_hep_val)
+    hep_filas = []
     hep_subtitles = []
+    hep_evals = {main_hep_cod: hep_clin_tr}
+
     if ast != "-":
-        hep_subtitles.append(f"GOT/AST: {fmt_val(ast, 0, ast_alt)} U/L")
+        f, l, c_tr = build_fila("GOT_AST", "GOT/AST", ast, "U/L", ast_alt, 0)
+        hep_filas.append(f); hep_subtitles.append(l); hep_evals["GOT_AST"] = c_tr
     if ggt != "-":
-        hep_subtitles.append(f"GGT: {fmt_val(ggt, 0, ggt_alt)} U/L")
+        f, l, c_tr = build_fila("GGT", "GGT", ggt, "U/L", ggt_alt, 0)
+        hep_filas.append(f); hep_subtitles.append(l); hep_evals["GGT"] = c_tr
     if fa != "-":
-        hep_subtitles.append(f"Fosf. Alcalina: {fmt_val(fa, 0, fa_alt)} U/L")
+        f, l, c_tr = build_fila("FOSFATASA_ALCALINA", "Fosf. Alcalina", fa, "U/L", fa_alt, 0)
+        hep_filas.append(f); hep_subtitles.append(l); hep_evals["FOSFATASA_ALCALINA"] = c_tr
     if bili != "-":
-        hep_subtitles.append(f"Bilirrubina: {fmt_val(bili, 1, bili_alt)} mg/dL")
+        f, l, c_tr = build_fila("BILIRRUBINA_TOTAL", "Bilirrubina", bili, "mg/dL", bili_alt, 1)
+        hep_filas.append(f); hep_subtitles.append(l); hep_evals["BILIRRUBINA_TOTAL"] = c_tr
+
+    hep_t_state, hep_t_badge, hep_t_cls = evaluar_tendencia_global_tarjeta(hep_evals, "funcion_hepatica")
 
     card_hepatica = KpiCard(
+        id="funcion_hepatica",
         title="Función Hepática",
         tag=hep_tag,
         tag_class=hep_tag_cls,
@@ -418,12 +598,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         unit="U/L",
         main_value_class="text-rose-600 font-extrabold" if (alt_alt if alt != "-" else ast_alt) else "text-slate-900 font-extrabold",
         is_altered=(alt_alt if alt != "-" else ast_alt),
+        main_var_symbol=hep_v_sym,
+        main_var_delta=hep_v_delta,
+        main_trend_symbol=hep_tr_sym,
+        main_clinical_trend=hep_clin_tr,
         subtitle_1=hep_subtitles[0] if len(hep_subtitles) > 0 else "",
         subtitle_2=hep_subtitles[1] if len(hep_subtitles) > 1 else "",
         subtitle_3=hep_subtitles[2] if len(hep_subtitles) > 2 else "",
         subtitles=hep_subtitles,
+        filas=hep_filas,
         badge_text=hep_badge,
-        badge_class=hep_badge_cls
+        badge_class=hep_badge_cls,
+        trend_global=hep_t_state,
+        trend_badge_text=hep_t_badge,
+        trend_badge_class=hep_t_cls
     )
 
     # =========================================================================
@@ -457,21 +645,34 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     hemo_seguimiento = bool(hb_alt or hto_alt or vcm_alt or leuc_alt or plaq_alt or ferr_alt or hierro_alt)
     hemo_badge, hemo_badge_cls, hemo_tag, hemo_tag_cls = get_clean_badge(hemo_atencion, hemo_seguimiento)
 
+    hb_v_sym, hb_v_delta, hb_tr_sym, hb_clin_tr = get_analyte_trend_info("HEMOGLOBINA", hb)
+    hemo_filas = []
     hemo_subtitles = []
+    hemo_evals = {"HEMOGLOBINA": hb_clin_tr}
+
     if hto != "-":
-        hemo_subtitles.append(f"Hto: {fmt_val(hto, 1, hto_alt)}%")
+        f, l, c_tr = build_fila("HEMATOCRITO", "Hto", hto, "%", hto_alt, 1)
+        hemo_filas.append(f); hemo_subtitles.append(l); hemo_evals["HEMATOCRITO"] = c_tr
     if vcm != "-":
-        hemo_subtitles.append(f"VCM: {fmt_val(vcm, 1, vcm_alt)} fL")
+        f, l, c_tr = build_fila("VCM", "VCM", vcm, "fL", vcm_alt, 1)
+        hemo_filas.append(f); hemo_subtitles.append(l); hemo_evals["VCM"] = c_tr
     if leuc != "-":
-        hemo_subtitles.append(f"Leucos: {fmt_val(leuc, 2, leuc_alt)} mil/µL")
+        f, l, c_tr = build_fila("LEUCOCITOS", "Leucos", leuc, "mil/µL", leuc_alt, 2)
+        hemo_filas.append(f); hemo_subtitles.append(l); hemo_evals["LEUCOCITOS"] = c_tr
     if plaq != "-":
-        hemo_subtitles.append(f"Plaquetas: {fmt_val(plaq, 0, plaq_alt)} mil/µL")
+        f, l, c_tr = build_fila("PLAQUETAS", "Plaquetas", plaq, "mil/µL", plaq_alt, 0)
+        hemo_filas.append(f); hemo_subtitles.append(l); hemo_evals["PLAQUETAS"] = c_tr
     if ferr != "-":
-        hemo_subtitles.append(f"Ferritina: {fmt_val(ferr, 0, ferr_alt)} ng/mL")
+        f, l, c_tr = build_fila("FERRITINA", "Ferritina", ferr, "ng/mL", ferr_alt, 0)
+        hemo_filas.append(f); hemo_subtitles.append(l); hemo_evals["FERRITINA"] = c_tr
     if hierro != "-":
-        hemo_subtitles.append(f"Hierro: {fmt_val(hierro, 0, hierro_alt)} µg/dL")
+        f, l, c_tr = build_fila("HIERRO", "Hierro", hierro, "µg/dL", hierro_alt, 0)
+        hemo_filas.append(f); hemo_subtitles.append(l); hemo_evals["HIERRO"] = c_tr
+
+    hemo_t_state, hemo_t_badge, hemo_t_cls = evaluar_tendencia_global_tarjeta(hemo_evals, "hemograma_hierro")
 
     card_hemograma = KpiCard(
+        id="hemograma_hierro",
         title="Hemograma / Hierro",
         tag=hemo_tag,
         tag_class=hemo_tag_cls,
@@ -480,12 +681,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         unit="g/dL",
         main_value_class="text-rose-600 font-extrabold" if hb_alt else "text-slate-900 font-extrabold",
         is_altered=hb_alt,
+        main_var_symbol=hb_v_sym,
+        main_var_delta=hb_v_delta,
+        main_trend_symbol=hb_tr_sym,
+        main_clinical_trend=hb_clin_tr,
         subtitle_1=hemo_subtitles[0] if len(hemo_subtitles) > 0 else "",
         subtitle_2=hemo_subtitles[1] if len(hemo_subtitles) > 1 else "",
         subtitle_3=hemo_subtitles[2] if len(hemo_subtitles) > 2 else "",
         subtitles=hemo_subtitles,
+        filas=hemo_filas,
         badge_text=hemo_badge,
-        badge_class=hemo_badge_cls
+        badge_class=hemo_badge_cls,
+        trend_global=hemo_t_state,
+        trend_badge_text=hemo_t_badge,
+        trend_badge_class=hemo_t_cls
     )
 
     # =========================================================================
@@ -507,13 +716,22 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     tsh_seguimiento = bool(tsh_alt or t4l_alt or t3l_alt)
     tsh_badge, tsh_badge_cls, tsh_tag, tsh_tag_cls = get_clean_badge(tsh_atencion, tsh_seguimiento)
 
+    tsh_v_sym, tsh_v_delta, tsh_tr_sym, tsh_clin_tr = get_analyte_trend_info("TSH", tsh)
+    tsh_filas = []
     tsh_subtitles = []
+    tsh_evals = {"TSH": tsh_clin_tr}
+
     if t4l != "-":
-        tsh_subtitles.append(f"T4 Libre: {fmt_val(t4l, 2, t4l_alt)} ng/dL")
+        f, l, c_tr = build_fila("T4_LIBRE", "T4 Libre", t4l, "ng/dL", t4l_alt, 2)
+        tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T4_LIBRE"] = c_tr
     if t3l != "-":
-        tsh_subtitles.append(f"T3 Libre: {fmt_val(t3l, 2, t3l_alt)} pg/mL")
+        f, l, c_tr = build_fila("T3_LIBRE", "T3 Libre", t3l, "pg/mL", t3l_alt, 2)
+        tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T3_LIBRE"] = c_tr
+
+    tsh_t_state, tsh_t_badge, tsh_t_cls = evaluar_tendencia_global_tarjeta(tsh_evals, "tiroides")
 
     card_tiroides = KpiCard(
+        id="tiroides",
         title="Tiroides",
         tag=tsh_tag,
         tag_class=tsh_tag_cls,
@@ -522,12 +740,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         unit="µUI/mL",
         main_value_class="text-rose-600 font-extrabold" if tsh_alt else "text-slate-900 font-extrabold",
         is_altered=tsh_alt,
+        main_var_symbol=tsh_v_sym,
+        main_var_delta=tsh_v_delta,
+        main_trend_symbol=tsh_tr_sym,
+        main_clinical_trend=tsh_clin_tr,
         subtitle_1=tsh_subtitles[0] if len(tsh_subtitles) > 0 else "",
         subtitle_2=tsh_subtitles[1] if len(tsh_subtitles) > 1 else "",
         subtitle_3=tsh_subtitles[2] if len(tsh_subtitles) > 2 else "",
         subtitles=tsh_subtitles,
+        filas=tsh_filas,
         badge_text=tsh_badge,
-        badge_class=tsh_badge_cls
+        badge_class=tsh_badge_cls,
+        trend_global=tsh_t_state,
+        trend_badge_text=tsh_t_badge,
+        trend_badge_class=tsh_t_cls
     )
 
     kpis = [card_metabolismo, card_lipidos, card_renal, card_hepatica, card_hemograma, card_tiroides]

@@ -150,17 +150,103 @@ async function loadSummary() {
         : '';
       const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-extrabold' : 'text-slate-900 font-extrabold');
       
-      const subtitlesList = (kpi.subtitles && kpi.subtitles.length > 0)
-        ? kpi.subtitles
-        : [kpi.subtitle_1, kpi.subtitle_2, kpi.subtitle_3].filter(Boolean);
+      const mainVarBadgeHtml = kpi.main_var_delta ? `
+        <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight" title="Variación vs control anterior">
+          ${kpi.main_var_delta}
+        </span>
+      ` : '';
+      let mainDotClass = 'bg-slate-300';
+      let mainTrendTitle = 'Sin tendencia';
+      if (kpi.main_clinical_trend === 'FAVORABLE') {
+        mainDotClass = 'bg-emerald-500';
+        mainTrendTitle = 'Tendencia favorable';
+      } else if (kpi.main_clinical_trend === 'DESFAVORABLE') {
+        mainDotClass = 'bg-rose-500';
+        mainTrendTitle = 'Tendencia desfavorable';
+      } else if (kpi.main_clinical_trend === 'ESTABLE') {
+        mainDotClass = 'bg-blue-500';
+        mainTrendTitle = 'Tendencia estable';
+      }
 
-      const subtitlesHtml = subtitlesList.length > 0
-        ? `<div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
-            ${subtitlesList.map(sub => `
-              <div class="text-xs font-medium text-slate-600 truncate" title="${stripHtml(sub)}">${sub}</div>
-            `).join('')}
-          </div>`
-        : '';
+      const mainIndicatorsHtml = (mainVarBadgeHtml || kpi.main_clinical_trend) ? `
+        <span class="inline-flex items-center gap-1.5 ml-2" title="Variación vs control anterior y tendencia">
+          ${mainVarBadgeHtml}
+          ${kpi.main_clinical_trend ? `
+            <span class="w-3 flex items-center justify-center" title="${mainTrendTitle}">
+              <span class="w-2 h-2 rounded-full ${mainDotClass} inline-block"></span>
+            </span>
+          ` : ''}
+        </span>
+      ` : '';
+
+      let rowsHtml = '';
+      if (kpi.filas && kpi.filas.length > 0) {
+        rowsHtml = `
+          <div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
+            ${kpi.filas.map(f => {
+              const varBadgeHtml = f.var_delta ? `
+                <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight text-center" title="Variación vs control anterior">
+                  ${f.var_delta}
+                </span>
+              ` : '';
+              const isAltered = f.is_altered;
+              const valClass = isAltered ? 'text-rose-600 font-bold' : 'text-slate-900 font-semibold';
+              
+              let dotClass = 'bg-slate-300';
+              let trendTitle = 'Sin tendencia (datos insuficientes)';
+              if (f.clinical_trend === 'FAVORABLE') {
+                dotClass = 'bg-emerald-500';
+                trendTitle = 'Tendencia favorable';
+              } else if (f.clinical_trend === 'DESFAVORABLE') {
+                dotClass = 'bg-rose-500';
+                trendTitle = 'Tendencia desfavorable';
+              } else if (f.clinical_trend === 'ESTABLE') {
+                dotClass = 'bg-blue-500';
+                trendTitle = 'Tendencia estable';
+              }
+
+              return `
+                <div class="flex items-center justify-between text-xs py-0.5 border-b border-slate-100/60 last:border-0">
+                  <span class="text-slate-600 font-medium truncate mr-1" title="${f.label}">${f.label}</span>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="${valClass}">
+                      ${f.val} <span class="text-[10px] font-normal text-slate-400">${f.unit || ''}</span>
+                    </span>
+                    <span class="min-w-[42px] flex justify-end">
+                      ${varBadgeHtml}
+                    </span>
+                    <span class="w-3 flex items-center justify-center shrink-0" title="${trendTitle}">
+                      <span class="w-2 h-2 rounded-full ${dotClass} inline-block"></span>
+                    </span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } else {
+        const subtitlesList = (kpi.subtitles && kpi.subtitles.length > 0)
+          ? kpi.subtitles
+          : [kpi.subtitle_1, kpi.subtitle_2, kpi.subtitle_3].filter(Boolean);
+
+        rowsHtml = subtitlesList.length > 0
+          ? `<div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
+              ${subtitlesList.map(sub => `
+                <div class="text-xs font-medium text-slate-600 truncate" title="${stripHtml(sub)}">${sub}</div>
+              `).join('')}
+            </div>`
+          : '';
+      }
+
+      const trendLabel = (kpi.trend_badge_text === 'SIN TENDENCIA' || kpi.trend_badge_text === 'Sin tendencia')
+        ? 'Tendencia: Sin datos'
+        : `Tendencia: ${kpi.trend_badge_text}`;
+
+      const trendBadgeHtml = kpi.trend_badge_text ? `
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.trend_badge_class || 'bg-slate-100 text-slate-600 border-slate-200'} shrink-0" title="Tendencia global de la tarjeta">
+          ${trendLabel}
+        </span>
+      ` : '';
 
       card.innerHTML = `
         <div>
@@ -168,11 +254,18 @@ async function loadSummary() {
             ${kpi.title}
           </div>
           ${labelHtml}
-          <div class="text-xl ${valColorClass} ${kpi.main_label ? 'mt-0.5' : 'mt-1'}">${kpi.main_value} <span class="text-xs font-normal text-slate-500">${kpi.unit}</span></div>
-          ${subtitlesHtml}
+          <div class="text-xl ${valColorClass} ${kpi.main_label ? 'mt-0.5' : 'mt-1'} flex items-baseline flex-wrap">
+            <span>${kpi.main_value}</span>
+            <span class="text-xs font-normal text-slate-500 ml-1">${kpi.unit}</span>
+            ${mainIndicatorsHtml}
+          </div>
+          ${rowsHtml}
         </div>
-        <div class="mt-3.5 inline-flex items-center self-start px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
-          ${kpi.badge_text}
+        <div class="mt-3.5 pt-2 border-t border-slate-100 flex flex-col items-start gap-1.5">
+          <div class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
+            ${kpi.badge_text}
+          </div>
+          ${trendBadgeHtml}
         </div>
       `;
       container.appendChild(card);

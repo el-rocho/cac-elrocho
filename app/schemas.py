@@ -3,7 +3,19 @@ from pydantic import BaseModel, Field
 
 # --- Esquemas de Datos del Dashboard ---
 
+class AnalitoFila(BaseModel):
+    codigo: Optional[str] = None
+    label: str
+    val: str
+    unit: Optional[str] = ""
+    is_altered: Optional[bool] = False
+    var_symbol: Optional[str] = None      # '↑', '↓', '→'
+    var_delta: Optional[str] = None       # '+0.3', '-6', ''
+    trend_symbol: Optional[str] = None    # '↗', '↘', '→'
+    clinical_trend: Optional[str] = None  # 'FAVORABLE', 'ESTABLE', 'DESFAVORABLE'
+
 class KpiCard(BaseModel):
+    id: Optional[str] = None
     title: str
     tag: str
     tag_class: str
@@ -12,12 +24,20 @@ class KpiCard(BaseModel):
     unit: str
     main_value_class: Optional[str] = "text-slate-900"
     is_altered: Optional[bool] = False
+    main_var_symbol: Optional[str] = None
+    main_var_delta: Optional[str] = None
+    main_trend_symbol: Optional[str] = None
+    main_clinical_trend: Optional[str] = None
     subtitle_1: Optional[str] = ""
     subtitle_2: Optional[str] = ""
     subtitle_3: Optional[str] = ""
     subtitles: Optional[List[str]] = []
+    filas: Optional[List[AnalitoFila]] = []
     badge_text: str
     badge_class: str
+    trend_global: Optional[str] = "sin_tendencia"
+    trend_badge_text: Optional[str] = "Sin tendencia"
+    trend_badge_class: Optional[str] = "bg-slate-100 text-slate-600 border-slate-200"
 
 class MetricaSimple(BaseModel):
     label: str
