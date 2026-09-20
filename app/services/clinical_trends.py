@@ -400,6 +400,15 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "unit": "µUI/mL",
         "decimals": 2
     },
+    "T4_TOTAL": {
+        "var_threshold": 0.8,
+        "slope_threshold": 0.5,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 5.1,
+        "opt_max": 14.1,
+        "unit": "µg/dL",
+        "decimals": 2
+    },
     "T4_LIBRE": {
         "var_threshold": 0.15,
         "slope_threshold": 0.10,
@@ -407,6 +416,15 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "opt_min": 0.75,
         "opt_max": 1.70,
         "unit": "ng/dL",
+        "decimals": 2
+    },
+    "T3_TOTAL": {
+        "var_threshold": 0.15,
+        "slope_threshold": 0.10,
+        "direction": DIR_RANGE_OPTIMAL,
+        "opt_min": 0.80,
+        "opt_max": 2.00,
+        "unit": "ng/mL",
         "decimals": 2
     },
     "T3_LIBRE": {
@@ -568,8 +586,8 @@ CARD_CONFIG: Dict[str, Dict[str, List[str]]] = {
         "secondary": ["VCM", "LEUCOCITOS", "PLAQUETAS", "HIERRO", "RDW", "HEMATIES"]
     },
     "tiroides": {
-        "primary": ["TSH", "T4_LIBRE"],
-        "secondary": ["T3_LIBRE", "ANTI_TPO", "ANTI_TG", "TRAB"]
+        "primary": ["TSH", "T4_LIBRE", "T4_TOTAL"],
+        "secondary": ["T3_TOTAL", "T3_LIBRE", "ANTI_TPO", "ANTI_TG", "TRAB"]
     }
 }
 
@@ -740,7 +758,8 @@ def evaluar_tendencia_eje_tiroideo(
     t3l_sym: Optional[str] = None,
     t3l_clin: Optional[str] = None,
     t3l_alt: bool = False,
-    anticuerpos_evals: Optional[Dict[str, Optional[str]]] = None
+    anticuerpos_evals: Optional[Dict[str, Optional[str]]] = None,
+    **kwargs: Any
 ) -> Tuple[str, str, str]:
     """
     Evaluación fisiológica conjunta del eje tiroideo (TSH y T4 libre).

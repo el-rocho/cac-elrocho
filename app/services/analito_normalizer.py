@@ -235,6 +235,14 @@ CANONICAL_CATALOG = {
         "ref": "0.27 - 4.29 µUI/mL",
         "orden": 300
     },
+    "T4_TOTAL": {
+        "nombre": "T4 Total",
+        "categoria": "bioquimica",
+        "grupo": "🦋 Eje Tiroideo y Metabolismo Óseo",
+        "unidad": "µg/dL",
+        "ref": "5.1 - 14.1 µg/dL",
+        "orden": 305
+    },
     "T4_LIBRE": {
         "nombre": "T4 Libre",
         "categoria": "bioquimica",
@@ -242,6 +250,14 @@ CANONICAL_CATALOG = {
         "unidad": "ng/dL",
         "ref": "0.71 - 1.85 ng/dL",
         "orden": 310
+    },
+    "T3_TOTAL": {
+        "nombre": "T3 Total",
+        "categoria": "bioquimica",
+        "grupo": "🦋 Eje Tiroideo y Metabolismo Óseo",
+        "unidad": "ng/mL",
+        "ref": "0.80 - 2.00 ng/mL",
+        "orden": 312
     },
     "T3_LIBRE": {
         "nombre": "T3 Libre",
@@ -963,6 +979,11 @@ CANONICAL_CATALOG["CKD_EPI"] = CANONICAL_CATALOG["EGFR"]
 CANONICAL_CATALOG["ALBUMINURIA"] = CANONICAL_CATALOG["UACR"]
 CANONICAL_CATALOG["MICROALBUMINURIA"] = CANONICAL_CATALOG["UACR"]
 CANONICAL_CATALOG["FT3"] = CANONICAL_CATALOG["T3_LIBRE"]
+CANONICAL_CATALOG["FT4"] = CANONICAL_CATALOG["T4_LIBRE"]
+CANONICAL_CATALOG["T4"] = CANONICAL_CATALOG["T4_TOTAL"]
+CANONICAL_CATALOG["TT4"] = CANONICAL_CATALOG["T4_TOTAL"]
+CANONICAL_CATALOG["T3"] = CANONICAL_CATALOG["T3_TOTAL"]
+CANONICAL_CATALOG["TT3"] = CANONICAL_CATALOG["T3_TOTAL"]
 CANONICAL_CATALOG["FOLATO"] = CANONICAL_CATALOG["ACIDO_FOLICO"]
 CANONICAL_CATALOG["B12"] = CANONICAL_CATALOG["VITAMINA_B12"]
 CANONICAL_CATALOG["INMUMOGLOBULINA_IGG"] = CANONICAL_CATALOG["IGG"]
@@ -1335,10 +1356,14 @@ def normalize_analito(
         return "PSA_TOTAL", "PSA Total", "bioquimica", unidad or "ng/mL"
     if "tsh" in nom_lower:
         return "TSH", "TSH", "bioquimica", unidad or "µUI/mL"
-    if any(k in nom_lower for k in ["t4 libre", "t4l", "ft4"]):
+    if any(k in nom_lower for k in ["t4 libre", "t4l", "ft4", "tiroxina libre", "t4-libre"]):
         return "T4_LIBRE", "T4 Libre", "bioquimica", unidad or "ng/dL"
-    if any(k in nom_lower for k in ["t3 libre", "t3l", "ft3", "triyodotironina libre"]):
+    if any(k in nom_lower for k in ["t4 total", "tiroxina total", "t4 sérica", "t4 serica", "t4-total"]) or (nom_lower.strip() == "t4" and not any(lib in nom_lower for lib in ["libre", "free", "l"])):
+        return "T4_TOTAL", "T4 Total", "bioquimica", unidad or "µg/dL"
+    if any(k in nom_lower for k in ["t3 libre", "t3l", "ft3", "triyodotironina libre", "t3-libre"]):
         return "T3_LIBRE", "T3 Libre", "bioquimica", unidad or "pg/mL"
+    if any(k in nom_lower for k in ["t3 total", "triyodotironina total", "t3 sérica", "t3 serica", "t3-total"]) or (nom_lower.strip() == "t3" and not any(lib in nom_lower for lib in ["libre", "free", "l"])):
+        return "T3_TOTAL", "T3 Total", "bioquimica", unidad or "ng/mL"
     if any(k in nom_lower for k in ["vitamina d", "25-oh", "calcidiol"]):
         return "VITAMIN_D", "25-OH Vitamina D", "bioquimica", unidad or "ng/mL"
     if "parathormona" in nom_lower or "pth" in nom_lower:

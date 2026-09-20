@@ -1,6 +1,21 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Próxima versión] (En desarrollo)
+
+### 📄 Extracción Tabular Avanzada de PDFs y Resiliencia Multimodal
+* **Reconstrucción Horizontal de Tablas**: Configuración de extracción con ordenamiento espacial (`sort=True` en PyMuPDF y modo `layout` en pypdf), garantizando que las tablas columnarias de laboratorios (como Recoletas o Quirónsalud) asocien analito, valor y rangos en la misma línea en lugar de separar columnas en bloques distantes.
+* **Red de Seguridad Heurística para Extracción**: Algoritmo de respaldo determinista en `llm_service.py` que detecta y rescata automáticamente determinaciones críticas de función renal (`EGFR_CKD_EPI` / Filtrado Glomerular) y perfil tiroideo si un modelo LLM ligero o con cupo limitado no los extrae de forma completa.
+* **Priorización de Modelos LLM**: Configuración optimizada de cuotas en `.env` (Slot 1: `gemini-3.6-flash`, Slot 2: `gemini-3.8-flash`, Slot 3: `gemini-3.5-flash-lite`).
+
+### 🦋 Ampliación Integral del Eje Tiroideo (T4 Total y T3 Total)
+* **Tarjeta KPI de Función Tiroidea Enriquecida**:
+  * **T4 Total** incorporada como parámetro **Principal** junto a TSH y T4 Libre, permitiendo el seguimiento de tiroxina total demandada habitualmente por especialistas.
+  * **T3 Total** incorporada como parámetro **Secundario** junto a T3 Libre y el panel de anticuerpos (Anti-TPO, Anti-TG, TRAb).
+* **Modal de Detalle Clínico y Guía Informativa**: Actualización de la ventana modal y del panel informativo con explicaciones fisiológicas y tablas de referencia para T4 Total (5.1 – 14.1 µg/dL) y T3 Total (0.80 – 2.00 ng/mL).
+* **Catálogo Canónico y Desambiguación Semántica**: Registro en `CANONICAL_CATALOG` y reglas de discriminación en `analito_normalizer.py` para distinguir inequívocamente entre formas totales y libres ante sinónimos como `T4`, `TT4`, `T3` o `TT3`.
+
+---
 ## [v0.7.0] - 2026-09-20
 
 ### 📌 Tabla Evolutiva con Columnas Fijas y Doble Scroll Sincronizado

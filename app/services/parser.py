@@ -14,7 +14,7 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
         doc = fitz.open(str(pdf_path))
         for page_num in range(len(doc)):
             page = doc[page_num]
-            full_text.append(f"--- PÁGINA {page_num + 1} ---\n" + page.get_text())
+            full_text.append(f"--- PÁGINA {page_num + 1} ---\n" + page.get_text(sort=True))
         doc.close()
         return "\n".join(full_text)
     except ImportError:
@@ -25,7 +25,12 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
         import pypdf
         reader = pypdf.PdfReader(str(pdf_path))
         for idx, page in enumerate(reader.pages):
-            full_text.append(f"--- PÁGINA {idx + 1} ---\n" + (page.extract_text() or ""))
+            page_text = ""
+            try:
+                page_text = page.extract_text(extraction_mode="layout") or ""
+            except Exception:
+                page_text = page.extract_text() or ""
+            full_text.append(f"--- PÁGINA {idx + 1} ---\n" + page_text)
         return "\n".join(full_text)
     except Exception as e:
         return f"Error al extraer texto del PDF: {str(e)}"

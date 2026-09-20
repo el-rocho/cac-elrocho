@@ -324,8 +324,8 @@ NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
 
 5. CATÁLOGO DE CÓDIGOS CANÓNICOS PRINCIPALES:
    - CHOLESTEROL_TOTAL, HDL, LDL, TRIGLYCERIDES, RATIO_COL_HDL, RATIO_LDL_HDL, RATIO_LDL_COL, RATIO_HDL_COL, RATIO_TG_COL
-   - GLUCOSE, HBA1C, CREATININE, UREA, BUN, URIC_ACID
-   - PSA_TOTAL, PSA_FREE, RATIO_PSA_L_T, TSH, T4_LIBRE, VITAMIN_D, PTH_INTACTA, CEA, CA_125_II, CA_19_9
+   - GLUCOSE, HBA1C, CREATININE, EGFR_CKD_EPI, EGFR, UREA, BUN, URIC_ACID
+   - PSA_TOTAL, PSA_FREE, RATIO_PSA_L_T, TSH, T4_TOTAL, T4_LIBRE, T3_TOTAL, T3_LIBRE, VITAMIN_D, PTH_INTACTA, CEA, CA_125_II, CA_19_9
    - HIERRO, FERRITINA, PROTEINA_C_REACTIVA, FACTOR_REUMATOIDE
    - IGG, IGA, IGM, PROTEINAS_TOTALES, ALBUMINA_SERICA, BETA_2_MICROGLOBULINA, ANTI_CCP, ANA
    - GOT_AST, GPT_ALT, GGT, FOSFATASA_ALCALINA, AMILASA, SODIO, POTASIO, CALCIO_TOTAL, CALCIO_CORREGIDO, FOSFORO, MAGNESIO, BILIRRUBINA_TOTAL
@@ -349,6 +349,10 @@ NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
        1. "Calcio Total": código canónico "CALCIO_TOTAL", unidad "mg/dL".
        2. "Calcio corregido con Albúmina": código canónico "CALCIO_CORREGIDO", nombre "Calcio Corregido", unidad "mg/dL".
        ¡NUNCA confundas el Calcio Corregido con la Albúmina sérica ni los mezcles entre sí! Ambos son determinaciones independientes que deben incluirse en "mediciones".
+   - FUNCIÓN RENAL Y DEPURACIÓN (FILTRADO GLOMERULAR / CKD-EPI / eGFR):
+     * El parámetro "Filtrado glomerular CKD-EPI" (o "Filtrado Glomerular Estimado", "eGFR", "FG Estimado") es un parámetro bioquímico esencial de evaluación renal que suele acompañar a la Creatinina.
+     * Código canónico: "EGFR_CKD_EPI" (o "EGFR"), nombre: "Filtrado Glomerular (CKD-EPI)", unidad: "mL/min/1.73m²" (o "mL/min/1,73m2"), rango de referencia: "> 60" (o "Sup. 60").
+     * ¡BAJO NINGÚN CONCEPTO omitas el Filtrado Glomerular ni lo consideres una fórmula auxiliar o nota secundaria! Es una determinación analítica OBLIGATORIA.
    - Parámetros de "Bioquímica básica" como Ácido Úrico, Urea, BUN (Nitrógeno Ureico), Creatinina y Bilirrubina total son determinaciones analíticas esenciales.
    - En documentos escaneados o fotocopiados, el facultativo o el laboratorio puede haber rodeado con bolígrafo o marcado con un círculo ciertos valores (por ejemplo, cifras rodeadas como '7.8' o '46').
    - NUNCA omitas estos parámetros. Extrae siempre la cifra numérica contenida dentro o junto al círculo o marca visual (ej: Ácido Úrico = 7.8 mg/dL, Urea = 46 mg/dL, BUN = 21.5 mg/dL, Creatinina = 0.9 mg/dL, Bilirrubina total = 0.9 mg/dL).
@@ -423,6 +427,16 @@ NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
         - Estado estimado: "Normal" / "Optimo" (si no se detectan o el título es inferior a 1:80)
     - ¡BAJO NINGÚN CONCEPTO omitas los analitos del bloque de Autoinmunidad!
 
+14. PERFIL TIROIDEO COMPLETO (TSH, T4 TOTAL, T3 TOTAL, T4 LIBRE, T3 LIBRE):
+    - En informes clínicos (ej: Recoletas), el panel "PERFIL TIROIDEO" incluye frecuentemente múltiples determinaciones que pueden figurar tabuladas o en columnas:
+      * TSH: código "TSH", nombre "TSH", unidad "µUI/mL" (o "yUI/ml", "uUI/mL").
+      * T4 total (o Tiroxina total): código "T4_TOTAL", nombre "T4 Total", unidad "µg/dL" (o "ug/dL").
+      * T3 total (o Triyodotironina total): código "T3_TOTAL", nombre "T3 Total", unidad "ng/mL".
+      * T4 libre: código "T4_LIBRE", nombre "T4 Libre", unidad "ng/dL" (o "ng/dl", "pg/mL").
+      * T3 libre: código "T3_LIBRE", nombre "T3 Libre", unidad "pg/mL".
+    - ¡DEBES EXTRAER TODAS Y CADA UNA de las hormonas tiroideas presentes en el informe!
+    - ¡Bajo ningún concepto te limites a extraer únicamente TSH dejando T4 total, T3 total o T4 libre sin detectar!
+
 RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
 {
   "fecha": "YYYY-MM-DD",
@@ -438,6 +452,46 @@ RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
       "unidad": "mg/dL",
       "rango_referencia": "60 - 100",
       "estado_estimado": "Optimo"
+    },
+    {
+      "codigo": "EGFR_CKD_EPI",
+      "nombre": "Filtrado Glomerular (CKD-EPI)",
+      "valor": "88",
+      "unidad": "mL/min/1.73m²",
+      "rango_referencia": "> 60",
+      "estado_estimado": "Normal"
+    },
+    {
+      "codigo": "TSH",
+      "nombre": "TSH",
+      "valor": "1.68",
+      "unidad": "µUI/mL",
+      "rango_referencia": "0.27 - 4.29",
+      "estado_estimado": "Normal"
+    },
+    {
+      "codigo": "T4_TOTAL",
+      "nombre": "T4 Total",
+      "valor": "6.33",
+      "unidad": "µg/dL",
+      "rango_referencia": "5.1 - 14.1",
+      "estado_estimado": "Normal"
+    },
+    {
+      "codigo": "T3_TOTAL",
+      "nombre": "T3 Total",
+      "valor": "1.03",
+      "unidad": "ng/mL",
+      "rango_referencia": "0.80 - 2.00",
+      "estado_estimado": "Normal"
+    },
+    {
+      "codigo": "T4_LIBRE",
+      "nombre": "T4 Libre",
+      "valor": "1.42",
+      "unidad": "ng/dL",
+      "rango_referencia": "0.93 - 1.71",
+      "estado_estimado": "Normal"
     },
     {
       "codigo": "CHOLESTEROL_TOTAL",
@@ -904,6 +958,106 @@ async def analyze_pdf_with_llm(
                         )
                     )
 
+            # Respaldo automático para Filtrado Glomerular (CKD-EPI) si figura en el texto pero no fue devuelto por el LLM
+            cods_act = {m.codigo for m in mediciones}
+            if not any(c in cods_act for c in ["EGFR", "EGFR_CKD_EPI", "CKD_EPI"]):
+                m_egfr = re.search(r"Filtrado\s+glomerular(?:\s+CKD-EPI)?[^\d\n\r]*(\d+[\.,]?\d*)\s*(?:mL\/min\/1[,\.]73m2)?\s*(\([^\)]+\))?", text, re.IGNORECASE)
+                if m_egfr:
+                    val_egfr = m_egfr.group(1).replace(",", ".")
+                    ref_egfr = m_egfr.group(2) or "> 60 mL/min/1.73m²"
+                    try:
+                        est_egfr = "Normal" if float(val_egfr) >= 60 else "Atencion"
+                    except ValueError:
+                        est_egfr = "Normal"
+                    mediciones.append(
+                        MedicionExtraida(
+                            codigo="EGFR",
+                            nombre="Filtrado Glomerular Estimado (eGFR CKD-EPI)",
+                            valor=val_egfr,
+                            unidad="mL/min/1.73m²",
+                            rango_referencia=ref_egfr,
+                            estado_estimado=est_egfr
+                        )
+                    )
+
+            # Respaldo automático para Perfil Tiroideo (T4 total, T3 total, T4 libre, TSH) si figura en el texto
+            cods_act = {m.codigo for m in mediciones}
+            if "TSH" not in cods_act:
+                m_tsh = re.search(r"(?:^|\b)TSH[^\d\n\r]*(\d+[\.,]?\d*)\s*(?:[yµu]UI\/ml)?\s*(\([^\)]+\))?", text, re.IGNORECASE)
+                if m_tsh:
+                    val_tsh = m_tsh.group(1).replace(",", ".")
+                    ref_tsh = m_tsh.group(2) or "0.27 - 4.29 µUI/mL"
+                    mediciones.append(
+                        MedicionExtraida(
+                            codigo="TSH",
+                            nombre="TSH",
+                            valor=val_tsh,
+                            unidad="µUI/mL",
+                            rango_referencia=ref_tsh,
+                            estado_estimado="Normal"
+                        )
+                    )
+            if "T4_TOTAL" not in cods_act:
+                m_t4t = re.search(r"(?:^|\b)T4\s+total[^\d\n\r]*(\d+[\.,]?\d*)\s*(?:[uµ]g\/d[lL])?\s*(\([^\)]+\))?", text, re.IGNORECASE)
+                if m_t4t:
+                    val_t4t = m_t4t.group(1).replace(",", ".")
+                    ref_t4t = m_t4t.group(2) or "5.1 - 14.1 µg/dL"
+                    mediciones.append(
+                        MedicionExtraida(
+                            codigo="T4_TOTAL",
+                            nombre="T4 Total",
+                            valor=val_t4t,
+                            unidad="µg/dL",
+                            rango_referencia=ref_t4t,
+                            estado_estimado="Normal"
+                        )
+                    )
+            if "T3_TOTAL" not in cods_act:
+                m_t3t = re.search(r"(?:^|\b)T3\s+total[^\d\n\r]*(\d+[\.,]?\d*)\s*(?:ng\/m[lL])?\s*(\([^\)]+\))?", text, re.IGNORECASE)
+                if m_t3t:
+                    val_t3t = m_t3t.group(1).replace(",", ".")
+                    ref_t3t = m_t3t.group(2) or "0.80 - 2.00 ng/mL"
+                    mediciones.append(
+                        MedicionExtraida(
+                            codigo="T3_TOTAL",
+                            nombre="T3 Total",
+                            valor=val_t3t,
+                            unidad="ng/mL",
+                            rango_referencia=ref_t3t,
+                            estado_estimado="Normal"
+                        )
+                    )
+            if "T4_LIBRE" not in cods_act:
+                m_t4l = re.search(r"(?:^|\b)(?:T4\s+libre|FT4)[^\d\n\r]*(\d+[\.,]?\d*)\s*(?:ng\/d[lL]|pg\/m[lL])?\s*(\([^\)]+\))?", text, re.IGNORECASE)
+                if m_t4l:
+                    val_t4l = m_t4l.group(1).replace(",", ".")
+                    ref_t4l = m_t4l.group(2) or "0.71 - 1.85 ng/dL"
+                    mediciones.append(
+                        MedicionExtraida(
+                            codigo="T4_LIBRE",
+                            nombre="T4 Libre",
+                            valor=val_t4l,
+                            unidad="ng/dL",
+                            rango_referencia=ref_t4l,
+                            estado_estimado="Normal"
+                        )
+                    )
+            if "T3_LIBRE" not in cods_act:
+                m_t3l = re.search(r"(?:^|\b)(?:T3\s+libre|FT3)[^\d\n\r]*(\d+[\.,]?\d*)\s*(?:pg\/m[lL]|ng\/d[lL])?\s*(\([^\)]+\))?", text, re.IGNORECASE)
+                if m_t3l:
+                    val_t3l = m_t3l.group(1).replace(",", ".")
+                    ref_t3l = m_t3l.group(2) or "2.0 - 4.4 pg/mL"
+                    mediciones.append(
+                        MedicionExtraida(
+                            codigo="T3_LIBRE",
+                            nombre="T3 Libre",
+                            valor=val_t3l,
+                            unidad="pg/mL",
+                            rango_referencia=ref_t3l,
+                            estado_estimado="Normal"
+                        )
+                    )
+
             rangos = [
                 RangoDetectado(
                     analito=r.get("analito", ""),
@@ -1003,6 +1157,7 @@ def generate_mock_extraction(
         ("Creatinina", r"Creatinina[^\d]*(\d+[\.,]?\d*)", "mg/dL", "0.70 - 1.20"),
         ("Urea", r"Urea[^\d]*(\d+[\.,]?\d*)", "mg/dL", "17 - 49.2"),
         ("Ácido Úrico", r"Úrico[^\d]*(\d+[\.,]?\d*)", "mg/dL", "3.4 - 7.0"),
+        ("Filtrado Glomerular (CKD-EPI)", r"Filtrado\s+glomerular(?:\s+CKD-EPI)?[^\d\n\r]*(\d+[\.,]?\d*)", "mL/min/1.73m²", "> 60"),
         ("Colesterol Total", r"Colesterol\s+Total[^\d]*(\d+[\.,]?\d*)", "mg/dL", "100 - 200"),
         ("Triglicéridos", r"Triglic[^\d]*(\d+[\.,]?\d*)", "mg/dL", "0 - 150"),
         ("HDL-Colesterol", r"HDL[^\d]*(\d+[\.,]?\d*)", "mg/dL", "40 - 100"),
@@ -1016,7 +1171,11 @@ def generate_mock_extraction(
         ("PSA Total", r"(?:PSA\s+Total|PSA-Antígeno Prostático)[^\d]*(\d+[\.,]?\d*)", "ng/mL", "< 4.0"),
         ("PSA Libre", r"(?:PSA[^\n\r]*Libre|PSA-Fracción Libre)[^\d]*(\d+[\.,]?\d*)", "ng/mL", "-"),
         ("Ratio PSA Libre / Total", r"(?:Ratio\s+PSA(?:-Libre\/PSA-total|\s+Libre\s*\/\s*Total)?|Cociente\s+PSA)[^\d]*(\d+[\.,]?\d*)", "ratio", "> 0.14"),
-        ("TSH", r"TSH[^\d]*(\d+[\.,]?\d*)", "µUI/mL", "0.27 - 4.29"),
+        ("TSH", r"(?:^|\b)TSH[^\d\n\r]*(\d+[\.,]?\d*)", "µUI/mL", "0.27 - 4.29"),
+        ("T4 Total", r"(?:^|\b)T4\s+total[^\d\n\r]*(\d+[\.,]?\d*)", "µg/dL", "5.1 - 14.1"),
+        ("T3 Total", r"(?:^|\b)T3\s+total[^\d\n\r]*(\d+[\.,]?\d*)", "ng/mL", "0.80 - 2.00"),
+        ("T4 Libre", r"(?:^|\b)(?:T4\s+libre|FT4)[^\d\n\r]*(\d+[\.,]?\d*)", "ng/dL", "0.71 - 1.85"),
+        ("T3 Libre", r"(?:^|\b)(?:T3\s+libre|FT3)[^\d\n\r]*(\d+[\.,]?\d*)", "pg/mL", "2.0 - 4.4"),
         ("Vitamina D (25-OH)", r"Vitamina\s+D[^\d]*(\d+[\.,]?\d*)", "ng/mL", "30 - 80"),
         ("Calcio Total", r"Calcio\s+Total[^\d]*(\d+[\.,]?\d*)", "mg/dL", "8.2 - 10.6"),
         ("Calcio Corregido", r"Calcio\s+corregido[^\d]*(\d+[\.,]?\d*)", "mg/dL", "8.8 - 10.2"),

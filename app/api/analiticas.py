@@ -969,10 +969,12 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     )
 
     # =========================================================================
-    # 6. TIROIDES (TSH, T4L, T3L)
+    # 6. TIROIDES (TSH, T4L, T4T, T3T, T3L)
     # =========================================================================
     tsh, tsh_date, tsh_hist = get_analyte_meta("TSH", "-")
     t4l, t4l_date, t4l_hist = get_analyte_meta("T4_LIBRE", "-")
+    t4t, t4t_date, t4t_hist = get_analyte_meta("T4_TOTAL", "-")
+    t3t, t3t_date, t3t_hist = get_analyte_meta("T3_TOTAL", "-")
     t3l, t3l_date, t3l_hist = get_analyte_meta("T3_LIBRE", "-")
     anti_tpo, anti_tpo_date, anti_tpo_hist = get_analyte_meta("ANTI_TPO", "-")
     anti_tg, anti_tg_date, anti_tg_hist = get_analyte_meta("ANTI_TG", "-")
@@ -980,20 +982,24 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     tsh_num = parse_num(tsh)
     t4l_num = parse_num(t4l)
+    t4t_num = parse_num(t4t)
+    t3t_num = parse_num(t3t)
     t3l_num = parse_num(t3l)
 
     tsh_alt = check_is_altered("TSH", tsh, fallback_ref="0.27 - 4.29")
     t4l_alt = check_is_altered("T4_LIBRE", t4l, fallback_ref="0.71 - 1.85")
+    t4t_alt = check_is_altered("T4_TOTAL", t4t, fallback_ref="5.1 - 14.1") if t4t != "-" else False
+    t3t_alt = check_is_altered("T3_TOTAL", t3t, fallback_ref="0.80 - 2.00") if t3t != "-" else False
     t3l_alt = check_is_altered("T3_LIBRE", t3l, fallback_ref="2.0 - 4.4")
 
-    # TSH y T4 libre son los analitos principales que determinan el estado funcional del tiroides.
-    # T3 libre y anticuerpos tienen carácter estrictamente complementario y NO determinan automáticamente
-    # una valoración global desfavorable o de seguimiento por encontrarse fuera del intervalo de referencia.
+    # TSH, T4 total y T4 libre son los analitos principales que determinan el estado funcional del tiroides.
+    # T3 total, T3 libre y anticuerpos tienen carácter secundario o complementario.
+    t4_anormal = bool(t4l_alt or t4t_alt)
     tsh_atencion = bool(
         (tsh_num and (tsh_num >= 10.0 or tsh_num <= 0.1))
-        or (tsh_alt and t4l_alt and (tsh_num and (tsh_num >= 5.0 or tsh_num <= 0.2)))
+        or (tsh_alt and t4_anormal and (tsh_num and (tsh_num >= 5.0 or tsh_num <= 0.2)))
     )
-    tsh_seguimiento = bool(tsh_alt or t4l_alt)
+    tsh_seguimiento = bool(tsh_alt or t4_anormal)
     tsh_badge, tsh_badge_cls, tsh_tag, tsh_tag_cls = get_clean_badge(tsh_atencion, tsh_seguimiento)
 
     tsh_v_sym, tsh_v_delta, tsh_tr_sym, tsh_clin_tr = get_analyte_trend_info("TSH", tsh)
@@ -1004,17 +1010,35 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     tsh_subtitles = []
     tsh_evals = {"TSH": tsh_clin_tr}
 
-    # T4 Libre es el analito hormonal principal acompañante de TSH
-    f, l, c_tr = build_fila("T4_LIBRE", "T4 Libre", t4l, "ng/dL", t4l_alt, 2, es_historico=t4l_hist, fecha_origen=t4l_date, es_principal=True, tipo_parametro="principal")
-    tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T4_LIBRE"] = c_tr
-    t4l_tr_sym = f.trend_symbol
-    t4l_clin_tr = c_tr
+    # 1. T4 Total (parámetro principal solicitado por especialistas)
+    if t4t != "-":
+        f, l, c_tr = build_fila("T4_TOTAL", "T4 Total", t4t, "µg/dL", t4t_alt, 2, es_historico=t4t_hist, fecha_origen=t4t_date, es_principal=True, tipo_parametro="principal")
+        tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T4_TOTAL"] = c_tr
 
-    # T3 Libre es analito secundario de valoración complementaria
-    f, l, c_tr = build_fila("T3_LIBRE", "T3 Libre", t3l, "pg/mL", t3l_alt, 2, es_historico=t3l_hist, fecha_origen=t3l_date, es_principal=False, tipo_parametro="secundario")
-    tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T3_LIBRE"] = c_tr
-    t3l_tr_sym = f.trend_symbol
-    t3l_clin_tr = c_tr
+    # 2. T4 Libre (parámetro principal acompañante de TSH)
+    if t4l != "-" or t4t == "-":
+        f, l, c_tr = build_fila("T4_LIBRE", "T4 Libre", t4l, "ng/dL", t4l_alt, 2, es_historico=t4l_hist, fecha_origen=t4l_date, es_principal=True, tipo_parametro="principal")
+        tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T4_LIBRE"] = c_tr
+        t4l_tr_sym = f.trend_symbol
+        t4l_clin_tr = c_tr
+    else:
+        t4l_tr_sym = None
+        t4l_clin_tr = None
+
+    # 3. T3 Total (parámetro solicitado por especialistas)
+    if t3t != "-":
+        f, l, c_tr = build_fila("T3_TOTAL", "T3 Total", t3t, "ng/mL", t3t_alt, 2, es_historico=t3t_hist, fecha_origen=t3t_date, es_principal=False, tipo_parametro="secundario")
+        tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T3_TOTAL"] = c_tr
+
+    # 4. T3 Libre (analito secundario complementario)
+    if t3l != "-" or t3t == "-":
+        f, l, c_tr = build_fila("T3_LIBRE", "T3 Libre", t3l, "pg/mL", t3l_alt, 2, es_historico=t3l_hist, fecha_origen=t3l_date, es_principal=False, tipo_parametro="secundario")
+        tsh_filas.append(f); tsh_subtitles.append(l); tsh_evals["T3_LIBRE"] = c_tr
+        t3l_tr_sym = f.trend_symbol
+        t3l_clin_tr = c_tr
+    else:
+        t3l_tr_sym = None
+        t3l_clin_tr = None
 
     # Determinaciones complementarias: Anticuerpos anti-TPO y Anticuerpos antirreceptor de TSH (TRAb)
     anti_tpo_alt = check_is_altered("ANTI_TPO", anti_tpo, fallback_ref="< 34.0") if anti_tpo != "-" else False
