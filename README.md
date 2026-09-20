@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.6.0`
+# cac-elrocho 🩺 `v0.7.0`
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
@@ -10,12 +10,11 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.6.0`
-* 📊 **Rediseño Cardiometabólico y Calibración de KPIs**: Reorganización en 6 tarjetas clínicas prioritarias con presentación limpia de 1 analito por fila, asociación histórica con superíndices de fecha, notas al pie y bloqueo estricto de ratios cruzadas entre fechas distintas.
-* 📈 **Tendencias Longitudinales y Guía Clínica**: Puntos de estado global en tarjetas, variaciones relativas contextualizadas frente a la determinación previa y guía de referencia desplegable según directrices de la OMS (2024 para hemograma/anemia y ferritina).
-* 🧪 **Armonización Automática de Unidades y Escalas (`db_harmonizer`)**: Estandarización automática en el arranque e ingesta para magnitudes clave: fórmula leucocitaria absoluta (`/µL`), leucocitos y plaquetas (`x10^3/µL`), hematíes (`x10^6/µL`) y rangos proporcionales.
-* 🔍 **Auditoría Retrospectiva de Rangos con IA**: Detección cronológica de cambios metodológicos de laboratorio (ej. adaptación a guías SEA/ESC en LDL) con capacidad de homologación a todo el historial clínico y recálculo de semáforos.
-* 🛡️ **Robustez en la Ingesta y Cálculo de eGFR**: Cálculo automático de Filtrado Glomerular (CKD-EPI) cuando no viene explícito, evaluación semafórica individualizada por celda en la tabla histórica y ampliación de catálogo (Anti-CCP, ANA, CEA, CA 19-9, CA-125).
+## ✨ Novedades de la Versión `v0.7.0`
+* 📌 **Columnas Fijas y Doble Scroll Sincronizado**: Parámetro, unidades e intervalo de referencia anclados a la izquierda en la tabla evolutiva con sombra delimitadora, doble barra de desplazamiento horizontal sincronizada en tiempo real y botones de salto rápido al inicio o final del historial.
+* 🔍 **Modal de Detalle Completo de Tarjetas KPI**: Ventana interactiva al hacer clic en cualquier tarjeta del cuadro de mando con desglose amplio sin recortes, jerarquía analítica clara (parámetros Principales, Secundarios y Complementarios) y navegación fluida entre tarjetas.
+* ⚖️ **Gestión Reversible de Rangos de Referencia**: Opción individual y masiva para "Mantener histórico" respetando los rangos originales de laboratorio, trazabilidad de estados (pendiente, aplicado, mantenido) y reversibilidad con recálculo automático de semáforos.
+* 🦋 **Función Tiroidea Avanzada y Anticuerpos**: Evaluación fisiológica integrada del eje TSH - T4 Libre, análisis complementario no penalizador de T3 Libre y soporte completo de catalogación/extracción para Anti-TPO, Anti-TG y TRAb.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
 
 ---
@@ -121,7 +120,7 @@ http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máqui
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.6.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.7.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho

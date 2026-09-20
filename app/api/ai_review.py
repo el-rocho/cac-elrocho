@@ -31,6 +31,7 @@ def get_auditorias_rango(db: Session = Depends(get_db)):
             "fecha_deteccion": aud.fecha_deteccion.strftime("%d/%m/%Y") if aud.fecha_deteccion else "-",
             "fecha_deteccion_completa": aud.fecha_deteccion.strftime("%d/%m/%Y %H:%M:%S") if aud.fecha_deteccion else "-",
             "aplicado_en_historico": bool(aud.aplicado_en_historico),
+            "estado": aud.estado if aud.estado else ("aplicado" if aud.aplicado_en_historico else "pendiente"),
             "fecha_aplicacion": aud.fecha_aplicacion.strftime("%d/%m/%Y %H:%M") if aud.fecha_aplicacion else None
         })
     return resultado
@@ -120,7 +121,8 @@ def detectar_cambios_de_rango(db: Session) -> List[AuditoriaRango]:
                         rango_nuevo=ref_str,
                         explicacion_ia=explicacion,
                         fecha_deteccion=datetime.utcnow(),
-                        aplicado_en_historico=False
+                        aplicado_en_historico=False,
+                        estado="pendiente"
                     )
                     db.add(audit)
                     auditorias_creadas.append(audit)
@@ -177,6 +179,7 @@ def aplicar_criterio_historico(auditoria_id: int, db: Session = Depends(get_db))
 
     # 3. Marcar la auditoría como aplicada
     audit.aplicado_en_historico = True
+    audit.estado = "aplicado"
     audit.fecha_aplicacion = datetime.utcnow()
 
     db.commit()
@@ -186,8 +189,100 @@ def aplicar_criterio_historico(auditoria_id: int, db: Session = Depends(get_db))
         "message": f"Criterio '{audit.rango_nuevo}' aplicado a {count_mediciones} mediciones históricas de {analito.nombre_visible}.",
         "analito": analito.nombre_visible,
         "nuevo_rango": audit.rango_nuevo,
+        "estado": "aplicado",
         "mediciones_actualizadas": count_mediciones,
         "fecha_aplicacion": audit.fecha_aplicacion.strftime("%d/%m/%Y %H:%M")
+    }
+
+@router.post("/mantener-historico/{auditoria_id}")
+def mantener_criterio_historico(auditoria_id: int, db: Session = Depends(get_db)):
+    """
+    Registra la decisión del usuario de mantener los rangos de referencia históricos
+    para este analito en las analíticas pasadas (no homologar retrospectivamente).
+    Marca la auditoría como revisada con estado 'mantenido'. Si previamente se había aplicado
+    al historial, restaura los rangos anteriores en las mediciones previas y recalcula sus semáforos.
+    """
+    from app.services.analito_normalizer import evaluar_estado_semaforo
+
+    audit = db.query(AuditoriaRango).filter_by(id=auditoria_id).first()
+    if not audit:
+        raise HTTPException(status_code=404, detail="Registro de auditoría no encontrado")
+
+    analito = db.query(Analito).filter_by(id=audit.analito_id).first()
+    nombre_analito = analito.nombre_visible if analito else "Analito"
+    estaba_aplicado = bool(audit.aplicado_en_historico or audit.estado == "aplicado")
+
+    # Si estaba aplicado al historial y se dispone de rango anterior, revertir mediciones previas
+    if estaba_aplicado and audit.rango_anterior and audit.informe:
+        fecha_corte = audit.informe.fecha
+        mediciones_previas = (
+            db.query(Medicion)
+            .join(Informe, Medicion.informe_id == Informe.id)
+            .filter(Medicion.analito_id == audit.analito_id, Informe.fecha < fecha_corte)
+            .all()
+        )
+        for med in mediciones_previas:
+            med.ref_texto = audit.rango_anterior
+            if med.valor_numerico is not None:
+                med.estado_semaforo = evaluar_estado_semaforo(med.valor_numerico, audit.rango_anterior)
+
+    audit.aplicado_en_historico = False
+    audit.estado = "mantenido"
+    audit.fecha_aplicacion = datetime.utcnow()
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": f"Se mantienen los rangos históricos para {nombre_analito}. La revisión ha sido registrada y los semáforos recalculados.",
+        "analito": nombre_analito,
+        "nuevo_rango": audit.rango_nuevo,
+        "estado": "mantenido",
+        "fecha_aplicacion": audit.fecha_aplicacion.strftime("%d/%m/%Y %H:%M")
+    }
+
+@router.post("/mantener-todos")
+def mantener_todos_criterios_historicos(db: Session = Depends(get_db)):
+    """
+    Marca todas las auditorías de rango pendientes como 'mantenido',
+    conservando los rangos de referencia históricos en las analíticas previas.
+    """
+    from app.services.analito_normalizer import evaluar_estado_semaforo
+
+    auditorias = db.query(AuditoriaRango).all()
+    now = datetime.utcnow()
+    count = 0
+    for audit in auditorias:
+        curr_estado = audit.estado if audit.estado else ("aplicado" if audit.aplicado_en_historico else "pendiente")
+        if curr_estado == "pendiente":
+            audit.estado = "mantenido"
+            audit.aplicado_en_historico = False
+            audit.fecha_aplicacion = now
+            count += 1
+        elif curr_estado == "aplicado" and audit.rango_anterior and audit.informe:
+            # Revertir mediciones previas si se decide mantener todos
+            fecha_corte = audit.informe.fecha
+            mediciones_previas = (
+                db.query(Medicion)
+                .join(Informe, Medicion.informe_id == Informe.id)
+                .filter(Medicion.analito_id == audit.analito_id, Informe.fecha < fecha_corte)
+                .all()
+            )
+            for med in mediciones_previas:
+                med.ref_texto = audit.rango_anterior
+                if med.valor_numerico is not None:
+                    med.estado_semaforo = evaluar_estado_semaforo(med.valor_numerico, audit.rango_anterior)
+            audit.estado = "mantenido"
+            audit.aplicado_en_historico = False
+            audit.fecha_aplicacion = now
+            count += 1
+
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Se han mantenido los rangos históricos para {count} criterio(s).",
+        "criterios_mantenidos": count,
+        "fecha_aplicacion": now.strftime("%d/%m/%Y %H:%M")
     }
 
 @router.post("/aplicar-todos")
@@ -221,6 +316,7 @@ def aplicar_todos_criterios_historico(db: Session = Depends(get_db)):
                     med.estado_semaforo = evaluar_estado_semaforo(med.valor_numerico, audit.rango_nuevo)
 
         audit.aplicado_en_historico = True
+        audit.estado = "aplicado"
         audit.fecha_aplicacion = now
 
     db.commit()

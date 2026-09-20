@@ -251,6 +251,30 @@ CANONICAL_CATALOG = {
         "ref": "2.0 - 4.4 pg/mL",
         "orden": 315
     },
+    "ANTI_TPO": {
+        "nombre": "Anticuerpos Anti-TPO",
+        "categoria": "inmunologia",
+        "grupo": "🦋 Eje Tiroideo y Metabolismo Óseo",
+        "unidad": "UI/mL",
+        "ref": "< 34.0 UI/mL",
+        "orden": 316
+    },
+    "ANTI_TG": {
+        "nombre": "Anticuerpos Anti-Tiroglobulina",
+        "categoria": "inmunologia",
+        "grupo": "🦋 Eje Tiroideo y Metabolismo Óseo",
+        "unidad": "UI/mL",
+        "ref": "< 115.0 UI/mL",
+        "orden": 317
+    },
+    "TRAB": {
+        "nombre": "Anticuerpos Anti-Receptor TSH (TRAb)",
+        "categoria": "inmunologia",
+        "grupo": "🦋 Eje Tiroideo y Metabolismo Óseo",
+        "unidad": "UI/L",
+        "ref": "< 1.75 UI/L",
+        "orden": 318
+    },
     "VITAMIN_D": {
         "nombre": "25-OH Vitamina D",
         "categoria": "bioquimica",
@@ -1178,6 +1202,28 @@ def normalize_analito(
     )
     if es_ana:
         return "ANA", "Anticuerpos Anti-Nucleares (ANA)", "inmunologia", unidad or ""
+
+    # 3.4.2 Anticuerpos Tiroideos (Anti-TPO, Anti-TG, TRAb)
+    es_anti_tpo = (
+        (codigo_sugerido and codigo_sugerido.upper() in ["ANTI_TPO", "ANTICUERPOS_ANTI_TPO", "ANTI-TPO", "TPO", "ATPO"])
+        or any(k in nom_lower for k in ["anti-tpo", "anti tpo", "antiperoxidasa", "anti-peroxidasa", "peroxidasa tiroidea", "microsomales"])
+    )
+    if es_anti_tpo:
+        return "ANTI_TPO", "Anticuerpos Anti-TPO", "inmunologia", unidad or "UI/mL"
+
+    es_anti_tg = (
+        (codigo_sugerido and codigo_sugerido.upper() in ["ANTI_TG", "ANTICUERPOS_ANTI_TG", "ANTI-TG", "ATG"])
+        or any(k in nom_lower for k in ["anti-tiroglobulina", "anti tiroglobulina", "antitiroglobulina", "anti-tg", "anti tg"])
+    )
+    if es_anti_tg:
+        return "ANTI_TG", "Anticuerpos Anti-Tiroglobulina", "inmunologia", unidad or "UI/mL"
+
+    es_trab = (
+        (codigo_sugerido and codigo_sugerido.upper() in ["TRAB", "TSI", "ANTICUERPOS_TRAB", "ANTI_TSHR"])
+        or any(k in nom_lower for k in ["trab", "tshr", "receptor de tsh", "antirreceptor de tsh", "tsi", "inmunoglobulina estimulante del tiroides"])
+    )
+    if es_trab:
+        return "TRAB", "Anticuerpos Anti-Receptor TSH (TRAb)", "inmunologia", unidad or "UI/L"
 
     # 3.5 Alergología e Inmunología (Anticuerpos IgE específicos y totales)
     es_ige = (

@@ -7,6 +7,7 @@ from app.services.clinical_trends import (
     calcular_tendencia_longitudinal,
     interpretar_tendencia_clinica,
     evaluar_tendencia_global_tarjeta,
+    evaluar_tendencia_eje_tiroideo,
     CLINICAL_FAVORABLE,
     CLINICAL_ESTABLE,
     CLINICAL_DESFAVORABLE,
@@ -150,8 +151,8 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertTrue(len(hemo["notas_pie"]) >= 1)
         self.assertEqual(hemo["notas_pie"][0]["simbolo"], filas_hemo["Ferritina"]["footnote_symbol"])
 
-        # Tarjeta Tiroides: T4 Libre está presente (como histórico o actual según el último informe)
-        tiroides = kpis_by_title.get("Tiroides")
+        # Tarjeta Función Tiroidea: T4 Libre está presente (como histórico o actual según el último informe)
+        tiroides = kpis_by_title.get("Función Tiroidea")
         self.assertIsNotNone(tiroides)
         filas_tiro = {f["label"]: f for f in tiroides["filas"]}
         self.assertIn("T4 Libre", filas_tiro)
@@ -441,9 +442,9 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertIsNotNone(urea_row.get("cells"))
         self.assertEqual(len(urea_row["cells"]), len(urea_row["vals"]))
 
-        # Verificar que la última medición (46.7) es Normal en su celda
+        # Verificar que la última medición (36.4) es Normal en su celda
         last_cell = urea_row["cells"][-1]
-        self.assertEqual(last_cell["val"], 46.7)
+        self.assertEqual(last_cell["val"], 36.4)
         self.assertEqual(last_cell["ref"], "17.4 - 49.2")
         self.assertEqual(last_cell["status"], "Normal")
         self.assertFalse(last_cell["is_altered"])
@@ -470,13 +471,13 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertIn("hemograma_hierro", kpis)
         self.assertIn("funcion_renal", kpis)
 
-        # En la última analítica, VCM es 97.7 y su rango del laboratorio es 80.0 - 99.0
+        # En la última analítica, VCM es 92.8 y su rango del laboratorio es 80.0 - 99.0
         # No debe aparecer alterado
         card_hemo = kpis["hemograma_hierro"]
         vcm_fila = next((f for f in card_hemo["filas"] if f["codigo"] == "VCM"), None)
         self.assertIsNotNone(vcm_fila)
-        self.assertEqual(vcm_fila["val"], "97.7")
-        self.assertFalse(vcm_fila["is_altered"], "VCM 97.7 dentro del rango 80-99 no debe estar alterado")
+        self.assertEqual(vcm_fila["val"], "92.8")
+        self.assertFalse(vcm_fila["is_altered"], "VCM 92.8 dentro del rango 80-99 no debe estar alterado")
 
         # En la última analítica, Urea es 46.7 y su rango del laboratorio es 17.4 - 49.2
         card_renal = kpis["funcion_renal"]
@@ -504,7 +505,7 @@ class TestClinicalTrends(unittest.TestCase):
         egfr_calc = calcular_egfr(0.95, edad_2024, "Masculino")
         self.assertEqual(egfr_calc, 89.4)
 
-        # 3. Comprobar que en la tarjeta KPI Función Renal figure con nombre "eGFR" y valor "89.4"
+        # 3. Comprobar que en la tarjeta KPI Función Renal figure con nombre "eGFR" y valor correspondiente a la última analítica
         client = TestClient(app)
         res_sum = client.get("/api/v1/analiticas/summary")
         self.assertEqual(res_sum.status_code, 200)
@@ -513,7 +514,7 @@ class TestClinicalTrends(unittest.TestCase):
         egfr_fila = next((f for f in card_renal["filas"] if f["codigo"] == "EGFR"), None)
         self.assertIsNotNone(egfr_fila)
         self.assertEqual(egfr_fila["label"], "eGFR")
-        self.assertEqual(egfr_fila["val"], "89.4")
+        self.assertEqual(egfr_fila["val"], "90.5")
         self.assertFalse(egfr_fila["is_altered"])
 
         # 4. Comprobar que en el Historial de Resultados (Tablas) figure la fila de eGFR con el histórico
@@ -522,8 +523,188 @@ class TestClinicalTrends(unittest.TestCase):
         tables_data = res_tab.json()
         egfr_row = next((r for r in tables_data["bioquimica"] if "eGFR" in r["name"] or "Filtrado" in r["name"]), None)
         self.assertIsNotNone(egfr_row)
-        self.assertEqual(egfr_row["cells"][-1]["val"], 89.4)
+        self.assertEqual(egfr_row["cells"][-1]["val"], 90.5)
         self.assertFalse(egfr_row["cells"][-1]["is_altered"])
+
+    def test_historico_ldl_estados_normales(self):
+        client = TestClient(app)
+        res = client.get("/api/v1/analiticas/tables")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        ldl_row = next((r for r in data["bioquimica"] if r["name"] == "LDL-Colesterol"), None)
+        self.assertIsNotNone(ldl_row)
+        # Comprobar que los valores históricos de 119 y 113 no están marcados como alterados
+        for cell in ldl_row["cells"]:
+            if cell["val"] in [119.0, 113.0]:
+                self.assertFalse(cell["is_altered"], f"El valor {cell['val']} no debería estar marcado como alterado con ref {cell['ref']}")
+                self.assertEqual(cell["status"], "Óptimo")
+
+    def test_auditoria_mantener_historico_y_estados(self):
+        """Verifica los endpoints de mantener rangos históricos y la persistencia de estados de revisión."""
+        client = TestClient(app)
+
+        # 1. Asegurar detección de auditorías
+        res_det = client.post("/api/v1/ai/detectar")
+        self.assertEqual(res_det.status_code, 200)
+
+        # 2. Consultar lista y verificar campos
+        res_list = client.get("/api/v1/ai/auditorias")
+        self.assertEqual(res_list.status_code, 200)
+        items = res_list.json()
+        self.assertTrue(len(items) > 0)
+
+        first_audit = items[0]
+        self.assertIn("estado", first_audit)
+        self.assertIn(first_audit["estado"], ["pendiente", "aplicado", "mantenido"])
+        audit_id = first_audit["id"]
+
+        # 3. Mantener rangos históricos
+        res_mant = client.post(f"/api/v1/ai/mantener-historico/{audit_id}")
+        self.assertEqual(res_mant.status_code, 200)
+        mant_data = res_mant.json()
+        self.assertEqual(mant_data["status"], "success")
+        self.assertEqual(mant_data["estado"], "mantenido")
+
+        # 4. Comprobar que en la lista figure como 'mantenido' y no aplicado
+        res_list2 = client.get("/api/v1/ai/auditorias")
+        item_updated = next((x for x in res_list2.json() if x["id"] == audit_id), None)
+        self.assertIsNotNone(item_updated)
+        self.assertEqual(item_updated["estado"], "mantenido")
+        self.assertFalse(item_updated["aplicado_en_historico"])
+
+        # 5. Cambiar decisión a aplicar criterio al historial
+        res_app = client.post(f"/api/v1/ai/aplicar-criterio/{audit_id}")
+        self.assertEqual(res_app.status_code, 200)
+        app_data = res_app.json()
+        self.assertEqual(app_data["status"], "success")
+        self.assertEqual(app_data["estado"], "aplicado")
+
+        res_list3 = client.get("/api/v1/ai/auditorias")
+        item_applied = next((x for x in res_list3.json() if x["id"] == audit_id), None)
+        self.assertIsNotNone(item_applied)
+        self.assertEqual(item_applied["estado"], "aplicado")
+        self.assertTrue(item_applied["aplicado_en_historico"])
+
+        # 6. Probar endpoint de mantener todos los pendientes
+        res_all_mant = client.post("/api/v1/ai/mantener-todos")
+        self.assertEqual(res_all_mant.status_code, 200)
+        self.assertEqual(res_all_mant.json()["status"], "success")
+
+        # 7. Limpieza para mantener estado inicial en la base de datos de desarrollo
+        from app.database import SessionLocal
+        from app.models import AuditoriaRango
+        db = SessionLocal()
+        try:
+            db.query(AuditoriaRango).update({"estado": "pendiente", "aplicado_en_historico": False, "fecha_aplicacion": None})
+            db.commit()
+        finally:
+            db.close()
+
+    def test_tiroides_evaluacion_fisiologica_conjunta(self):
+        """Verifica la evaluación fisiológica conjunta de TSH y T4 libre (relación inversa)."""
+        # 1. Eutiroideo clínico normal (TSH y T4L en rango con leves fluctuaciones) -> ESTABLE
+        state, badge, _ = evaluar_tendencia_eje_tiroideo(
+            tsh_num=1.45, tsh_sym="↗", tsh_clin=CLINICAL_ESTABLE, tsh_alt=False,
+            t4l_num=1.20, t4l_sym="↘", t4l_clin=CLINICAL_ESTABLE, t4l_alt=False
+        )
+        self.assertEqual(state, "estable")
+        self.assertEqual(badge, CLINICAL_ESTABLE)
+
+        # 2. Deriva recíproca hacia hipotiroidismo (TSH sube / alta, T4L baja / cae) -> DESFAVORABLE
+        state, badge, _ = evaluar_tendencia_eje_tiroideo(
+            tsh_num=5.80, tsh_sym="↗", tsh_clin=CLINICAL_DESFAVORABLE, tsh_alt=True,
+            t4l_num=0.65, t4l_sym="↘", t4l_clin=CLINICAL_DESFAVORABLE, t4l_alt=True
+        )
+        self.assertEqual(state, "desfavorable")
+        self.assertEqual(badge, CLINICAL_DESFAVORABLE)
+
+        # 3. Deriva recíproca hacia hipertiroidismo (TSH suprimida en caída, T4L alta en ascenso) -> DESFAVORABLE
+        state, badge, _ = evaluar_tendencia_eje_tiroideo(
+            tsh_num=0.08, tsh_sym="↘", tsh_clin=CLINICAL_DESFAVORABLE, tsh_alt=True,
+            t4l_num=2.10, t4l_sym="↗", t4l_clin=CLINICAL_DESFAVORABLE, t4l_alt=True
+        )
+        self.assertEqual(state, "desfavorable")
+        self.assertEqual(badge, CLINICAL_DESFAVORABLE)
+
+        # 4. Recuperación de hipotiroidismo hacia eutiroidismo (TSH desciende hacia normal, T4L sube hacia normal) -> FAVORABLE
+        state, badge, _ = evaluar_tendencia_eje_tiroideo(
+            tsh_num=4.80, tsh_sym="↘", tsh_clin=CLINICAL_FAVORABLE, tsh_alt=True,
+            t4l_num=1.10, t4l_sym="↗", t4l_clin=CLINICAL_ESTABLE, t4l_alt=False
+        )
+        self.assertEqual(state, "favorable")
+        self.assertEqual(badge, CLINICAL_FAVORABLE)
+
+        # 5. Discordancia atípica (ambas en la misma dirección fuera de rango) -> MIXTA
+        state, badge, _ = evaluar_tendencia_eje_tiroideo(
+            tsh_num=5.50, tsh_sym="↗", tsh_clin=CLINICAL_DESFAVORABLE, tsh_alt=True,
+            t4l_num=2.20, t4l_sym="↗", t4l_clin=CLINICAL_DESFAVORABLE, t4l_alt=True
+        )
+        self.assertEqual(state, "mixta")
+        self.assertEqual(badge, CLINICAL_MIXTA)
+
+    def test_tiroides_caracter_complementario_t3_y_anticuerpos(self):
+        """Verifica que T3 libre y anticuerpos sean complementarios y no determinen valoración desfavorable."""
+        # TSH y T4L normales; T3 libre con tendencia desfavorable aislada
+        state, badge, _ = evaluar_tendencia_eje_tiroideo(
+            tsh_num=1.32, tsh_sym="→", tsh_clin=CLINICAL_ESTABLE, tsh_alt=False,
+            t4l_num=1.23, t4l_sym="→", t4l_clin=CLINICAL_ESTABLE, t4l_alt=False,
+            t3l_num=1.80, t3l_sym="↘", t3l_clin=CLINICAL_DESFAVORABLE, t3l_alt=True
+        )
+        # Debe mantenerse ESTABLE, no desfavorable
+        self.assertEqual(state, "estable")
+        self.assertEqual(badge, CLINICAL_ESTABLE)
+
+        # A través de evaluar_tendencia_global_tarjeta
+        evals = {
+            "TSH": CLINICAL_ESTABLE,
+            "T4_LIBRE": CLINICAL_ESTABLE,
+            "T3_LIBRE": CLINICAL_DESFAVORABLE,
+            "ANTI_TPO": CLINICAL_DESFAVORABLE
+        }
+        res_state, res_badge, _ = evaluar_tendencia_global_tarjeta(evals, "tiroides")
+        self.assertEqual(res_state, "estable")
+        self.assertEqual(res_badge, CLINICAL_ESTABLE)
+
+    def test_jerarquia_analitos_principales_y_secundarios_kpis(self):
+        """Verifica que todas las tarjetas expongan es_principal y tipo_parametro en /summary."""
+        client = TestClient(app)
+        res = client.get("/api/v1/analiticas/summary")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        kpis = {k["id"]: k for k in data["kpis"]}
+
+        # Comprobar tarjeta de tiroides
+        tiro = kpis.get("tiroides")
+        self.assertIsNotNone(tiro)
+        filas_tiro = {f["codigo"]: f for f in tiro["filas"]}
+
+        # T4 Libre debe ser Principal
+        self.assertIn("T4_LIBRE", filas_tiro)
+        self.assertTrue(filas_tiro["T4_LIBRE"]["es_principal"])
+        self.assertEqual(filas_tiro["T4_LIBRE"]["tipo_parametro"], "principal")
+
+        # T3 Libre (si está presente) debe ser Secundario
+        if "T3_LIBRE" in filas_tiro:
+            self.assertFalse(filas_tiro["T3_LIBRE"]["es_principal"])
+            self.assertEqual(filas_tiro["T3_LIBRE"]["tipo_parametro"], "secundario")
+
+        # Comprobar tarjeta de lípidos
+        lip = kpis.get("perfil_lipidico")
+        self.assertIsNotNone(lip)
+        filas_lip = {f["codigo"]: f for f in lip["filas"]}
+        self.assertTrue(filas_lip["LDL"]["es_principal"])
+        self.assertEqual(filas_lip["LDL"]["tipo_parametro"], "principal")
+        self.assertFalse(filas_lip["HDL"]["es_principal"])
+        self.assertEqual(filas_lip["HDL"]["tipo_parametro"], "secundario")
+
+        # Comprobar tarjeta renal
+        ren = kpis.get("funcion_renal")
+        self.assertIsNotNone(ren)
+        filas_ren = {f["codigo"]: f for f in ren["filas"]}
+        self.assertTrue(filas_ren["EGFR"]["es_principal"])
+        self.assertEqual(filas_ren["EGFR"]["tipo_parametro"], "principal")
+        self.assertFalse(filas_ren["UREA"]["es_principal"])
+        self.assertEqual(filas_ren["UREA"]["tipo_parametro"], "secundario")
 
 
 if __name__ == "__main__":

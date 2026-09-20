@@ -124,6 +124,7 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
             "rango_nuevo": aud.rango_nuevo,
             "explicacion_ia": aud.explicacion_ia,
             "aplicado_en_historico": aud.aplicado_en_historico,
+            "estado": aud.estado or ("aplicado" if aud.aplicado_en_historico else "pendiente"),
             "fecha_aplicacion": aud.fecha_aplicacion.isoformat() if aud.fecha_aplicacion else None
         })
 
@@ -228,6 +229,7 @@ def import_database_from_dict(db: Session, data: Dict[str, Any]):
                 rango_nuevo=aud_data.get("rango_nuevo", ""),
                 explicacion_ia=aud_data.get("explicacion_ia"),
                 aplicado_en_historico=bool(aud_data.get("aplicado_en_historico", False)),
+                estado=aud_data.get("estado", "aplicado" if aud_data.get("aplicado_en_historico") else "pendiente"),
                 fecha_aplicacion=f_app
             )
             db.add(aud)

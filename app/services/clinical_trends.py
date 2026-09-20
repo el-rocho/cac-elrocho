@@ -516,6 +516,33 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "opt_max": 1.0,
         "unit": "",
         "decimals": 0
+    },
+    "ANTI_TPO": {
+        "var_threshold": 5.0,
+        "slope_threshold": 4.0,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 0.0,
+        "opt_max": 34.0,
+        "unit": "UI/mL",
+        "decimals": 1
+    },
+    "ANTI_TG": {
+        "var_threshold": 10.0,
+        "slope_threshold": 8.0,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 0.0,
+        "opt_max": 115.0,
+        "unit": "UI/mL",
+        "decimals": 1
+    },
+    "TRAB": {
+        "var_threshold": 0.2,
+        "slope_threshold": 0.15,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 0.0,
+        "opt_max": 1.75,
+        "unit": "UI/L",
+        "decimals": 2
     }
 }
 
@@ -530,7 +557,7 @@ CARD_CONFIG: Dict[str, Dict[str, List[str]]] = {
     },
     "funcion_renal": {
         "primary": ["CREATININE", "EGFR"],
-        "secondary": ["UREA", "URIC_ACID", "UACR"]
+        "secondary": ["UREA", "URIC_ACID", "UACR", "BUN"]
     },
     "funcion_hepatica": {
         "primary": ["GPT_ALT", "GOT_AST"],
@@ -538,11 +565,11 @@ CARD_CONFIG: Dict[str, Dict[str, List[str]]] = {
     },
     "hemograma_hierro": {
         "primary": ["HEMOGLOBINA", "HEMATOCRITO", "FERRITINA"],
-        "secondary": ["VCM", "LEUCOCITOS", "PLAQUETAS", "HIERRO"]
+        "secondary": ["VCM", "LEUCOCITOS", "PLAQUETAS", "HIERRO", "RDW", "HEMATIES"]
     },
     "tiroides": {
-        "primary": ["TSH"],
-        "secondary": ["T4_LIBRE", "T3_LIBRE"]
+        "primary": ["TSH", "T4_LIBRE"],
+        "secondary": ["T3_LIBRE", "ANTI_TPO", "ANTI_TG", "TRAB"]
     }
 }
 
@@ -700,16 +727,142 @@ def interpretar_tendencia_clinica(cod_analito: str, tendencia_simbolo: Optional[
     return CLINICAL_ESTABLE
 
 
+def evaluar_tendencia_eje_tiroideo(
+    tsh_num: Optional[float] = None,
+    tsh_sym: Optional[str] = None,
+    tsh_clin: Optional[str] = None,
+    tsh_alt: bool = False,
+    t4l_num: Optional[float] = None,
+    t4l_sym: Optional[str] = None,
+    t4l_clin: Optional[str] = None,
+    t4l_alt: bool = False,
+    t3l_num: Optional[float] = None,
+    t3l_sym: Optional[str] = None,
+    t3l_clin: Optional[str] = None,
+    t3l_alt: bool = False,
+    anticuerpos_evals: Optional[Dict[str, Optional[str]]] = None
+) -> Tuple[str, str, str]:
+    """
+    Evaluación fisiológica conjunta del eje tiroideo (TSH y T4 libre).
+    La TSH y la T4 libre mantienen una relación fisiológica inversa regulada por retroalimentación negativa:
+    - Normalidad / Eutiroideo: TSH y T4L en intervalo de referencia con variaciones homeostáticas -> ESTABLE.
+    - Hacia Hipotiroidismo: TSH ascendente o elevada (> ref_max) con T4L descendente o baja (< ref_min) -> DESFAVORABLE.
+    - Hacia Hipertiroidismo: TSH descendente/suprimida (< ref_min) con T4L ascendente o alta (> ref_max) -> DESFAVORABLE.
+    - Mejoría / Recuperación hacia eutiroidismo:
+        * TSH elevada que desciende hacia la normalidad mientras T4L sube o está en rango -> FAVORABLE.
+        * TSH baja que asciende hacia la normalidad mientras T4L baja o está en rango -> FAVORABLE.
+    - Discordancia atípica (ambas en misma dirección fuera de rango): -> MIXTA.
+    - T3 libre y anticuerpos (Anti-TPO, Anti-TG, TRAb) tienen carácter estrictamente complementario:
+      NO determinan automáticamente una valoración global desfavorable.
+    """
+    # 1. Si no hay datos longitudinales de ninguna de las dos hormonas principales
+    if not tsh_sym and not t4l_sym and not tsh_clin and not t4l_clin:
+        return "sin_tendencia", CLINICAL_SIN_TENDENCIA, "bg-slate-100 text-slate-600 border-slate-200"
+
+    # 2. Ambos analitos principales dentro de rangos normales de referencia (Eutiroideo clínico)
+    if not tsh_alt and not t4l_alt:
+        # En eutiroidismo con TSH y T4L normales, las oscilaciones son variaciones homeostáticas normales.
+        # No puede ser desfavorable.
+        if (tsh_clin == CLINICAL_FAVORABLE and (t4l_clin in (CLINICAL_FAVORABLE, CLINICAL_ESTABLE, None))) or \
+           (t4l_clin == CLINICAL_FAVORABLE and (tsh_clin in (CLINICAL_FAVORABLE, CLINICAL_ESTABLE, None))):
+            return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+
+    # 3. Discordancia atípica (ambas hormonas moviéndose en la misma dirección cuando hay alteración)
+    if (tsh_sym == "↗" and t4l_sym == "↗") or (tsh_sym == "↘" and t4l_sym == "↘"):
+        if tsh_alt or t4l_alt:
+            return "mixta", CLINICAL_MIXTA, "bg-purple-50 text-purple-700 border-purple-200"
+
+    # 4. Mejoría / Recuperación hacia la normalidad
+    # Recuperación de hipotiroidismo: TSH elevada que desciende (↘) hacia rango normal
+    if (tsh_num is not None and tsh_num > 4.29 and tsh_sym == "↘") or (tsh_clin == CLINICAL_FAVORABLE):
+        if not (t4l_sym == "↘" and t4l_alt):
+            return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+    # Recuperación de hipertiroidismo: TSH baja que asciende (↗) hacia rango normal
+    if (tsh_num is not None and tsh_num < 0.27 and tsh_sym == "↗") or (tsh_clin == CLINICAL_FAVORABLE):
+        if not (t4l_sym == "↗" and t4l_alt):
+            return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+
+    # 5. Deriva fisiológica recíproca hacia Hipotiroidismo (TSH sube / alta, T4L baja / cae)
+    is_hypo_shift = False
+    if tsh_alt and (tsh_num is not None and tsh_num > 4.29):
+        # TSH elevada fuera de rango que sigue subiendo o T4L cae fuera de rango
+        if tsh_sym == "↗" or (t4l_sym == "↘" and t4l_alt):
+            is_hypo_shift = True
+    elif (tsh_sym == "↗") and (t4l_sym == "↘" or (t4l_num is not None and t4l_num < 0.71)):
+        is_hypo_shift = True
+
+    if is_hypo_shift:
+        return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
+
+    # 6. Deriva fisiológica recíproca hacia Hipertiroidismo (TSH cae / suprimida, T4L sube / alta)
+    is_hyper_shift = False
+    if tsh_alt and (tsh_num is not None and tsh_num < 0.27):
+        # TSH baja/suprimida fuera de rango que sigue cayendo o T4L sube fuera de rango
+        if tsh_sym == "↘" or (t4l_sym == "↗" and t4l_alt):
+            is_hyper_shift = True
+    elif (tsh_sym == "↘") and (t4l_sym == "↗" or (t4l_num is not None and t4l_num > 1.85)):
+        is_hyper_shift = True
+
+    if is_hyper_shift:
+        return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
+
+    # 7. Si solo TSH tiene datos longitudinales
+    if tsh_sym and not t4l_sym:
+        if not tsh_alt:
+            return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+        if tsh_clin == CLINICAL_FAVORABLE:
+            return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+        elif tsh_clin == CLINICAL_DESFAVORABLE:
+            return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
+        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+
+    # 8. Si solo T4L tiene datos longitudinales
+    if t4l_sym and not tsh_sym:
+        if not t4l_alt:
+            return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+        if t4l_clin == CLINICAL_FAVORABLE:
+            return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+        elif t4l_clin == CLINICAL_DESFAVORABLE:
+            return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
+        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+
+    # Por defecto, estado estable. T3 libre y anticuerpos no arrastran a desfavorable.
+    return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+
+
 def evaluar_tendencia_global_tarjeta(
     evaluaciones_analitos: Dict[str, Optional[str]], 
-    card_id: str
+    card_id: str,
+    contexto_clinico: Optional[Dict[str, Any]] = None
 ) -> Tuple[str, str, str]:
+    if card_id == "tiroides" and contexto_clinico:
+        return evaluar_tendencia_eje_tiroideo(**contexto_clinico)
+
     cfg = CARD_CONFIG.get(card_id, {"primary": [], "secondary": []})
     primary_codes = cfg.get("primary", [])
     secondary_codes = cfg.get("secondary", [])
 
     prim_trends = [evaluaciones_analitos[c] for c in primary_codes if c in evaluaciones_analitos and evaluaciones_analitos[c] is not None]
     sec_trends = [evaluaciones_analitos[c] for c in secondary_codes if c in evaluaciones_analitos and evaluaciones_analitos[c] is not None]
+
+    # En tiroides sin contexto_clinico completo, la evaluación conjunta recíproca rige el eje primario
+    if card_id == "tiroides":
+        if not prim_trends:
+            return "sin_tendencia", CLINICAL_SIN_TENDENCIA, "bg-slate-100 text-slate-600 border-slate-200"
+        has_fav = CLINICAL_FAVORABLE in prim_trends
+        has_desfav = CLINICAL_DESFAVORABLE in prim_trends
+        if has_fav and has_desfav:
+            return "mixta", CLINICAL_MIXTA, "bg-purple-50 text-purple-700 border-purple-200"
+        elif has_fav and not has_desfav:
+            return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+        elif has_desfav and not has_fav:
+            return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
+        else:
+            # Primarios estables: T3 libre y anticuerpos secundarios NUNCA pueden determinar desfavorable
+            if sec_trends and (CLINICAL_FAVORABLE in sec_trends) and (CLINICAL_DESFAVORABLE not in sec_trends):
+                return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
+            return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
 
     if not prim_trends:
         if not sec_trends:

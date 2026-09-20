@@ -3,6 +3,8 @@
 let currentPreviewData = null;
 let chartsRendered = false;
 let chartInstances = {};
+let currentKpisData = [];
+let activeKpiIndex = 0;
 
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -39,11 +41,77 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAuditFiles();
   loadPatientConfig();
   setupDragAndDrop();
+  setupBioTableScrollSync();
 });
 
-// 1. Gestión de Pestañas
+// 1. Gestión de Pestañas y Scroll Horizontal Sincronizado
+let isSyncingBioScroll = false;
+
+function syncBioTableScrollWidth() {
+  const container = document.getElementById('bioTableContainer');
+  const topContent = document.getElementById('bioTableTopScrollContent');
+  if (container && topContent) {
+    topContent.style.width = container.scrollWidth + 'px';
+  }
+}
+
+function setupBioTableScrollSync() {
+  const topScroll = document.getElementById('bioTableTopScroll');
+  const bottomScroll = document.getElementById('bioTableContainer');
+
+  if (!topScroll || !bottomScroll) return;
+
+  topScroll.addEventListener('scroll', () => {
+    if (isSyncingBioScroll) return;
+    isSyncingBioScroll = true;
+    bottomScroll.scrollLeft = topScroll.scrollLeft;
+    requestAnimationFrame(() => { isSyncingBioScroll = false; });
+  }, { passive: true });
+
+  bottomScroll.addEventListener('scroll', () => {
+    if (isSyncingBioScroll) return;
+    isSyncingBioScroll = true;
+    topScroll.scrollLeft = bottomScroll.scrollLeft;
+    requestAnimationFrame(() => { isSyncingBioScroll = false; });
+  }, { passive: true });
+
+  window.addEventListener('resize', syncBioTableScrollWidth);
+}
+
+function scrollTableToEnd(smooth = false) {
+  const container = document.getElementById('bioTableContainer');
+  const topScroll = document.getElementById('bioTableTopScroll');
+  if (!container) return;
+  syncBioTableScrollWidth();
+  requestAnimationFrame(() => {
+    if (smooth) {
+      container.scrollTo({ left: container.scrollWidth, behavior: 'smooth' });
+      if (topScroll) topScroll.scrollTo({ left: topScroll.scrollWidth, behavior: 'smooth' });
+    } else {
+      container.scrollLeft = container.scrollWidth;
+      if (topScroll) topScroll.scrollLeft = topScroll.scrollWidth;
+    }
+  });
+}
+
+function scrollTableToStart(smooth = false) {
+  const container = document.getElementById('bioTableContainer');
+  const topScroll = document.getElementById('bioTableTopScroll');
+  if (!container) return;
+  syncBioTableScrollWidth();
+  requestAnimationFrame(() => {
+    if (smooth) {
+      container.scrollTo({ left: 0, behavior: 'smooth' });
+      if (topScroll) topScroll.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      container.scrollLeft = 0;
+      if (topScroll) topScroll.scrollLeft = 0;
+    }
+  });
+}
+
 function setTab(tabId) {
-  const tabs = ['eval', 'charts', 'table', 'audit', 'config'];
+  const tabs = ['eval', 'table', 'charts', 'audit', 'config'];
   tabs.forEach(t => {
     const el = document.getElementById('tab-' + t);
     const btn = document.getElementById('tab-btn-' + t);
@@ -62,6 +130,11 @@ function setTab(tabId) {
     setTimeout(() => {
       loadCharts();
     }, 60);
+  } else if (tabId === 'table') {
+    setTimeout(() => {
+      syncBioTableScrollWidth();
+      scrollTableToEnd();
+    }, 50);
   } else if (tabId === 'audit') {
     loadAuditFiles();
   } else if (tabId === 'config') {
@@ -138,13 +211,24 @@ async function loadSummary() {
       }
     }
 
-    // Renderizar KPIs
-    const stripHtml = (html) => (html || '').replace(/<[^>]*>?/gm, '');
+    // Renderizar KPIs Simplificados (clic para ver información completa)
     const container = document.getElementById('kpi-container');
     container.innerHTML = '';
-    data.kpis.forEach(kpi => {
+    currentKpisData = data.kpis || [];
+    currentKpisData.forEach((kpi, idx) => {
       const card = document.createElement('div');
-      card.className = 'bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow transition-shadow flex flex-col justify-between';
+      card.className = 'bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between group';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-label', `Información completa de ${kpi.title}`);
+      card.onclick = () => openKpiModal(idx);
+      card.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openKpiModal(idx);
+        }
+      };
+
       const labelHtml = kpi.main_label 
         ? `<div class="text-[11px] font-medium text-slate-500 mt-1 truncate" title="${kpi.main_label}">${kpi.main_label}</div>` 
         : '';
@@ -183,80 +267,6 @@ async function loadSummary() {
         </span>
       ` : '';
 
-      let rowsHtml = '';
-      if (kpi.filas && kpi.filas.length > 0) {
-        rowsHtml = `
-          <div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
-            ${kpi.filas.map(f => {
-              const isHistorical = f.es_historico;
-              const footnoteSymHtml = (isHistorical && f.footnote_symbol) ? `
-                <sup class="text-amber-700 font-bold text-[10px] ml-0.5" title="Dato de informe anterior: ${f.fecha_origen || ''}">${f.footnote_symbol}</sup>
-              ` : '';
-              const varBadgeHtml = f.var_delta ? `
-                <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight text-center" title="Variación vs control anterior">
-                  ${f.var_delta}
-                </span>
-              ` : '';
-              const isAltered = f.is_altered;
-              const isUndetermined = f.val === '-' || !f.val;
-              const valClass = isAltered 
-                ? 'text-rose-600 font-bold' 
-                : (isUndetermined ? 'text-slate-400 font-medium' : 'text-slate-900 font-semibold');
-              
-              let dotClass = 'bg-slate-300';
-              let trendTitle = isUndetermined 
-                ? 'No determinado en este informe' 
-                : (isHistorical ? `Dato histórico previo (${f.fecha_origen || ''})` : 'Sin tendencia (datos insuficientes)');
-              if (f.clinical_trend === 'FAVORABLE') {
-                dotClass = 'bg-emerald-500';
-                trendTitle = 'Tendencia favorable';
-              } else if (f.clinical_trend === 'DESFAVORABLE') {
-                dotClass = 'bg-rose-500';
-                trendTitle = 'Tendencia desfavorable';
-              } else if (f.clinical_trend === 'ESTABLE') {
-                dotClass = 'bg-blue-500';
-                trendTitle = 'Tendencia estable';
-              }
-
-              const rowContainerClass = isHistorical
-                ? 'flex items-center justify-between text-xs py-1 px-1.5 rounded bg-amber-50/70 border border-amber-200/80 my-0.5'
-                : 'flex items-center justify-between text-xs py-0.5 border-b border-slate-100/60 last:border-0';
-
-              const rowTitle = isHistorical ? `Analítica previa de fecha ${f.fecha_origen || ''}` : f.label;
-
-              return `
-                <div class="${rowContainerClass}" title="${rowTitle}">
-                  <span class="text-slate-600 font-medium truncate mr-1" title="${f.label}">${f.label}</span>
-                  <div class="flex items-center gap-1.5 shrink-0">
-                    <span class="${valClass}">
-                      ${f.val} <span class="text-[10px] font-normal text-slate-400">${f.unit || ''}</span>${footnoteSymHtml}
-                    </span>
-                    <span class="min-w-[42px] flex justify-end">
-                      ${varBadgeHtml}
-                    </span>
-                    <span class="w-3 flex items-center justify-center shrink-0" title="${trendTitle}">
-                      <span class="w-2 h-2 rounded-full ${dotClass} inline-block"></span>
-                    </span>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
-      } else {
-        const subtitlesList = (kpi.subtitles && kpi.subtitles.length > 0)
-          ? kpi.subtitles
-          : [kpi.subtitle_1, kpi.subtitle_2, kpi.subtitle_3].filter(Boolean);
-
-        rowsHtml = subtitlesList.length > 0
-          ? `<div class="space-y-1 mt-2.5 pt-2 border-t border-slate-100">
-              ${subtitlesList.map(sub => `
-                <div class="text-xs font-medium text-slate-600 truncate" title="${stripHtml(sub)}">${sub}</div>
-              `).join('')}
-            </div>`
-          : '';
-      }
-
       const trendLabel = (kpi.trend_badge_text === 'SIN TENDENCIA' || kpi.trend_badge_text === 'Sin tendencia')
         ? 'Tendencia: Sin datos'
         : `Tendencia: ${kpi.trend_badge_text}`;
@@ -267,20 +277,9 @@ async function loadSummary() {
         </span>
       ` : '';
 
-      const footnotesHtml = (kpi.notas_pie && kpi.notas_pie.length > 0) ? `
-        <div class="mt-2 pt-1.5 border-t border-slate-100 w-full space-y-0.5">
-          ${kpi.notas_pie.map(n => `
-            <div class="text-[10px] text-amber-800/90 font-medium flex items-center gap-1" title="Fecha en analítica previa">
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
-              <span>${n.texto}</span>
-            </div>
-          `).join('')}
-        </div>
-      ` : '';
-
       card.innerHTML = `
         <div>
-          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide truncate" title="${kpi.title}">
+          <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide truncate group-hover:text-blue-600 transition-colors" title="${kpi.title}">
             ${kpi.title}
           </div>
           ${labelHtml}
@@ -290,14 +289,19 @@ async function loadSummary() {
             ${mainFootnoteHtml}
             ${mainIndicatorsHtml}
           </div>
-          ${rowsHtml}
         </div>
         <div class="mt-3.5 pt-2 border-t border-slate-100 flex flex-col items-start gap-1.5">
           <div class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${kpi.badge_class}">
             ${kpi.badge_text}
           </div>
           ${trendBadgeHtml}
-          ${footnotesHtml}
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700 w-full transition-colors">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
       `;
       container.appendChild(card);
@@ -366,58 +370,153 @@ async function loadSummary() {
   }
 }
 
-// 3. Reglas de Estilo Clínico para Celdas
-function getCellFormatClient(name, v) {
+// 3. Parser y Evaluación de Referencias Clínicas
+function parseReferenceBoundsClient(refStr) {
+  if (!refStr || typeof refStr !== 'string') return { low: null, high: null };
+  const s = refStr.trim().replace(',', '.');
+  if (['-', '', 'None', 'Sin referencia', 'No especificado'].includes(s)) {
+    return { low: null, high: null };
+  }
+
+  // 1. Menor que / Inferior
+  const mInf = s.match(/(?:<=?|<|menos de|inferior(?:\s+a)?|inf\.?|hasta)\s*(\d+(?:\.\d+)?)/i);
+  if (mInf && !s.match(/\d+\s*[-a–—]\s*\d+/i)) {
+    const val = parseFloat(mInf[1]);
+    if (!isNaN(val)) return { low: null, high: val };
+  }
+
+  // 2. Mayor que / Superior
+  const mSup = s.match(/(?:>=?|>|más de|mas de|superior(?:\s+a)?|sup\.?)\s*(\d+(?:\.\d+)?)/i);
+  if (mSup && !s.match(/\d+\s*[-a–—]\s*\d+/i)) {
+    const val = parseFloat(mSup[1]);
+    if (!isNaN(val)) return { low: val, high: null };
+  }
+
+  // 3. Rango min - max (o 'min a max')
+  const cleanS = s.replace(/[/\s]*(?:x?10[\^%3][36]?|[pµu]?l|g\/dl|g\/l|mg\/dl|ui\/ml|ng\/ml|%|ratio|segundos|mmol\/mol)\b.*$/i, '').trim();
+  const mRange = cleanS.match(/(\d+(?:\.\d+)?)/g);
+  if (mRange && mRange.length >= 2) {
+    const low = parseFloat(mRange[0]);
+    const high = parseFloat(mRange[1]);
+    if (!isNaN(low) && !isNaN(high)) {
+      return low <= high ? { low, high } : { low: high, high: low };
+    }
+  }
+
+  return { low: null, high: null };
+}
+
+function evaluateStatusClient(valNum, refStr) {
+  if (valNum === null || valNum === undefined || isNaN(valNum)) return 'Normal';
+  const bounds = parseReferenceBoundsClient(refStr);
+  if (bounds.low !== null && valNum < bounds.low - 1e-5) return 'Bajo';
+  if (bounds.high !== null && valNum > bounds.high + 1e-5) return 'Alto';
+  return 'Normal';
+}
+
+// Evaluación de zona límite / advertencia suave (Modelo Híbrido: 10% ancho relativo + consenso clínico)
+function evaluateBorderlineClient(valNum, refStr, name = '') {
+  if (valNum === null || valNum === undefined || isNaN(valNum)) return null;
+  const cleanName = (name || '').trim().toLowerCase();
+
+  // 1. Excepciones clínicas de consenso (Clinical Decision Limits)
+  if (cleanName === 'hba1c' || cleanName.includes('hemoglobina glicada') || cleanName.includes('glicosilada')) {
+    if (valNum >= 5.4 && valNum < 5.7) {
+      return { isBorderline: true, reason: 'Límite preventivo prediabetes (5.4% - 5.6%)' };
+    }
+    return null;
+  }
+  if (cleanName.includes('ifcc')) {
+    if (valNum >= 36.0 && valNum < 39.0) {
+      return { isBorderline: true, reason: 'Límite preventivo prediabetes (36 - 38.9 mmol/mol)' };
+    }
+    return null;
+  }
+  if (cleanName === 'glucosa' || cleanName === 'glucosa basal' || cleanName.includes('glicemia')) {
+    if (valNum >= 95.0) {
+      return { isBorderline: true, reason: valNum > 100.0 ? 'Sobrepasa umbral ADA (>100 mg/dL)' : 'Próximo al límite ADA (95 - 100 mg/dL)' };
+    }
+    return null;
+  }
+  if (cleanName.includes('vitamina d') || cleanName.includes('25-oh')) {
+    if (valNum >= 20.0 && valNum < 30.0) {
+      return { isBorderline: true, reason: 'Insuficiencia / Límite de normalidad (20 - 29 ng/mL)' };
+    }
+    return null;
+  }
+  if (cleanName.includes('triglicéridos / hdl') || cleanName.includes('ratio tg/hdl') || cleanName === 'tg/hdl') {
+    if (valNum >= 1.5 && valNum <= 2.0) {
+      return { isBorderline: true, reason: 'Límite de riesgo cardiometabólico (1.5 - 2.0)' };
+    }
+    return null;
+  }
+  if (cleanName.includes('castelli ii') || cleanName.includes('ldl/hdl') || cleanName === 'cociente ldl/hdl') {
+    if (valNum >= 3.0 && valNum <= 4.3) {
+      return { isBorderline: true, reason: 'Límite intermedio riesgo vascular (3.0 - 4.3)' };
+    }
+    return null;
+  }
+  if (cleanName.includes('castelli i') || cleanName.includes('col/hdl') || cleanName === 'cociente col/hdl') {
+    if (valNum >= 4.0 && valNum <= 5.0) {
+      return { isBorderline: true, reason: 'Límite intermedio riesgo vascular (4.0 - 5.0)' };
+    }
+    return null;
+  }
+
+  // 2. Modelo matemático del 10% de ancho de banda relativo
+  const bounds = parseReferenceBoundsClient(refStr);
+  if (bounds.low === null && bounds.high === null) return null;
+
+  // 2.1 Rango bilateral [L, H]
+  if (bounds.low !== null && bounds.high !== null) {
+    const w = bounds.high - bounds.low;
+    if (w <= 0) return null;
+    if (valNum < bounds.low - 1e-5 || valNum > bounds.high + 1e-5) return null; // Fuera de rango no es borderline
+
+    const delta = 0.10 * w; // 10% del intervalo
+    if (valNum >= bounds.high - delta) {
+      return { isBorderline: true, reason: `Próximo al límite superior (${bounds.high})` };
+    }
+    if (valNum <= bounds.low + delta) {
+      return { isBorderline: true, reason: `Próximo al límite inferior (${bounds.low})` };
+    }
+    return null;
+  }
+
+  // 2.2 Rango unilateral superior (< H o <= H)
+  if (bounds.high !== null && bounds.low === null) {
+    if (valNum > bounds.high + 1e-5) return null;
+    const delta = 0.10 * bounds.high;
+    if (valNum >= bounds.high - delta) {
+      return { isBorderline: true, reason: `Próximo al límite superior (${bounds.high})` };
+    }
+    return null;
+  }
+
+  // 2.3 Rango unilateral inferior (> L o >= L)
+  if (bounds.low !== null && bounds.high === null) {
+    if (valNum < bounds.low - 1e-5) return null;
+    const delta = 0.15 * bounds.low;
+    if (valNum <= bounds.low + delta) {
+      return { isBorderline: true, reason: `Próximo al límite inferior (${bounds.low})` };
+    }
+    return null;
+  }
+
+  return null;
+}
+
+function getCellFormatClient(name, v, ref = null) {
   if (v === null || v === undefined || v === '-') return { cls: 'text-slate-300', title: 'Sin dato' };
-  let num = parseFloat(v);
-
-  if (name === 'HbA1c') {
-    if (num >= 5.7) return { cls: 'text-amber-800 bg-amber-100 border border-amber-300 font-bold px-1.5 py-0.5 rounded', title: 'Límite Prediabetes (>5.6%)' };
-    if (num >= 5.4) return { cls: 'text-slate-800 font-medium', title: 'Bueno / En rango' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo' };
-  }
-  if (name === 'HbA1c (IFCC)') {
-    if (num >= 38.8) return { cls: 'text-amber-800 bg-amber-100 border border-amber-300 font-bold px-1.5 py-0.5 rounded', title: 'Límite Prediabetes (>=38.8)' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo' };
-  }
-  if (name === 'Glucosa Basal') {
-    if (num > 100) return { cls: 'text-amber-800 bg-amber-100 border border-amber-300 font-bold px-1.5 py-0.5 rounded', title: 'Ligeramente alto (>100)' };
-    if (num >= 96) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Próximo a 100' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo' };
-  }
-  if (name === 'LDL-Colesterol') {
-    if (num > 116) return { cls: 'text-amber-800 bg-amber-100 border border-amber-300 font-bold px-1.5 py-0.5 rounded', title: 'Sobrepasa ref. SEA (>116)' };
-    if (num >= 100) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-medium px-1.5 py-0.5 rounded', title: 'Bueno' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo' };
-  }
-  if (name === 'Colesterol Total') {
-    if (num > 200) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Alto (>200)' };
-    if (num >= 180) return { cls: 'text-slate-800 font-bold', title: 'Bueno / Próximo a 200' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<180)' };
-  }
-  if (name.includes('Castelli II') || name === 'Cociente LDL/HDL' || name === 'LDL / HDL') {
-    if (num > 4.3) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Riesgo Alto (>4.3)' };
-    if (num >= 3.0) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Límite intermedio' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<3.0)' };
-  }
-  if ((name.includes('Castelli I') && !name.includes('Castelli II')) || name === 'Cociente Col/HDL' || name === 'Colesterol Total / HDL') {
-    if (num > 5.0) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Riesgo Aumentado / Alto (>5.0)' };
-    if (num >= 4.0) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Límite (Óptimo <4.0)' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<4.0)' };
-  }
-  if (name === 'Triglicéridos / HDL' || name === 'Cociente TG/HDL' || name === 'Ratio TG/HDL') {
-    if (num > 2.0) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Elevado / Resistencia Insulínica (>2.0)' };
-    if (num >= 1.5) return { cls: 'text-yellow-800 bg-yellow-50 border border-yellow-200 font-semibold px-1.5 py-0.5 rounded', title: 'Bueno / Límite' };
-    return { cls: 'text-emerald-700 font-semibold', title: 'Óptimo (<1.5)' };
-  }
-  if (name === 'Vitamina D (25-OH)') {
-    if (num < 20) return { cls: 'text-rose-800 bg-rose-100 font-bold px-1.5 py-0.5 rounded', title: 'Déficit (<20)' };
-    if (num < 30) return { cls: 'text-amber-800 bg-amber-100 border border-amber-300 font-bold px-1.5 py-0.5 rounded', title: 'Insuficiencia (20-29)' };
-    if (num <= 35) return { cls: 'text-emerald-800 bg-emerald-50 border border-emerald-300 font-semibold px-1.5 py-0.5 rounded', title: 'Normalizada (>30)' };
-    return { cls: 'text-emerald-700 font-bold', title: 'Óptimo (>35)' };
-  }
-
-  return { cls: 'text-slate-800', title: 'Normal' };
+  let num = parseFloat(String(v).replace(',', '.'));
+  if (isNaN(num)) return { cls: 'text-slate-800 font-medium', title: String(v) };
+  if (!ref) return { cls: 'text-slate-800 font-medium', title: 'Normal' };
+  const st = evaluateStatusClient(num, ref);
+  if (st === 'Alto') return { cls: 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm', title: `Alto (${ref})` };
+  if (st === 'Bajo') return { cls: 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm', title: `Bajo (${ref})` };
+  const b = evaluateBorderlineClient(num, ref, name);
+  if (b && b.isBorderline) return { cls: 'text-amber-900 bg-amber-50/80 border border-amber-200 font-medium px-1.5 py-0.5 rounded shadow-sm', title: `Límite (${b.reason})` };
+  return { cls: 'text-slate-800 font-medium', title: 'Normal' };
 }
 
 // 4. Cargar Tablas
@@ -431,9 +530,9 @@ async function loadTables() {
     const thead = document.getElementById('tableHeaderDates');
     let hHtml = `
       <tr>
-        <th class="p-3 sticky left-0 bg-slate-800 z-10">Parámetro</th>
-        <th class="p-3">Unidad</th>
-        <th class="p-3 text-center" title="Rango de referencia oficial vigente según la analítica más reciente o consenso clínico">Ref. Oficial</th>
+        <th class="p-3 table-sticky-col-1">Parámetro</th>
+        <th class="p-3 table-sticky-col-2 text-center">Unidad de medida</th>
+        <th class="p-3 table-sticky-col-3 text-center" title="Rango de referencia oficial vigente según la analítica más reciente o consenso clínico">Referencia oficial</th>
     `;
     const infList = data.informes || [];
     data.dates.forEach((d, idx) => {
@@ -445,7 +544,7 @@ async function loadTables() {
       const inf = infList[idx];
       if (inf && inf.id) {
         hHtml += `
-          <th class="p-3 text-center ${bgCls} cursor-pointer group transition-all select-none border-b-2 border-transparent hover:border-amber-400"
+          <th class="p-3 text-center min-w-[105px] whitespace-nowrap ${bgCls} cursor-pointer group transition-all select-none border-b-2 border-transparent hover:border-amber-400"
               onclick="openEditInformeModal(${inf.id})"
               title="Hacer clic para revisar o editar analítica del ${escapeHtml(inf.fecha)} (${escapeHtml(inf.laboratorio)})">
             <div class="flex items-center justify-center gap-1.5">
@@ -454,11 +553,11 @@ async function loadTables() {
             </div>
           </th>`;
       } else {
-        hHtml += `<th class="p-3 text-center ${bgCls}">${escapeHtml(d)}</th>`;
+        hHtml += `<th class="p-3 text-center min-w-[105px] whitespace-nowrap ${bgCls}">${escapeHtml(d)}</th>`;
       }
     });
     hHtml += `
-        <th class="p-3 text-center bg-blue-800 font-extrabold text-white border-l-2 border-r-2 border-blue-400 shadow-inner">
+        <th class="p-3 text-center min-w-[140px] whitespace-nowrap bg-blue-800 font-extrabold text-white border-l-2 border-r-2 border-blue-400 shadow-inner">
           Promedio 18 meses
         </th>
       </tr>
@@ -479,7 +578,7 @@ async function loadTables() {
         groupTr.className = 'group-header bg-slate-100 border-t-2 border-b border-slate-300';
         groupTr.innerHTML = `
           <td colspan="${totalCols}" class="px-4 py-2 text-xs font-black text-slate-800 tracking-wider bg-slate-100/95 uppercase shadow-sm">
-            ${row.group}
+            <span class="sticky left-4 inline-flex items-center gap-1.5 font-black">${escapeHtml(row.group)}</span>
           </td>
         `;
         tbody.appendChild(groupTr);
@@ -488,32 +587,60 @@ async function loadTables() {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-50 transition-colors';
       let cells = `
-        <td class="p-3 font-bold sticky left-0 bg-white shadow-sm">${row.name}</td>
-        <td class="p-3 text-slate-500">${row.unit}</td>
-        <td class="p-3 text-center text-slate-600 font-medium text-[11px]" title="Rango oficial vigente: ${escapeHtml(row.ref)}">${row.ref || '-'}</td>
+        <td class="p-3 font-bold table-sticky-col-1 text-slate-900">${escapeHtml(row.name)}</td>
+        <td class="p-3 table-sticky-col-2 text-center text-slate-500 font-normal">${escapeHtml(row.unit || '-')}</td>
+        <td class="p-3 table-sticky-col-3 text-center text-slate-600 font-medium text-[11px]" title="Rango oficial vigente: ${escapeHtml(row.ref)}">${escapeHtml(row.ref || '-')}</td>
       `;
       row.vals.forEach((v, idx) => {
         const cellObj = (row.cells && row.cells[idx]) ? row.cells[idx] : null;
         if (v === null || v === undefined) {
           cells += `<td class="p-3 text-center text-slate-300">-</td>`;
         } else {
-          let fmt = getCellFormatClient(row.name, v);
-          let title = fmt.title;
-          let cellCls = fmt.cls;
+          let cellCls = 'text-slate-800 font-medium';
+          let title = `${row.name}: ${v} ${row.unit || ''}`;
 
           if (cellObj) {
             const cRef = cellObj.ref || row.ref || 'Sin referencia';
-            const cStatus = cellObj.status || 'Normal';
-            const isAltered = cellObj.is_altered || cStatus === 'Alto' || cStatus === 'Bajo' || cStatus === 'Atencion' || cStatus === 'Alerta';
+            let cStatus = cellObj.status || 'Normal';
+            const isAltered = !!(cellObj.is_altered || cStatus === 'Alto' || cStatus === 'Bajo' || cStatus === 'Atencion' || cStatus === 'Alerta' || cStatus === 'Alérgeno');
 
             if (isAltered) {
-              if (cStatus === 'Alto' || cStatus === 'Atencion' || cStatus === 'Alerta') {
+              if (cStatus === 'Alto' || cStatus === 'Atencion' || cStatus === 'Alerta' || cStatus === 'Alérgeno') {
                 cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
               } else if (cStatus === 'Bajo') {
                 cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+              } else {
+                cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+              }
+            } else {
+              const numVal = parseFloat(String(v).replace(',', '.'));
+              const borderline = (!isNaN(numVal)) ? evaluateBorderlineClient(numVal, cRef, row.name) : null;
+              if (borderline && borderline.isBorderline) {
+                cellCls = 'text-amber-900 bg-amber-50/80 border border-amber-200 font-medium px-1.5 py-0.5 rounded shadow-sm';
+                cStatus = `Límite (${borderline.reason})`;
+              } else {
+                cellCls = 'text-slate-800 font-medium';
               }
             }
             title = `${row.name}: ${v} ${row.unit || ''} | Rango del informe: ${cRef} (${cStatus}) | Ref. vigente: ${row.ref || '-'}`;
+          } else {
+            const num = parseFloat(String(v).replace(',', '.'));
+            const st = (!isNaN(num) && row.ref) ? evaluateStatusClient(num, row.ref) : 'Normal';
+            let stText = st;
+            if (st === 'Alto') {
+              cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+            } else if (st === 'Bajo') {
+              cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+            } else {
+              const borderline = (!isNaN(num) && row.ref) ? evaluateBorderlineClient(num, row.ref, row.name) : null;
+              if (borderline && borderline.isBorderline) {
+                cellCls = 'text-amber-900 bg-amber-50/80 border border-amber-200 font-medium px-1.5 py-0.5 rounded shadow-sm';
+                stText = `Límite (${borderline.reason})`;
+              } else {
+                cellCls = 'text-slate-800 font-medium';
+              }
+            }
+            title = `${row.name}: ${v} ${row.unit || ''} | Estado: ${stText} | Ref. vigente: ${row.ref || '-'}`;
           }
 
           cells += `<td class="p-3 text-center"><span class="${cellCls}" title="${escapeHtml(title)}">${v}</span></td>`;
@@ -522,10 +649,26 @@ async function loadTables() {
 
       // Promedio 18 meses
       if (row.recentAvg && row.recentAvg !== '-') {
-        let fmt = getCellFormatClient(row.name, row.recentAvg);
+        const numAvg = parseFloat(String(row.recentAvg).replace(',', '.'));
+        const avgSt = evaluateStatusClient(numAvg, row.ref);
+        let avgCls = 'text-slate-800 text-xs font-bold';
+        let avgTitle = `Promedio últimos 18 meses: ${row.recentAvg} ${row.unit || ''} (Ref. vigente: ${row.ref || '-'})`;
+        if (avgSt === 'Alto') {
+          avgCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm text-xs';
+          avgTitle += ' - Alto';
+        } else if (avgSt === 'Bajo') {
+          avgCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm text-xs';
+          avgTitle += ' - Bajo';
+        } else {
+          const avgBorder = evaluateBorderlineClient(numAvg, row.ref, row.name);
+          if (avgBorder && avgBorder.isBorderline) {
+            avgCls = 'text-amber-900 bg-amber-50/80 border border-amber-200 font-medium px-1.5 py-0.5 rounded shadow-sm text-xs';
+            avgTitle += ` - Límite (${avgBorder.reason})`;
+          }
+        }
         cells += `
           <td class="p-3 text-center bg-blue-50/70 border-l border-r border-blue-200">
-            <span class="${fmt.cls} text-xs font-bold" title="Promedio últimos 18 meses: ${fmt.title}">${row.recentAvg}</span>
+            <span class="${avgCls}" title="${escapeHtml(avgTitle)}">${row.recentAvg}</span>
           </td>
         `;
       } else {
@@ -535,6 +678,11 @@ async function loadTables() {
       tr.innerHTML = cells;
       tbody.appendChild(tr);
     });
+
+    // Desplazar automáticamente al extremo derecho para ver el promedio y las analíticas más recientes
+    setTimeout(() => {
+      scrollTableToEnd();
+    }, 60);
   } catch (err) {
     console.error('Fallo al cargar tablas:', err);
   }
@@ -720,12 +868,19 @@ async function loadAiAuditorias(manualTrigger = false) {
 
     list.innerHTML = '';
 
-    const pendientes = items.filter(a => !a.aplicado_en_historico);
-    const aplicados = items.filter(a => a.aplicado_en_historico);
+    const pendientes = items.filter(a => {
+      const st = a.estado || (a.aplicado_en_historico ? 'aplicado' : 'pendiente');
+      return st === 'pendiente';
+    });
+    const revisados = items.filter(a => {
+      const st = a.estado || (a.aplicado_en_historico ? 'aplicado' : 'pendiente');
+      return st !== 'pendiente';
+    });
 
-    function createCardHtml(aud) {
+    function createCardHtml(aud, isReviewed = false) {
       const safeAnalito = String(aud.analito).replace(/'/g, "\\'");
       const safeRangoNuevo = String(aud.rango_nuevo).replace(/'/g, "\\'");
+      const estado = aud.estado || (aud.aplicado_en_historico ? 'aplicado' : 'pendiente');
 
       // Limpieza de referencias personales del paciente en la explicación clínica
       let expLimpia = aud.explicacion || 'El laboratorio ha actualizado el criterio de referencia.';
@@ -733,32 +888,62 @@ async function loadAiAuditorias(manualTrigger = false) {
         expLimpia = expLimpia.split('El valor de')[0].trim();
       }
 
-      const statusBadge = aud.aplicado_en_historico
-        ? `
-          <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-medium">
-            <span>✓</span>
-            <span>Criterio homologado y aplicado al historial clínico (${aud.fecha_aplicacion || 'Activo'})</span>
-          </div>
-        `
-        : `
-          <div class="flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-medium">
+      let statusBadge = '';
+      let actionButtons = '';
+
+      if (!isReviewed) {
+        // Tarjeta pendiente de revisión
+        statusBadge = `
+          <div class="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[11px] font-medium">
             <span>ℹ️</span>
-            <span>Criterio registrado (Vigente en informes desde ${aud.fecha_analitica})</span>
+            <span>Vigente en informes desde ${aud.fecha_analitica}</span>
           </div>
         `;
-
-      const actionBtnText = aud.aplicado_en_historico
-        ? 'Volver a aplicar a todo el historial'
-        : 'Aplicar a todo el historial';
-
-      const actionBtnClass = aud.aplicado_en_historico
-        ? 'px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1'
-        : 'px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-sm';
-
-      const actionBtnIcon = aud.aplicado_en_historico ? '🔄' : '⚡';
+        actionButtons = `
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="keepAuditHistorical(${aud.id}, '${safeAnalito}')" class="px-3 py-1.5 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-xs" title="Mantener los rangos de referencia originales de las analíticas pasadas">
+              <span>🛡️</span> <span>Mantener rangos históricos</span>
+            </button>
+            <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-sm" title="Homologar este nuevo rango a todas las analíticas anteriores">
+              <span>⚡</span> <span>Aplicar a todo el historial</span>
+            </button>
+          </div>
+        `;
+      } else if (estado === 'mantenido') {
+        // Tarjeta revisada con decisión: mantener histórico
+        statusBadge = `
+          <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[11px] font-medium">
+            <span>🛡️</span>
+            <span>Rangos históricos mantenidos (${aud.fecha_aplicacion || 'Revisado'})</span>
+          </div>
+        `;
+        actionButtons = `
+          <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="px-2.5 py-1.5 bg-white hover:bg-indigo-50 active:scale-95 text-indigo-700 border border-indigo-200 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-xs" title="Cambiar decisión y homologar a todo el historial">
+            <span>⚡</span> <span>Aplicar a todo el historial</span>
+          </button>
+        `;
+      } else {
+        // Tarjeta revisada con decisión: aplicado / homologado
+        statusBadge = `
+          <div class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-medium">
+            <span>✓</span>
+            <span>Criterio homologado al historial (${aud.fecha_aplicacion || 'Activo'})</span>
+          </div>
+        `;
+        actionButtons = `
+          <div class="flex items-center gap-1.5">
+            <button onclick="keepAuditHistorical(${aud.id}, '${safeAnalito}')" class="px-2.5 py-1.5 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 border border-slate-200 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 shadow-xs" title="Cambiar decisión y mantener rangos originales en analíticas pasadas">
+              <span>🛡️</span> <span>Mantener histórico</span>
+            </button>
+            <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="px-2.5 py-1.5 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 shadow-xs">
+              <span>🔄</span> <span>Reaplicar</span>
+            </button>
+          </div>
+        `;
+      }
 
       return `
-        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 hover:border-slate-300 transition-colors">
           <!-- Línea 1: Información básica unificada en una única fila -->
           <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-slate-800 text-xs">
             <span class="font-bold text-slate-900">${aud.analito}</span>
@@ -775,49 +960,93 @@ async function loadAiAuditorias(manualTrigger = false) {
             💡 <strong>Criterio Clínico:</strong> ${expLimpia}
           </div>
 
-          <!-- Línea 3: Tarjeta informativa inferior con estado y botón -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/60">
+          <!-- Línea 3: Tarjeta informativa inferior con estado y botones de acción -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
             ${statusBadge}
-            <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="${actionBtnClass}">
-              <span>${actionBtnIcon}</span> <span>${actionBtnText}</span>
-            </button>
+            ${actionButtons}
           </div>
         </div>
       `;
     }
 
-    // 1. Mostrar rangos pendientes (no aplicados) directamente
+    // 1. Mostrar rangos pendientes en contenedor de altura limitada con scroll vertical
     if (pendientes.length > 0) {
+      const pendingSection = document.createElement('div');
+      pendingSection.className = 'space-y-2';
+
+      const pendingHeader = document.createElement('div');
+      pendingHeader.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs px-1 text-slate-700 font-semibold';
+      pendingHeader.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[11px] font-bold">${pendientes.length}</span>
+          <span>Cambios de rango pendientes de revisión</span>
+        </div>
+        ${pendientes.length > 1 ? `
+          <div class="flex items-center gap-3 text-[11px]">
+            <button onclick="keepAllAuditHistorical()" class="font-semibold text-slate-600 hover:text-slate-800 hover:underline flex items-center gap-1">
+              <span>🛡️</span> Mantener todos los históricos
+            </button>
+            <span class="text-slate-300">|</span>
+            <button onclick="applyAllAuditCriteria()" class="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1">
+              <span>⚡</span> Aplicar y actualizar todo el historial
+            </button>
+          </div>
+        ` : ''}
+      `;
+      pendingSection.appendChild(pendingHeader);
+
+      const scrollBox = document.createElement('div');
+      scrollBox.className = 'max-h-[460px] overflow-y-auto pr-1.5 space-y-3 rounded-xl border border-slate-200/80 bg-slate-50/40 p-2.5';
       pendientes.forEach(aud => {
         const div = document.createElement('div');
-        div.innerHTML = createCardHtml(aud);
-        list.appendChild(div.firstElementChild);
+        div.innerHTML = createCardHtml(aud, false);
+        scrollBox.appendChild(div.firstElementChild);
       });
+      pendingSection.appendChild(scrollBox);
+      list.appendChild(pendingSection);
+    } else {
+      const emptyPending = document.createElement('div');
+      emptyPending.className = 'p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2.5 font-medium';
+      emptyPending.innerHTML = `
+        <span class="text-emerald-600 text-base">✓</span>
+        <span>Todos los cambios de rangos de laboratorio han sido revisados. No hay criterios pendientes de revisión.</span>
+      `;
+      list.appendChild(emptyPending);
     }
 
-    // 2. Colapsar rangos ya aplicados en un acordeón desplegable
-    if (aplicados.length > 0) {
+    // 2. Colapsar rangos ya revisados en un acordeón desplegable
+    if (revisados.length > 0) {
+      const numAplicados = revisados.filter(a => (a.estado || (a.aplicado_en_historico ? 'aplicado' : 'pendiente')) === 'aplicado').length;
+      const numMantenidos = revisados.filter(a => (a.estado || (a.aplicado_en_historico ? 'aplicado' : 'pendiente')) === 'mantenido').length;
+
       const details = document.createElement('details');
       details.className = 'group bg-white border border-slate-200 rounded-xl overflow-hidden transition-all';
       
       const summary = document.createElement('summary');
-      summary.className = 'p-3 cursor-pointer text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-between transition-colors select-none';
+      summary.className = 'p-3 cursor-pointer text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 flex items-center justify-between transition-colors select-none';
       summary.innerHTML = `
         <span class="flex items-center gap-2">
           <span class="text-slate-400 group-open:rotate-90 transition-transform inline-block text-[10px]">▶</span>
-          <span>${aplicados.length} rango(s) de referencia ya aplicado(s) al historial</span>
+          <span>${revisados.length} criterio(s) de rangos de referencia ya revisado(s)</span>
         </span>
-        <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">Aplicados</span>
+        <div class="flex items-center gap-1.5">
+          ${numAplicados > 0 ? `<span class="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">${numAplicados} homologados</span>` : ''}
+          ${numMantenidos > 0 ? `<span class="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-bold">${numMantenidos} históricos mantenidos</span>` : ''}
+        </div>
       `;
       details.appendChild(summary);
 
       const content = document.createElement('div');
-      content.className = 'p-3 pt-0 space-y-2.5 border-t border-slate-100 mt-2';
-      aplicados.forEach(aud => {
+      content.className = 'p-3 pt-0 border-t border-slate-100 mt-2';
+
+      const reviewedScrollBox = document.createElement('div');
+      reviewedScrollBox.className = 'max-h-[420px] overflow-y-auto pr-1.5 space-y-2.5 mt-2';
+      revisados.forEach(aud => {
         const wrapper = document.createElement('div');
-        wrapper.innerHTML = createCardHtml(aud);
-        content.appendChild(wrapper.firstElementChild);
+        wrapper.innerHTML = createCardHtml(aud, true);
+        reviewedScrollBox.appendChild(wrapper.firstElementChild);
       });
+      content.appendChild(reviewedScrollBox);
       details.appendChild(content);
 
       list.appendChild(details);
@@ -857,9 +1086,53 @@ async function applyAuditCriteria(auditId, analitoName, newRange) {
   }
 }
 
+// Opción 4: Mantener rangos de referencia históricos para un analito
+async function keepAuditHistorical(auditId, analitoName) {
+  const confirmMsg = `¿Deseas mantener los rangos de referencia históricos para ${analitoName}?\n\nEsta acción conservará los límites originales en las analíticas pasadas sin modificarlas y archivará la alerta como revisada.`;
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch(`/api/v1/ai/mantener-historico/${auditId}`, { method: 'POST' });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Error al guardar decisión');
+    }
+    const data = await res.json();
+    showAiAuditoriaAlert(`✓ ${data.message}`, 'success');
+    await loadAiAuditorias(false);
+    if (typeof loadSummary === 'function') loadSummary();
+    if (typeof loadAllCategories === 'function') loadAllCategories();
+    if (typeof loadTables === 'function') loadTables();
+  } catch (err) {
+    alert(`Error al mantener rangos históricos: ${err.message}`);
+  }
+}
+
+// Opción 5: Mantener todos los criterios pendientes conservando históricos
+async function keepAllAuditHistorical() {
+  const confirmMsg = '¿Deseas mantener los rangos históricos para TODOS los criterios pendientes?\n\nEsto conservará los límites originales en todas las analíticas previas y archivará los cambios como revisados.';
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch('/api/v1/ai/mantener-todos', { method: 'POST' });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Error al procesar criterios');
+    }
+    const data = await res.json();
+    showAiAuditoriaAlert(`✓ ${data.message}`, 'success');
+    await loadAiAuditorias(false);
+    if (typeof loadSummary === 'function') loadSummary();
+    if (typeof loadAllCategories === 'function') loadAllCategories();
+    if (typeof loadTables === 'function') loadTables();
+  } catch (err) {
+    alert(`Error al mantener criterios históricos: ${err.message}`);
+  }
+}
+
 // Opción 3: Aplicar todos los criterios al histórico
 async function applyAllAuditCriteria() {
-  const confirmMsg = '¿Deseas homologar TODOS los criterios de auditoría de rango a todo tu historial de analíticas pasadas?\\n\\nEsto actualizará los rangos de referencia de los analitos en todas las mediciones previas.';
+  const confirmMsg = '¿Deseas homologar TODOS los criterios de auditoría de rango a todo tu historial de analíticas pasadas?\n\nEsto actualizará los rangos de referencia de los analitos en todas las mediciones previas.';
   if (!confirm(confirmMsg)) return;
 
   try {
@@ -2305,16 +2578,357 @@ async function deleteAuditFile(id, fecha) {
 }
 
 // ============================================================================
-// Acordeón exclusivo para tarjetas del panel de valoración clínica
+// Modal de Valoración Clínica Detallada
 // ============================================================================
-document.addEventListener('toggle', (event) => {
-  if (event.target && event.target.matches && event.target.matches('#tab-eval details') && event.target.open) {
-    document.querySelectorAll('#tab-eval details').forEach((d) => {
-      if (d !== event.target && d.open) {
-        d.open = false;
+const clinicalModalMeta = {
+  glucidico: {
+    title: 'Metabolismo glucídico',
+    badge: 'Prevención de diabetes'
+  },
+  lipidico: {
+    title: 'Perfil lipídico',
+    badge: 'Prevención cardiovascular'
+  },
+  renal: {
+    title: 'Función renal',
+    badge: 'Prevención enfermedad renal'
+  },
+  hepatico: {
+    title: 'Función hepática',
+    badge: 'Prevención hepática'
+  },
+  hemograma: {
+    title: 'Hemograma / hierro',
+    badge: 'Prevención general y anemia'
+  },
+  tiroideo: {
+    title: 'Función tiroidea',
+    badge: 'Prevención tiroidea'
+  }
+};
+
+function openClinicalModal(key) {
+  const modal = document.getElementById('evalClinicalModal');
+  const tpl = document.getElementById(`eval-tpl-${key}`);
+  if (!modal || !tpl) return;
+
+  const titleEl = document.getElementById('evalModalTitle');
+  const badgeEl = document.getElementById('evalModalBadge');
+  const bodyEl = document.getElementById('evalModalBody');
+
+  const meta = clinicalModalMeta[key];
+  if (meta) {
+    if (titleEl) titleEl.textContent = meta.title;
+    if (badgeEl) badgeEl.textContent = meta.badge;
+  }
+
+  if (bodyEl) {
+    bodyEl.innerHTML = '';
+    bodyEl.appendChild(tpl.content.cloneNode(true));
+  }
+
+  // Prevenir scroll en el fondo mientras el modal está abierto
+  document.body.classList.add('overflow-hidden');
+  modal.showModal();
+}
+
+function closeClinicalModal() {
+  const modal = document.getElementById('evalClinicalModal');
+  if (modal && modal.open) {
+    modal.close();
+  }
+}
+
+// ============================================================================
+// Modal de Información Completa de Tarjeta KPI
+// ============================================================================
+function openKpiModal(index) {
+  if (!currentKpisData || currentKpisData.length === 0) return;
+  if (index < 0) index = 0;
+  if (index >= currentKpisData.length) index = currentKpisData.length - 1;
+  activeKpiIndex = index;
+
+  const kpi = currentKpisData[activeKpiIndex];
+  if (!kpi) return;
+
+  const modal = document.getElementById('kpiDetailModal');
+  const titleEl = document.getElementById('kpiModalTitle');
+  const bodyEl = document.getElementById('kpiModalBody');
+  if (!modal || !bodyEl) return;
+
+  if (titleEl) titleEl.textContent = kpi.title;
+
+  const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-extrabold' : 'text-slate-900 font-extrabold');
+
+  const mainVarBadgeHtml = kpi.main_var_delta ? `
+    <span class="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-900 font-mono font-bold text-xs" title="Variación vs control anterior">
+      ${kpi.main_var_delta}
+    </span>
+  ` : '';
+
+  let mainDotClass = 'bg-slate-300';
+  let mainTrendTitle = 'Sin tendencia evaluable';
+  if (kpi.main_clinical_trend === 'FAVORABLE') {
+    mainDotClass = 'bg-emerald-500';
+    mainTrendTitle = 'Tendencia favorable';
+  } else if (kpi.main_clinical_trend === 'DESFAVORABLE') {
+    mainDotClass = 'bg-rose-500';
+    mainTrendTitle = 'Tendencia desfavorable';
+  } else if (kpi.main_clinical_trend === 'ESTABLE') {
+    mainDotClass = 'bg-blue-500';
+    mainTrendTitle = 'Tendencia estable';
+  }
+
+  const mainFootnoteHtml = (kpi.main_is_historical && kpi.main_footnote_symbol) ? `
+    <sup class="text-amber-700 font-bold text-sm ml-1" title="Dato de informe anterior: ${kpi.main_fecha_origen || ''}">${kpi.main_footnote_symbol}</sup>
+  ` : '';
+
+  const mainTrendBadge = kpi.main_clinical_trend ? `
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-2xs">
+      <span class="w-2 h-2 rounded-full ${mainDotClass}"></span>
+      ${mainTrendTitle}
+    </span>
+  ` : '';
+
+  // Filas desglosadas con ancho cómodo sin recortes
+  let rowsHtml = '';
+  if (kpi.filas && kpi.filas.length > 0) {
+    rowsHtml = `
+      <div class="mt-3 pt-2.5 border-t border-slate-200">
+        <div class="space-y-1.5">
+          ${kpi.filas.map(f => {
+            const isHistorical = f.es_historico;
+            const footnoteSymHtml = (isHistorical && f.footnote_symbol) ? `
+              <sup class="text-amber-700 font-bold text-xs ml-0.5" title="Dato de informe anterior: ${f.fecha_origen || ''}">${f.footnote_symbol}</sup>
+            ` : '';
+            const varBadgeHtml = f.var_delta ? `
+              <span class="inline-block px-2 py-0.5 rounded bg-white border border-slate-200/90 text-slate-900 font-mono font-bold text-xs shadow-2xs" title="Variación vs control anterior">
+                ${f.var_delta}
+              </span>
+            ` : '<span class="text-slate-300 text-xs font-mono">-</span>';
+            const isAltered = f.is_altered;
+            const isUndetermined = f.val === '-' || !f.val;
+            const valClass = isAltered 
+              ? 'text-rose-600 font-bold' 
+              : (isUndetermined ? 'text-slate-400 font-medium' : 'text-slate-900 font-semibold');
+            
+            let dotClass = 'bg-slate-300';
+            let trendTitle = isUndetermined 
+              ? 'No determinado' 
+              : 'Sin tendencia';
+            if (f.clinical_trend === 'FAVORABLE') {
+              dotClass = 'bg-emerald-500';
+              trendTitle = 'Favorable';
+            } else if (f.clinical_trend === 'DESFAVORABLE') {
+              dotClass = 'bg-rose-500';
+              trendTitle = 'Desfavorable';
+            } else if (f.clinical_trend === 'ESTABLE') {
+              dotClass = 'bg-blue-500';
+              trendTitle = 'Estable';
+            }
+
+            const tipoBadgeHtml = f.es_principal 
+              ? `<span class="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded shrink-0">Principal</span>`
+              : (f.tipo_parametro === 'complementario'
+                  ? `<span class="text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.2 rounded shrink-0">Complementario</span>`
+                  : `<span class="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded shrink-0">Secundario</span>`);
+
+            const rowContainerClass = isHistorical
+              ? 'flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-amber-50/80 border border-amber-200/80 transition-colors'
+              : 'flex items-center justify-between gap-3 py-2 px-3 rounded-xl bg-slate-50/70 border border-slate-100 hover:bg-slate-50 transition-colors';
+
+            return `
+              <div class="${rowContainerClass}">
+                <div class="flex items-center gap-2 min-w-0 flex-1 flex-wrap sm:flex-nowrap pr-2">
+                  <span class="w-1.5 h-1.5 rounded-full ${isAltered ? 'bg-rose-500' : 'bg-slate-400'} shrink-0"></span>
+                  <span class="text-xs sm:text-sm font-semibold text-slate-800 leading-snug">${f.label}</span>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    ${tipoBadgeHtml}
+                    ${isHistorical ? `<span class="text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-200 shrink-0">Histórico ${f.fecha_origen || ''}</span>` : ''}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+                  <span class="${valClass} text-xs sm:text-sm min-w-[55px] text-right">
+                    ${f.val} <span class="text-[11px] font-normal text-slate-500">${f.unit || ''}</span>${footnoteSymHtml}
+                  </span>
+                  <div class="min-w-[44px] flex justify-end">
+                    ${varBadgeHtml}
+                  </div>
+                  <span class="inline-flex items-center gap-1.5 text-xs text-slate-600 bg-white border border-slate-200/80 px-2.5 py-0.5 rounded shadow-2xs shrink-0" title="${trendTitle}">
+                    <span class="w-2 h-2 rounded-full ${dotClass} inline-block"></span>
+                    <span class="hidden sm:inline">${trendTitle}</span>
+                  </span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  } else {
+    const subtitlesList = (kpi.subtitles && kpi.subtitles.length > 0)
+      ? kpi.subtitles
+      : [kpi.subtitle_1, kpi.subtitle_2, kpi.subtitle_3].filter(Boolean);
+
+    rowsHtml = subtitlesList.length > 0
+      ? `
+        <div class="mt-3 pt-2.5 border-t border-slate-200">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Detalles complementarios</h4>
+          <div class="space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+            ${subtitlesList.map(sub => `
+              <div class="text-xs sm:text-sm font-medium text-slate-700 flex items-start gap-2">
+                <span class="text-blue-500 font-bold">•</span>
+                <span>${sub}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `
+      : '';
+  }
+
+  const trendLabel = (kpi.trend_badge_text === 'SIN TENDENCIA' || kpi.trend_badge_text === 'Sin tendencia')
+    ? 'Tendencia: Sin datos'
+    : `Tendencia: ${kpi.trend_badge_text}`;
+
+  const trendBadgeHtml = kpi.trend_badge_text ? `
+    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${kpi.trend_badge_class || 'bg-slate-100 text-slate-600 border-slate-200'}">
+      ${trendLabel}
+    </span>
+  ` : '';
+
+  bodyEl.innerHTML = `
+    <!-- Parámetro Principal Destacado -->
+    <div class="bg-gradient-to-r from-slate-50 to-blue-50/40 border border-slate-200 rounded-2xl p-3.5 sm:p-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+              ${kpi.main_label ? kpi.main_label : 'Parámetro Principal'}
+            </span>
+            <span class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded shrink-0">Principal</span>
+          </div>
+          <div class="text-2xl sm:text-3xl ${valColorClass} mt-0.5 flex items-baseline flex-wrap">
+            <span>${kpi.main_value}</span>
+            <span class="text-sm font-semibold text-slate-500 ml-1.5">${kpi.unit}</span>
+            ${mainFootnoteHtml}
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+          ${mainVarBadgeHtml ? `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-2xs" title="Variación vs control anterior">
+              <span class="text-[10px] uppercase font-bold text-slate-400">Var:</span>
+              <span class="font-mono font-bold text-slate-900">${kpi.main_var_delta}</span>
+            </span>
+          ` : ''}
+          ${mainTrendBadge}
+        </div>
+      </div>
+    </div>
+
+    <!-- Filas secundarias y analitos -->
+    ${rowsHtml}
+
+    <!-- Dictamen y valoración de la tarjeta -->
+    <div class="mt-3 pt-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${kpi.badge_class}">
+          ${kpi.badge_text}
+        </div>
+        ${trendBadgeHtml}
+      </div>
+    </div>
+  `;
+
+  document.body.classList.add('overflow-hidden');
+  modal.showModal();
+}
+
+function closeKpiModal() {
+  const modal = document.getElementById('kpiDetailModal');
+  if (modal && modal.open) {
+    modal.close();
+  }
+}
+
+function navigateKpiModal(offset) {
+  if (!currentKpisData || currentKpisData.length === 0) return;
+  let newIndex = activeKpiIndex + offset;
+  if (newIndex < 0) newIndex = currentKpisData.length - 1;
+  if (newIndex >= currentKpisData.length) newIndex = 0;
+  openKpiModal(newIndex);
+}
+
+// Configurar observadores y fallback de cierre para los diálogos modales
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById('evalClinicalModal');
+  if (modal) {
+    modal.addEventListener('close', () => {
+      document.body.classList.remove('overflow-hidden');
+    });
+
+    modal.addEventListener('cancel', () => {
+      document.body.classList.remove('overflow-hidden');
+    });
+
+    // Fallback para navegadores sin soporte de closedby="any" (clic en el backdrop)
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      modal.addEventListener('click', (event) => {
+        if (event.target !== modal) return;
+        const rect = modal.getBoundingClientRect();
+        const isInside = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (!isInside) {
+          closeClinicalModal();
+        }
+      });
+    }
+  }
+
+  // Modal de Detalle KPI
+  const kpiModal = document.getElementById('kpiDetailModal');
+  if (kpiModal) {
+    kpiModal.addEventListener('close', () => {
+      document.body.classList.remove('overflow-hidden');
+    });
+
+    kpiModal.addEventListener('cancel', () => {
+      document.body.classList.remove('overflow-hidden');
+    });
+
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      kpiModal.addEventListener('click', (event) => {
+        if (event.target !== kpiModal) return;
+        const rect = kpiModal.getBoundingClientRect();
+        const isInside = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (!isInside) {
+          closeKpiModal();
+        }
+      });
+    }
+
+    // Navegación con flechas del teclado cuando el modal está abierto
+    window.addEventListener('keydown', (event) => {
+      if (kpiModal.open) {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          navigateKpiModal(-1);
+        } else if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          navigateKpiModal(1);
+        }
       }
     });
   }
-}, true);
+});
 
 

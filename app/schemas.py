@@ -16,6 +16,8 @@ class AnalitoFila(BaseModel):
     es_historico: Optional[bool] = False
     fecha_origen: Optional[str] = None    # '27/09/2018' o '2018-09-27'
     footnote_symbol: Optional[str] = None # '¹', '²', '³'
+    es_principal: Optional[bool] = False
+    tipo_parametro: Optional[str] = "secundario" # 'principal', 'secundario', 'complementario'
 
 class KpiCard(BaseModel):
     id: Optional[str] = None

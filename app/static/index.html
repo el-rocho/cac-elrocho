@@ -19,6 +19,98 @@
     ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Estilos para modales de valoración clínica y detalle KPI */
+    dialog#evalClinicalModal::backdrop,
+    dialog#kpiDetailModal::backdrop {
+      background-color: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+    }
+
+    /* Fijar la posición superior de la ventana de detalle KPI para que la cabecera y flechas no se muevan */
+    dialog#kpiDetailModal {
+      top: clamp(3rem, 6vh, 4.5rem);
+      margin-top: 0;
+      margin-bottom: auto;
+    }    /* Estilos para columnas fijas (sticky) en Historial de Resultados */
+    #mainBioTable {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    #mainBioTable th, #mainBioTable td {
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .table-sticky-col-1 {
+      position: sticky;
+      left: 0;
+      width: 230px;
+      min-width: 230px;
+      max-width: 230px;
+      z-index: 10;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .table-sticky-col-2 {
+      position: sticky;
+      left: 230px;
+      width: 95px;
+      min-width: 95px;
+      max-width: 95px;
+      z-index: 10;
+      white-space: normal;
+      text-align: center;
+    }
+    .table-sticky-col-3 {
+      position: sticky;
+      left: 325px;
+      width: 135px;
+      min-width: 135px;
+      max-width: 135px;
+      z-index: 10;
+      white-space: normal;
+      text-align: center;
+      border-right: 2px solid #cbd5e1;
+      box-shadow: 4px 0 6px -2px rgba(0, 0, 0, 0.08);
+    }
+    thead .table-sticky-col-1,
+    thead .table-sticky-col-2,
+    thead .table-sticky-col-3 {
+      z-index: 25;
+      background-color: #1e293b;
+    }
+    thead .table-sticky-col-3 {
+      border-right: 2px solid #475569;
+      box-shadow: 4px 0 6px -2px rgba(0, 0, 0, 0.2);
+    }
+    tbody tr td.table-sticky-col-1,
+    tbody tr td.table-sticky-col-2,
+    tbody tr td.table-sticky-col-3 {
+      background-color: #ffffff;
+    }
+    tbody tr:hover td.table-sticky-col-1,
+    tbody tr:hover td.table-sticky-col-2,
+    tbody tr:hover td.table-sticky-col-3 {
+      background-color: #f8fafc;
+    }
+    #bioTableTopScroll {
+      overflow-x: auto;
+      overflow-y: hidden;
+      height: 12px;
+    }
+    #bioTableTopScroll::-webkit-scrollbar {
+      height: 10px;
+    }
+    #bioTableTopScroll::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 6px;
+    }
+    #bioTableTopScroll::-webkit-scrollbar-thumb {
+      background: #94a3b8;
+      border-radius: 6px;
+    }
+    #bioTableTopScroll::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased p-4 md:p-8 min-h-screen">
@@ -80,743 +172,1114 @@
     <!-- TABS NAVIGATION -->
     <div class="border-b border-slate-200 flex flex-wrap gap-2 text-sm font-semibold">
       <button onclick="setTab('eval')" id="tab-btn-eval" class="pb-3 px-4 border-b-2 tab-active transition-colors">
-        📋 1. Valoración Clínica
-      </button>
-      <button onclick="setTab('charts')" id="tab-btn-charts" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        📈 2. Gráficos Evolutivos
+        📋 1. Información clínica
       </button>
       <button onclick="setTab('table')" id="tab-btn-table" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        📊 3. Historial de Resultados
+        📊 2. Historial de Resultados
+      </button>
+      <button onclick="setTab('charts')" id="tab-btn-charts" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
+        📈 3. Gráficos Evolutivos
       </button>
       <button onclick="setTab('audit')" id="tab-btn-audit" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        🔍 4. Auditoría de Archivos
+        🔍 4. Auditoría y edición de archivos
       </button>
       <button onclick="setTab('config')" id="tab-btn-config" class="pb-3 px-4 border-b-2 tab-inactive transition-colors flex items-center gap-1.5 text-blue-700">
         <span>⚙️</span> 5. Configuración y Datos
       </button>
     </div>
 
-    <!-- TAB 1: VALORACIÓN CLÍNICA -->
+    <!-- TAB 1: INFORMACIÓN CLÍNICA -->
     <div id="tab-eval" class="space-y-6">
-      <div class="grid md:grid-cols-2 gap-6 items-start">
+      <!-- 6 Tarjetas de valoración clínica de tamaño uniforme y altura reducida (-30%) -->
+      <div class="grid md:grid-cols-2 gap-5 items-stretch">
         
-        <!-- Metabolismo Glucídico -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm transition-all">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-blue-600"></span> Metabolismo glucídico
-            </h3>
-            <span class="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Prevención de diabetes</span>
+        <!-- 1. Metabolismo Glucídico -->
+        <div onclick="openClinicalModal('glucidico')" 
+             class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between h-[200px] group">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span> Metabolismo glucídico
+              </h3>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded-full">Prevención diabetes</span>
+            </div>
+
+            <ul class="text-xs text-slate-600 space-y-1.5 leading-snug">
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Glucosa en ayunas:</strong> azúcar en sangre tras el periodo de ayuno.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>HbA1c:</strong> nivel medio de azúcar durante los últimos 2-3 meses.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Ratio TG/HDL:</strong> información sobre riesgo metabólico y resistencia insulínica.</span>
+              </li>
+            </ul>
           </div>
 
-          <ul class="text-sm text-slate-600 space-y-2 leading-relaxed">
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Glucosa en ayunas:</strong> mide la cantidad de azúcar presente en la sangre en el momento de la extracción, después de un periodo de ayuno.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Hemoglobina glicada (HbA1c):</strong> refleja el nivel medio de azúcar en sangre durante los últimos 2-3 meses y permite valorar su evolución a largo plazo.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Ratio Triglicéridos/HDL:</strong> Aporta información complementaria sobre el riesgo metabólico y una posible resistencia a la insulina, aunque no permite diagnosticarla por sí solo.</span>
-            </li>
-          </ul>
-
-          <!-- Bloque Desplegable / Colapsable -->
-          <details name="eval-cards-accordion" class="group mt-4 pt-3 border-t border-slate-100 text-slate-600">
-            <summary class="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-between list-none select-none py-1 focus:outline-none transition-colors">
-              <span class="group-open:hidden flex items-center gap-1.5">
-                <span>Desplegar: Ver información completa.</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-              </span>
-              <span class="hidden group-open:flex items-center gap-1.5 text-slate-500 hover:text-slate-700">
-                <span>Plegar información detallada</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-              </span>
-            </summary>
-
-            <div class="mt-3.5 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600">
-              <p>
-                Como orientación general, en adultos no embarazados y sin diabetes previamente diagnosticada, la <strong>Asociación Americana de Diabetes (ADA, 2026)</strong> establece los siguientes valores orientativos:
-              </p>
-
-              <!-- Tabla de valores ADA -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">Indicador</th>
-                      <th class="py-2.5 px-3 text-emerald-800 bg-emerald-50/60">Normal</th>
-                      <th class="py-2.5 px-3 text-amber-800 bg-amber-50/60">Prediabetes</th>
-                      <th class="py-2.5 px-3 text-rose-800 bg-rose-50/60">Posible diabetes</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Glucosa en ayunas</td>
-                      <td class="py-2.5 px-3 text-emerald-700 font-medium">Menos de 100 mg/dL</td>
-                      <td class="py-2.5 px-3 text-amber-700 font-medium">100-125 mg/dL</td>
-                      <td class="py-2.5 px-3 text-rose-700 font-medium">126 mg/dL o más</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">HbA1c</td>
-                      <td class="py-2.5 px-3 text-emerald-700 font-medium">Menos de 5.7 %</td>
-                      <td class="py-2.5 px-3 text-amber-700 font-medium">5.7-6.4 %</td>
-                      <td class="py-2.5 px-3 text-rose-700 font-medium">6.5 % o más</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">TG/HDL</td>
-                      <td class="py-2.5 px-3 text-emerald-700 font-medium">&lt; 2</td>
-                      <td class="py-2.5 px-3 text-slate-400 font-normal">-</td>
-                      <td class="py-2.5 px-3 text-slate-400 font-normal">-</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p>
-                La Organización Mundial de la Salud utiliza un umbral de 110 mg/dL para la alteración de la glucosa en ayunas, por lo que pueden existir diferencias entre las referencias utilizadas por distintos laboratorios y guías clínicas.
-              </p>
-
-              <p>
-                Para el ratio TG/HDL no existe un punto de corte universalmente aceptado. Su interpretación depende, entre otros factores, de las unidades empleadas, el sexo y las características de la población estudiada.
-              </p>
-
-              <!-- Sección Importante -->
-              <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
-                <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
-                  <span>⚠️</span> Importante sobre la interpretación de los resultados
-                </h4>
-                <p class="text-amber-900 leading-relaxed">
-                  Los rangos utilizados por los laboratorios son referencias orientativas, no fronteras absolutas entre salud y enfermedad. Un resultado fuera de rango no significa necesariamente que exista una enfermedad, del mismo modo que un resultado normal no descarta por completo una alteración metabólica.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los resultados compatibles con diabetes generalmente requieren confirmación mediante nuevas determinaciones.
-                </p>
-              </div>
-            </div>
-          </details>
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Ver información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
 
-        <!-- Perfil Lipídico -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm transition-all">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-blue-600"></span> Perfil lipídico
-            </h3>
-            <span class="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Prevención cardiovascular</span>
+        <!-- 2. Perfil Lipídico -->
+        <div onclick="openClinicalModal('lipidico')" 
+             class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between h-[200px] group">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span> Perfil lipídico
+              </h3>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded-full">Prevención cardiovascular</span>
+            </div>
+
+            <ul class="text-xs text-slate-600 space-y-1.5 leading-snug">
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Colesterol total:</strong> visión general, a valorar junto con sus fracciones.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Colesterol LDL:</strong> colesterol aterogénico; diana preventiva clave.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Colesterol HDL:</strong> transporte reverso; niveles bajos elevan el riesgo.</span>
+              </li>
+            </ul>
+            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+              + 3 determinaciones
+            </div>
           </div>
 
-          <ul class="text-sm text-slate-600 space-y-2 leading-relaxed">
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Colesterol total:</strong> Ofrece visión general, él solo no valora el riesgo cardiovascular.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Colesterol LDL:</strong> Colesterol «malo». Favorece acumulación de colesterol en arterias.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Colesterol HDL:</strong> Colesterol «bueno». Transporta el exceso de colesterol hacia el hígado. Niveles bajos pueden indicar mayor riesgo cardiovascular, pero un HDL elevado no compensa necesariamente el LDL alto.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Triglicéridos:</strong> Otro tipo de grasa presente en la sangre. Depende de factores como alimentación, exceso de peso, alcohol o determinadas alteraciones metabólicas.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Ratios Colesterol total/HDL y LDL/HDL:</strong> Aportan información complementaria.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Ratio Triglicéridos/HDL:</strong> Ayuda a identificar alteraciones como resistencia a la insulina y mayor riesgo cardiovascular.</span>
-            </li>
-          </ul>
-
-          <!-- Bloque Desplegable / Colapsable -->
-          <details name="eval-cards-accordion" class="group mt-4 pt-3 border-t border-slate-100 text-slate-600">
-            <summary class="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-between list-none select-none py-1 focus:outline-none transition-colors">
-              <span class="group-open:hidden flex items-center gap-1.5">
-                <span>Desplegar: Ver información completa.</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-              </span>
-              <span class="hidden group-open:flex items-center gap-1.5 text-slate-500 hover:text-slate-700">
-                <span>Plegar información detallada</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-              </span>
-            </summary>
-
-            <div class="mt-3.5 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600">
-              <p>
-                Como orientación general, los siguientes valores se utilizan habitualmente para evaluar el perfil lipídico:
-              </p>
-
-              <!-- Tabla 1: Valores habituales -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">Indicador</th>
-                      <th class="py-2.5 px-3">Valor orientativo</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol total</td>
-                      <td class="py-2.5 px-3 text-slate-700">Menos de 200 mg/dL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol HDL (hombres)</td>
-                      <td class="py-2.5 px-3 text-emerald-700 font-medium">Más de 40 mg/dL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol HDL (mujeres)</td>
-                      <td class="py-2.5 px-3 text-emerald-700 font-medium">Más de 46 mg/dL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Triglicéridos en ayunas</td>
-                      <td class="py-2.5 px-3 text-slate-700">Menos de 150 mg/dL</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p>
-                En el caso del LDL, el objetivo depende del riesgo cardiovascular individual. Las guías europeas ESC/EAS, actualizadas en 2025, mantienen los siguientes objetivos orientativos de colesterol LDL:
-              </p>
-
-              <!-- Tabla 2: Objetivos LDL según riesgo cardiovascular -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">Riesgo cardiovascular</th>
-                      <th class="py-2.5 px-3">Objetivo LDL</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Bajo</td>
-                      <td class="py-2.5 px-3 text-slate-700">Menos de 116 mg/dL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Moderado</td>
-                      <td class="py-2.5 px-3 text-slate-700">Menos de 100 mg/dL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Alto</td>
-                      <td class="py-2.5 px-3 text-amber-700 font-medium">Menos de 70 mg/dL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Muy alto</td>
-                      <td class="py-2.5 px-3 text-rose-700 font-medium">Menos de 55 mg/dL</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p>
-                Sobre los ratios: no existen puntos de corte universales que permitan clasificar de forma fiable el riesgo cardiovascular, deben interpretarse como indicadores complementarios.
-              </p>
-
-              <!-- Tabla 3: Ratios -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">Ratio</th>
-                      <th class="py-2.5 px-3">Valor orientativo</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol total / HDL</td>
-                      <td class="py-2.5 px-3 text-slate-700">&lt; 5 <span class="text-slate-400 font-normal">(recomendado)</span></td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">LDL / HDL</td>
-                      <td class="py-2.5 px-3 text-slate-700">&lt; 4.3 <span class="text-slate-400 font-normal">(recomendado)</span></td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2.5 px-3 font-semibold text-slate-800">TG / HDL</td>
-                      <td class="py-2.5 px-3 text-slate-700">&lt; 2 <span class="text-slate-400 font-normal">(recomendado)</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- Sección Importante -->
-              <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
-                <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
-                  <span>⚠️</span> Importante sobre la interpretación de los resultados
-                </h4>
-                <p class="text-amber-900 leading-relaxed">
-                  Los rangos utilizados por los laboratorios son referencias generales y no siempre coinciden con los objetivos recomendados para cada paciente. Un resultado dentro del intervalo del laboratorio no significa necesariamente que sea adecuado para tu situación particular.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  El riesgo cardiovascular depende también de la edad, la presión arterial, el tabaquismo, la diabetes, los antecedentes familiares y la existencia de enfermedades cardiovasculares previas, entre otros factores. Por ello, un profesional sanitario debe establecer los objetivos de colesterol adecuados para cada persona, especialmente cuando existen enfermedades previas o se recibe tratamiento para reducir el colesterol.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no calcula por sí sola tu riesgo cardiovascular global, no realiza diagnósticos ni sustituye la valoración de un profesional sanitario.
-                </p>
-              </div>
-
-              <p class="text-[11px] text-slate-500 italic pt-1">
-                <strong>Referencias clínicas:</strong> Sociedad Europea de Cardiología (ESC) y Sociedad Europea de Aterosclerosis (EAS), actualización de 2025 de las guías sobre dislipidemias.
-              </p>
-            </div>
-          </details>
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Ver información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
 
-        <!-- Función Renal -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm transition-all">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-blue-600"></span> Función renal
-            </h3>
-            <span class="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Prevención enfermedad renal</span>
+        <!-- 3. Función Renal -->
+        <div onclick="openClinicalModal('renal')" 
+             class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between h-[200px] group">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span> Función renal
+              </h3>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded-full">Prevención renal</span>
+            </div>
+
+            <ul class="text-xs text-slate-600 space-y-1.5 leading-snug">
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Creatinina:</strong> desecho muscular en orina; marcador clave de filtración.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Filtrado glomerular (eGFR):</strong> volumen filtrado por minuto.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Urea y Ácido úrico:</strong> desechos del metabolismo de proteínas y purinas.</span>
+              </li>
+            </ul>
+            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+              + 2 determinaciones
+            </div>
           </div>
 
-          <ul class="text-sm text-slate-600 space-y-2 leading-relaxed">
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Creatinina:</strong> Desecho producido principalmente por los músculos que los riñones eliminan en la orina. Su acumulación puede indicar reducción de la función renal.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Filtrado glomerular estimado (eGFR):</strong> Cantidad de sangre filtrada por minuto. Se obtiene a partir de la creatinina, edad y sexo.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Urea:</strong> Desecho generado al metabolizar las proteínas. Depende de la función renal, pero también de hidratación y alimentación.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Ácido úrico:</strong> Desecho de la descomposición de sustancias del organismo y alimentos. Puede relacionarse con gota, cálculos renales y otras alteraciones, pero no indica necesariamente pérdida de función renal.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Albuminuria y ratio Albúmina/Creatinina en orina (uACR):</strong> Indica presencia excesiva de albúmina, proteína que normalmente apenas pasa a la orina. Puede ser señal temprana de daño renal, incluso cuando eGFR todavía es normal.</span>
-            </li>
-          </ul>
-
-          <!-- Bloque Desplegable / Colapsable -->
-          <details name="eval-cards-accordion" class="group mt-4 pt-3 border-t border-slate-100 text-slate-600">
-            <summary class="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-between list-none select-none py-1 focus:outline-none transition-colors">
-              <span class="group-open:hidden flex items-center gap-1.5">
-                <span>Desplegar: Ver información completa.</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-              </span>
-              <span class="hidden group-open:flex items-center gap-1.5 text-slate-500 hover:text-slate-700">
-                <span>Plegar información detallada</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-              </span>
-            </summary>
-
-            <div class="mt-3.5 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600">
-              <p>
-                Las guías internacionales <strong>KDIGO 2024</strong> establecen las siguientes categorías orientativas para el filtrado glomerular estimado:
-              </p>
-
-              <!-- Tabla 1: Categorías eGFR KDIGO 2024 -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">eGFR (ml/min/1,73 m²)</th>
-                      <th class="py-2.5 px-3">Interpretación</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">90 o más</td>
-                      <td class="py-2 px-3 text-emerald-700 font-medium">Normal o elevado</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">60-89</td>
-                      <td class="py-2 px-3 text-slate-700">Ligeramente disminuido</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">45-59</td>
-                      <td class="py-2 px-3 text-amber-700 font-medium">Disminución leve a moderada</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">30-44</td>
-                      <td class="py-2 px-3 text-amber-800 font-medium">Disminución moderada a grave</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">15-29</td>
-                      <td class="py-2 px-3 text-rose-700 font-medium">Disminución grave</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Menos de 15</td>
-                      <td class="py-2 px-3 text-rose-800 font-semibold">Insuficiencia renal</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p>
-                <strong>Importante:</strong> un filtrado entre 60 y 89 ml/min/1,73 m² no significa necesariamente que exista una enfermedad renal, especialmente en personas de mayor edad. Debe interpretarse junto con la albuminuria, la evolución temporal y otros posibles signos de daño renal.
-              </p>
-
-              <p>
-                El seguimiento del filtrado glomerular y la albuminuria resulta especialmente importante en personas con hipertensión arterial, diabetes o enfermedades cardiovasculares.
-              </p>
-
-              <p>
-                La albuminuria se clasifica habitualmente mediante el ratio uACR:
-              </p>
-
-              <!-- Tabla 2: Ratio uACR -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">uACR (mg/g)</th>
-                      <th class="py-2.5 px-3">Interpretación</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Menos de 30</td>
-                      <td class="py-2 px-3 text-emerald-700 font-medium">Normal o ligeramente aumentada</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">30-300</td>
-                      <td class="py-2 px-3 text-amber-700 font-medium">Moderadamente aumentada</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Más de 300</td>
-                      <td class="py-2 px-3 text-rose-700 font-medium">Gravemente aumentada</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- Sección Importante -->
-              <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
-                <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
-                  <span>⚠️</span> Importante sobre la interpretación de los resultados
-                </h4>
-                <p class="text-amber-900 leading-relaxed">
-                  Los valores de referencia son orientativos y deben interpretarse teniendo en cuenta la edad, la masa muscular, la hidratación, los medicamentos y las enfermedades previas. La creatinina y el filtrado estimado pueden experimentar variaciones transitorias sin que necesariamente exista un daño renal permanente. Del mismo modo, la albuminuria puede aumentar temporalmente por situaciones como ejercicio intenso, fiebre o determinadas enfermedades.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Según las recomendaciones KDIGO, generalmente debe existir una alteración de la estructura o función renal durante al menos tres meses para establecer ese diagnóstico.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los cambios relevantes deben ser interpretados por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios complementarios.
-                </p>
-              </div>
-
-              <p class="text-[11px] text-slate-500 italic pt-1">
-                <strong>Referencias clínicas:</strong> KDIGO, Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease (2024).
-              </p>
-            </div>
-          </details>
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Ver información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
 
-        <!-- Hepática -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm transition-all">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-blue-600"></span> Función hepática
-            </h3>
-            <span class="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Alteraciones hepáticas</span>
+        <!-- 4. Función Hepática -->
+        <div onclick="openClinicalModal('hepatico')" 
+             class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between h-[200px] group">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span> Función hepática
+              </h3>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded-full">Prevención hepática</span>
+            </div>
+
+            <ul class="text-xs text-slate-600 space-y-1.5 leading-snug">
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>GPT / ALT:</strong> enzima clave; elevación indica inflamación hepática.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>GOT / AST:</strong> enzima hepática y muscular; se valora junto con ALT.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>GGT y FA:</strong> afectación de vías biliares, alcohol o fármacos.</span>
+              </li>
+            </ul>
+            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+              + 5 determinaciones
+            </div>
           </div>
 
-          <ul class="text-sm text-slate-600 space-y-2 leading-relaxed">
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>GPT / ALT:</strong> Enzima cuya elevación puede indicar inflamación o lesión hepática.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>GOT / AST:</strong> Enzima cuya elevación puede indicar lesión hepática, como también está en los músculos debe interpretarse junto a ALT.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>GGT:</strong> Enzima que puede elevarse por alteraciones hepáticas, alcohol o determinados medicamentos.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Fosfatasa alcalina (FA):</strong> Ayuda a detectar dificultades en la circulación de la bilis. También se produce en los huesos, por lo que una elevación no siempre indica un problema hepático.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Bilirrubina total:</strong> Desecho de los glóbulos rojos envejecidos, su elevación puede indicar alteraciones hepáticas, biliares o de la sangre.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Albúmina:</strong> Proteína producida por el hígado que ayuda a mantener líquidos en la sangre y transporta diversas sustancias. Su disminución puede relacionarse con enfermedad hepática, inflamación general, pérdidas de proteínas por los riñones o problemas nutricionales.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Tiempo de protrombina (TP):</strong> Tiempo que tarda la sangre en coagular. El hígado fabrica varias proteínas necesarias para la coagulación, por lo que un aumento del TP puede indicar una disminución de su capacidad de producción.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>INR:</strong> Forma estandarizada de expresar el TP para reducir las diferencias entre laboratorios.</span>
-            </li>
-          </ul>
-
-          <!-- Bloque Desplegable / Colapsable -->
-          <details name="eval-cards-accordion" class="group mt-4 pt-3 border-t border-slate-100 text-slate-600">
-            <summary class="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-between list-none select-none py-1 focus:outline-none transition-colors">
-              <span class="group-open:hidden flex items-center gap-1.5">
-                <span>Desplegar: Ver información completa.</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-              </span>
-              <span class="hidden group-open:flex items-center gap-1.5 text-slate-500 hover:text-slate-700">
-                <span>Plegar información detallada</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-              </span>
-            </summary>
-
-            <div class="mt-3.5 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600">
-              <p>
-                Los límites pueden variar según el método utilizado, la edad y el sexo. Por ello, esta aplicación utiliza los intervalos proporcionados por el laboratorio que ha realizado cada analítica. Una elevación simultánea de varios indicadores aporta información más útil que una alteración aislada.
-              </p>
-
-              <p>
-                Su seguimiento resulta especialmente interesante en personas con sobrepeso, diabetes, consumo habitual de alcohol o tratamientos farmacológicos que puedan afectar al hígado.
-              </p>
-
-              <p>
-                Como orientación general:
-              </p>
-
-              <!-- Tabla de valores orientativos -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">Indicador</th>
-                      <th class="py-2.5 px-3">Qué puede indicar su elevación</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">GPT / ALT</td>
-                      <td class="py-2 px-3 text-slate-700">Posible inflamación o lesión de las células hepáticas</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">GOT / AST</td>
-                      <td class="py-2 px-3 text-slate-700">Posible alteración hepática o muscular</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">GGT</td>
-                      <td class="py-2 px-3 text-slate-700">Posible alteración hepática o de las vías biliares</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Fosfatasa alcalina</td>
-                      <td class="py-2 px-3 text-slate-700">Posible alteración biliar u ósea</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Bilirrubina total</td>
-                      <td class="py-2 px-3 text-slate-700">Posible alteración en la producción, procesamiento o eliminación de la bilirrubina</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Albúmina sérica</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">3.4-5.4 g/dL (34-54 g/L)</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Tiempo de protrombina (TP)</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">11-13.5 segundos</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">INR</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">0.8-1.1 (personas no anticoaguladas)</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- Sección Importante -->
-              <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
-                <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
-                  <span>⚠️</span> Importante sobre la interpretación de los resultados
-                </h4>
-                <p class="text-amber-900 leading-relaxed">
-                  Los valores fuera de rango no significan necesariamente que exista una enfermedad hepática. Las enzimas pueden experimentar elevaciones transitorias relacionadas con ejercicio intenso, medicamentos, infecciones u otras circunstancias.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Las enzimas ALT, AST, GGT y fosfatasa alcalina informan sobre posibles alteraciones hepáticas, pero no miden directamente la capacidad funcional del hígado.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Las alteraciones persistentes o importantes deben ser evaluadas por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios adicionales.
-                </p>
-              </div>
-
-              <p class="text-[11px] text-slate-500 italic pt-1">
-                <strong>Referencias clínicas:</strong> American Association for the Study of Liver Diseases (AASLD), How to Approach Elevated Liver Enzymes (2025). British Society of Gastroenterology (BSG), Guidelines on the Management of Abnormal Liver Blood Tests (2018). MedlinePlus, Pruebas funcionales hepáticas.
-              </p>
-            </div>
-          </details>
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Ver información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
 
-        <!-- Hemograma y Hierro -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm transition-all">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-blue-600"></span> Hemograma / hierro
-            </h3>
-            <span class="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Prevención anemia</span>
+        <!-- 5. Hemograma / Hierro -->
+        <div onclick="openClinicalModal('hemograma')" 
+             class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between h-[200px] group">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span> Hemograma / hierro
+              </h3>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded-full">Prevención general y anemia</span>
+            </div>
+
+            <ul class="text-xs text-slate-600 space-y-1.5 leading-snug">
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Hemoglobina y Hto:</strong> transporte de O₂ y masa de glóbulos rojos.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>VCM, Leucocitos y Plaquetas:</strong> tamaño, defensas y coagulación.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Ferritina y Hierro sérico:</strong> estado de reservas de hierro.</span>
+              </li>
+            </ul>
+            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+              + 4 determinaciones
+            </div>
           </div>
 
-          <ul class="text-sm text-slate-600 space-y-2 leading-relaxed">
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Hemoglobina:</strong> es la proteína de los glóbulos rojos encargada de transportar oxígeno a los tejidos. Su disminución es uno de los principales indicadores de anemia.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Hematocrito:</strong> indica qué proporción de la sangre está formada por glóbulos rojos. Ayuda a valorar posibles alteraciones en su cantidad, aunque también depende del estado de hidratación.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Volumen corpuscular medio (VCM):</strong> indica el tamaño medio de los glóbulos rojos. Puede ayudar a orientar las posibles causas de una anemia, como la falta de hierro o de determinadas vitaminas.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Leucocitos:</strong> son las células encargadas de defender al organismo frente a infecciones y otras amenazas. Sus niveles pueden variar por infecciones, inflamación, medicamentos y otras circunstancias.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Plaquetas:</strong> participan en la formación de coágulos para detener las hemorragias. Sus alteraciones pueden relacionarse con diferentes enfermedades o afectar a la capacidad de coagulación.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Ferritina:</strong> refleja principalmente las reservas de hierro del organismo. Es uno de los indicadores más útiles para detectar una falta de hierro, incluso antes de que aparezca anemia.</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
-              <span><strong>Hierro sérico:</strong> mide el hierro que circula en la sangre unido principalmente a la transferrina. Su concentración puede variar considerablemente y debe interpretarse junto con la ferritina y otros indicadores.</span>
-            </li>
-          </ul>
-
-          <!-- Bloque Desplegable / Colapsable -->
-          <details name="eval-cards-accordion" class="group mt-4 pt-3 border-t border-slate-100 text-slate-600">
-            <summary class="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-between list-none select-none py-1 focus:outline-none transition-colors">
-              <span class="group-open:hidden flex items-center gap-1.5">
-                <span>Desplegar: Ver información completa.</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-              </span>
-              <span class="hidden group-open:flex items-center gap-1.5 text-slate-500 hover:text-slate-700">
-                <span>Plegar información detallada</span>
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
-              </span>
-            </summary>
-
-            <div class="mt-3.5 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600">
-              <p>
-                Como orientación general, los siguientes valores pueden ayudar a comprender algunos resultados del hemograma y del metabolismo del hierro:
-              </p>
-
-              <!-- Tabla de valores orientativos -->
-              <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
-                <table class="w-full text-xs text-left">
-                  <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th class="py-2.5 px-3">Indicador</th>
-                      <th class="py-2.5 px-3">Valor orientativo</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Hemoglobina en hombres adultos</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">13 g/dL o más</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Hemoglobina en mujeres adultas no embarazadas</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">12 g/dL o más</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">VCM</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">Aproximadamente 80-100 fL</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Leucocitos</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">Aproximadamente 4-11 × 10⁹/L</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Plaquetas</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">Aproximadamente 150-400 × 10⁹/L</td>
-                    </tr>
-                    <tr class="hover:bg-slate-50/50">
-                      <td class="py-2 px-3 font-semibold text-slate-800">Ferritina</td>
-                      <td class="py-2 px-3 text-slate-700 font-medium">Menos de 15 ng/mL sugiere reservas de hierro agotadas en adultos sin inflamación</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <p>
-                Los umbrales de hemoglobina para definir anemia proceden de la OMS (2024). Los intervalos del VCM, leucocitos y plaquetas son orientativos y pueden variar entre laboratorios.
-              </p>
-
-              <p>
-                Sobre la ferritina: valores inferiores a 30 ng/mL también pueden orientar hacia una deficiencia de hierro, especialmente cuando existe anemia. Sin embargo, la ferritina puede elevarse por inflamación, infecciones o enfermedades hepáticas, por lo que un resultado aparentemente normal no siempre descarta una falta de hierro.
-              </p>
-
-              <p>
-                El hierro sérico debe interpretarse según el intervalo proporcionado por el laboratorio. No es recomendable utilizarlo aisladamente para determinar si existe deficiencia de hierro.
-              </p>
-
-              <p>
-                Una disminución progresiva de la hemoglobina puede indicar el desarrollo de anemia, mientras que una reducción de la ferritina puede revelar un agotamiento de las reservas de hierro antes de que la hemoglobina descienda.
-              </p>
-
-              <!-- Sección Importante -->
-              <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
-                <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
-                  <span>⚠️</span> Importante sobre la interpretación de los resultados
-                </h4>
-                <p class="text-amber-900 leading-relaxed">
-                  Los valores de referencia deben interpretarse teniendo en cuenta la edad, el sexo, los antecedentes médicos, los tratamientos y las circunstancias individuales.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  No todas las anemias se deben a una falta de hierro. También pueden aparecer por déficit de vitamina B12 o ácido fólico, pérdidas de sangre, enfermedades renales, inflamación crónica y otras causas.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Asimismo, un aumento o descenso de los leucocitos o las plaquetas no indica necesariamente una enfermedad grave. Su significado depende de la magnitud de la alteración, su persistencia y los demás resultados.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Una consideración especialmente importante es que no todas las tendencias ascendentes o descendentes representan una mejoría o un empeoramiento. En parámetros como la hemoglobina, los leucocitos o las plaquetas, tanto los valores excesivamente altos como los bajos pueden requerir atención.
-                </p>
-                <p class="text-amber-900 leading-relaxed">
-                  Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los resultados alterados o los cambios persistentes deben ser evaluados por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios complementarios.
-                </p>
-              </div>
-
-              <p class="text-[11px] text-slate-500 italic pt-1">
-                <strong>Referencias clínicas:</strong> Organización Mundial de la Salud (OMS), Guideline on haemoglobin cutoffs to define anaemia in individuals and populations (2024). Guideline on use of ferritin concentrations to assess iron status (2020). British Society of Gastroenterology, Guidelines for the management of iron deficiency anaemia in adults (2021). MedlinePlus, Conteo sanguíneo completo y Prueba de sangre de ferritina.
-              </p>
-            </div>
-          </details>
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Ver información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
 
-        <!-- Tiroides y Paneles Complementarios -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <div class="flex justify-between items-center mb-3">
-            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span class="w-3 h-3 rounded-full bg-blue-600"></span> Eje Tiroideo y Paneles Dinámicos
-            </h3>
-            <span class="px-2.5 py-0.5 bg-purple-100 text-purple-800 text-xs font-bold rounded-full">Tiroides y Vigilancia</span>
+        <!-- 6. Función Tiroidea -->
+        <div onclick="openClinicalModal('tiroideo')" 
+             class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-400 cursor-pointer transition-all flex flex-col justify-between h-[200px] group">
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span> Función tiroidea
+              </h3>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[11px] font-bold rounded-full">Prevención tiroidea</span>
+            </div>
+
+            <ul class="text-xs text-slate-600 space-y-1.5 leading-snug">
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>TSH:</strong> hormona hipofisaria que comanda la función tiroidea.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>T4 libre:</strong> principal hormona tiroidea circulante en sangre.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>T3 libre:</strong> forma activa para valoración complementaria.</span>
+              </li>
+            </ul>
+            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+              + 2 determinaciones
+            </div>
           </div>
-          <p class="text-sm text-slate-600 leading-relaxed">
-            Control de <strong>TSH</strong> y <strong>T4 Libre / T3 Libre</strong> para descarte de disfunción tiroidea subclínica. En la tarjeta inferior de <em>Otros valores de interés</em> se supervisan dinámicamente el cribado urológico (<strong>PSA Total/Libre</strong> en varones), metabolismo fosfocálcico y <strong>Vitamina D</strong>, e inflamación.
-          </p>
+
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+            <span class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+              Ver información completa
+            </span>
+            <span class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all">→</span>
+          </div>
         </div>
 
       </div>
     </div>
 
-    <!-- TAB 2: GRÁFICOS EVOLUTIVOS -->
+    <!-- VENTANA MODAL SUPERPUESTA DE VALORACIÓN CLÍNICA DETALLADA -->
+    <dialog id="evalClinicalModal" closedby="any" aria-labelledby="evalModalTitle" class="fixed inset-0 m-auto max-w-4xl w-[94vw] md:w-full max-h-[90vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+      <div class="flex flex-col max-h-[90vh]">
+        <!-- Cabecera fija del modal -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white sticky top-0 z-10">
+          <div class="flex items-center gap-3">
+            <span id="evalModalDot" class="w-3.5 h-3.5 rounded-full bg-blue-600 shrink-0"></span>
+            <h2 id="evalModalTitle" class="text-lg sm:text-xl font-bold text-slate-900"></h2>
+            <span id="evalModalBadge" class="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full hidden sm:inline-block"></span>
+          </div>
+          <button type="button" onclick="closeClinicalModal()" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer" aria-label="Cerrar ventana informativa">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Contenido completo con scroll vertical independiente -->
+        <div id="evalModalBody" class="p-6 overflow-y-auto space-y-5 text-slate-600 text-xs sm:text-sm leading-relaxed">
+          <!-- Inyectado dinámicamente desde las plantillas inferiores -->
+        </div>
+      </div>
+    </dialog>
+
+    <!-- VENTANA MODAL SUPERPUESTA DE INFORMACIÓN COMPLETA DE TARJETA KPI -->
+    <dialog id="kpiDetailModal" closedby="any" aria-labelledby="kpiModalTitle" class="fixed inset-x-0 mx-auto max-w-2xl sm:max-w-3xl w-[96vw] sm:w-[680px] md:w-[760px] lg:w-[840px] h-fit max-h-[92vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+      <div class="relative flex flex-col">
+        <!-- Cabecera fija del modal con flechas en los extremos y título centrado -->
+        <div class="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 bg-white shrink-0">
+          <!-- Extremo izquierdo: Flecha anterior fija -->
+          <div class="w-16 sm:w-20 flex items-center justify-start shrink-0">
+            <button type="button" onclick="navigateKpiModal(-1)" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs" title="Tarjeta anterior (flecha izquierda ←)" aria-label="Tarjeta anterior">
+              <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+          </div>
+
+          <!-- Centro: Título centrado con su icono del punto azul -->
+          <div class="flex-1 flex items-center justify-center gap-2 px-2 text-center min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span>
+            <h2 id="kpiModalTitle" class="text-base sm:text-lg font-bold text-slate-900 leading-tight truncate"></h2>
+          </div>
+
+          <!-- Extremo derecho: Flecha siguiente y botón cerrar fijados -->
+          <div class="w-16 sm:w-20 flex items-center justify-end gap-1.5 sm:gap-2 shrink-0">
+            <button type="button" onclick="navigateKpiModal(1)" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200/80 flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs" title="Tarjeta siguiente (flecha derecha →)" aria-label="Tarjeta siguiente">
+              <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+            <button type="button" onclick="closeKpiModal()" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 sm:p-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shrink-0" aria-label="Cerrar detalle">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Contenido completo con scroll vertical de respaldo -->
+        <div id="kpiModalBody" class="px-5 sm:px-6 py-4 sm:py-5 overflow-y-auto space-y-3.5 text-slate-700 text-sm leading-relaxed">
+          <!-- Inyectado dinámicamente -->
+        </div>
+      </div>
+    </dialog>
+
+    <!-- PLANTILLAS DE CONTENIDO DETALLADO PARA EL MODAL -->
+    <div id="eval-modal-templates" class="hidden">
+
+      <!-- Plantilla: Metabolismo Glucídico -->
+      <template id="eval-tpl-glucidico">
+        <ul class="text-sm text-slate-600 space-y-2.5 leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Glucosa en ayunas:</strong> mide la cantidad de azúcar presente en la sangre en el momento de la extracción, después de un periodo de ayuno.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Hemoglobina glicada (HbA1c):</strong> refleja el nivel medio de azúcar en sangre durante los últimos 2-3 meses y permite valorar su evolución a largo plazo.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Ratio Triglicéridos/HDL:</strong> Aporta información complementaria sobre el riesgo metabólico y una posible resistencia a la insulina, aunque no permite diagnosticarla por sí solo.</span>
+          </li>
+        </ul>
+
+        <div class="pt-2 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600 border-t border-slate-100">
+          <p>
+            Como orientación general, en adultos no embarazados y sin diabetes previamente diagnosticada, la <strong>Asociación Americana de Diabetes (ADA, 2026)</strong> establece los siguientes valores orientativos:
+          </p>
+
+          <!-- Tabla de valores ADA -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Indicador</th>
+                  <th class="py-2.5 px-3 text-emerald-800 bg-emerald-50/60">Normal</th>
+                  <th class="py-2.5 px-3 text-amber-800 bg-amber-50/60">Prediabetes</th>
+                  <th class="py-2.5 px-3 text-rose-800 bg-rose-50/60">Posible diabetes</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Glucosa en ayunas</td>
+                  <td class="py-2.5 px-3 text-emerald-700 font-medium">Menos de 100 mg/dL</td>
+                  <td class="py-2.5 px-3 text-amber-700 font-medium">100-125 mg/dL</td>
+                  <td class="py-2.5 px-3 text-rose-700 font-medium">126 mg/dL o más</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">HbA1c</td>
+                  <td class="py-2.5 px-3 text-emerald-700 font-medium">Menos de 5.7 %</td>
+                  <td class="py-2.5 px-3 text-amber-700 font-medium">5.7-6.4 %</td>
+                  <td class="py-2.5 px-3 text-rose-700 font-medium">6.5 % o más</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">TG/HDL</td>
+                  <td class="py-2.5 px-3 text-emerald-700 font-medium">&lt; 2</td>
+                  <td class="py-2.5 px-3 text-slate-400 font-normal">-</td>
+                  <td class="py-2.5 px-3 text-slate-400 font-normal">-</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            La Organización Mundial de la Salud utiliza un umbral de 110 mg/dL para la alteración de la glucosa en ayunas, por lo que pueden existir diferencias entre las referencias utilizadas por distintos laboratorios y guías clínicas.
+          </p>
+
+          <p>
+            Para el ratio TG/HDL no existe un punto de corte universalmente aceptado. Su interpretación depende, entre otros factores, de las unidades empleadas, el sexo y las características de la población estudiada.
+          </p>
+
+          <!-- Sección Importante -->
+          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
+              <span>⚠️</span> Importante sobre la interpretación de los resultados
+            </h4>
+            <p class="text-amber-900 leading-relaxed">
+              Los rangos utilizados por los laboratorios son referencias orientativas, no fronteras absolutas entre salud y enfermedad. Un resultado fuera de rango no significa necesariamente que exista una enfermedad, del mismo modo que un resultado normal no descarta por completo una alteración metabólica.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los resultados compatibles con diabetes generalmente requieren confirmación mediante nuevas determinaciones.
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <!-- Plantilla: Perfil Lipídico -->
+      <template id="eval-tpl-lipidico">
+        <ul class="text-sm text-slate-600 space-y-2.5 leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Colesterol total:</strong> Ofrece visión general, él solo no valora el riesgo cardiovascular.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Colesterol LDL:</strong> Colesterol «malo». Favorece acumulación de colesterol en arterias.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Colesterol HDL:</strong> Colesterol «bueno». Transporta el exceso de colesterol hacia el hígado. Niveles bajos pueden indicar mayor riesgo cardiovascular, pero un HDL elevado no compensa necesariamente el LDL alto.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Triglicéridos:</strong> Otro tipo de grasa presente en la sangre. Depende de factores como alimentación, exceso de peso, alcohol o determinadas alteraciones metabólicas.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Ratios Colesterol total/HDL y LDL/HDL:</strong> Aportan información complementaria.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Ratio Triglicéridos/HDL:</strong> Ayuda a identificar alteraciones como resistencia a la insulina y mayor riesgo cardiovascular.</span>
+          </li>
+        </ul>
+
+        <div class="pt-2 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600 border-t border-slate-100">
+          <p>
+            Como orientación general, los siguientes valores se utilizan habitualmente para evaluar el perfil lipídico:
+          </p>
+
+          <!-- Tabla 1: Valores habituales -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Indicador</th>
+                  <th class="py-2.5 px-3">Valor orientativo</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol total</td>
+                  <td class="py-2.5 px-3 text-slate-700">Menos de 200 mg/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol HDL (hombres)</td>
+                  <td class="py-2.5 px-3 text-emerald-700 font-medium">Más de 40 mg/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol HDL (mujeres)</td>
+                  <td class="py-2.5 px-3 text-emerald-700 font-medium">Más de 46 mg/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Triglicéridos en ayunas</td>
+                  <td class="py-2.5 px-3 text-slate-700">Menos de 150 mg/dL</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            En el caso del LDL, el objetivo depende del riesgo cardiovascular individual. Las guías europeas ESC/EAS, actualizadas en 2025, mantienen los siguientes objetivos orientativos de colesterol LDL:
+          </p>
+
+          <!-- Tabla 2: Objetivos LDL según riesgo cardiovascular -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Riesgo cardiovascular</th>
+                  <th class="py-2.5 px-3">Objetivo LDL</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Bajo</td>
+                  <td class="py-2.5 px-3 text-slate-700">Menos de 116 mg/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Moderado</td>
+                  <td class="py-2.5 px-3 text-slate-700">Menos de 100 mg/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Alto</td>
+                  <td class="py-2.5 px-3 text-amber-700 font-medium">Menos de 70 mg/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Muy alto</td>
+                  <td class="py-2.5 px-3 text-rose-700 font-medium">Menos de 55 mg/dL</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            Sobre los ratios: no existen puntos de corte universales que permitan clasificar de forma fiable el riesgo cardiovascular, deben interpretarse como indicadores complementarios.
+          </p>
+
+          <!-- Tabla 3: Ratios -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Ratio</th>
+                  <th class="py-2.5 px-3">Valor orientativo</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Colesterol total / HDL</td>
+                  <td class="py-2.5 px-3 text-slate-700">&lt; 5 <span class="text-slate-400 font-normal">(recomendado)</span></td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">LDL / HDL</td>
+                  <td class="py-2.5 px-3 text-slate-700">&lt; 4.3 <span class="text-slate-400 font-normal">(recomendado)</span></td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">TG / HDL</td>
+                  <td class="py-2.5 px-3 text-slate-700">&lt; 2 <span class="text-slate-400 font-normal">(recomendado)</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Sección Importante -->
+          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
+              <span>⚠️</span> Importante sobre la interpretación de los resultados
+            </h4>
+            <p class="text-amber-900 leading-relaxed">
+              Los rangos utilizados por los laboratorios son referencias generales y no siempre coinciden con los objetivos recomendados para cada paciente. Un resultado dentro del intervalo del laboratorio no significa necesariamente que sea adecuado para tu situación particular.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              El riesgo cardiovascular depende también de la edad, la presión arterial, el tabaquismo, la diabetes, los antecedentes familiares y la existencia de enfermedades cardiovasculares previas, entre otros factores. Por ello, un profesional sanitario debe establecer los objetivos de colesterol adecuados para cada persona, especialmente cuando existen enfermedades previas o se recibe tratamiento para reducir el colesterol.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no calcula por sí sola tu riesgo cardiovascular global, no realiza diagnósticos ni sustituye la valoración de un profesional sanitario.
+            </p>
+          </div>
+
+          <p class="text-[11px] text-slate-500 italic pt-1">
+            <strong>Referencias clínicas:</strong> Sociedad Europea de Cardiología (ESC) y Sociedad Europea de Aterosclerosis (EAS), actualización de 2025 de las guías sobre dislipidemias.
+          </p>
+        </div>
+      </template>
+
+      <!-- Plantilla: Función Renal -->
+      <template id="eval-tpl-renal">
+        <ul class="text-sm text-slate-600 space-y-2.5 leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Creatinina:</strong> Desecho producido principalmente por los músculos que los riñones eliminan en la orina. Su acumulación puede indicar reducción de la función renal.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Filtrado glomerular estimado (eGFR):</strong> Cantidad de sangre filtrada por minuto. Se obtiene a partir de la creatinina, edad y sexo.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Urea:</strong> Desecho generado al metabolizar las proteínas. Depende de la función renal, pero también de hidratación y alimentación.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Ácido úrico:</strong> Desecho de la descomposición de sustancias del organismo y alimentos. Puede relacionarse con gota, cálculos renales y otras alteraciones, pero no indica necesariamente pérdida de función renal.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Albuminuria y ratio Albúmina/Creatinina en orina (uACR):</strong> Indica presencia excesiva de albúmina, proteína que normalmente apenas pasa a la orina. Puede ser señal temprana de daño renal, incluso cuando eGFR todavía es normal.</span>
+          </li>
+        </ul>
+
+        <div class="pt-2 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600 border-t border-slate-100">
+          <p>
+            Las guías internacionales <strong>KDIGO 2024</strong> establecen las siguientes categorías orientativas para el filtrado glomerular estimado:
+          </p>
+
+          <!-- Tabla 1: Categorías eGFR KDIGO 2024 -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">eGFR (ml/min/1,73 m²)</th>
+                  <th class="py-2.5 px-3">Interpretación</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">90 o más</td>
+                  <td class="py-2 px-3 text-emerald-700 font-medium">Normal o elevado</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">60-89</td>
+                  <td class="py-2 px-3 text-slate-700">Ligeramente disminuido</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">45-59</td>
+                  <td class="py-2 px-3 text-amber-700 font-medium">Disminución leve a moderada</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">30-44</td>
+                  <td class="py-2 px-3 text-amber-800 font-medium">Disminución moderada a grave</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">15-29</td>
+                  <td class="py-2 px-3 text-rose-700 font-medium">Disminución grave</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Menos de 15</td>
+                  <td class="py-2 px-3 text-rose-800 font-semibold">Insuficiencia renal</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            <strong>Importante:</strong> un filtrado entre 60 y 89 ml/min/1,73 m² no significa necesariamente que exista una enfermedad renal, especialmente en personas de mayor edad. Debe interpretarse junto con la albuminuria, la evolución temporal y otros posibles signos de daño renal.
+          </p>
+
+          <p>
+            El seguimiento del filtrado glomerular y la albuminuria resulta especialmente importante en personas con hipertensión arterial, diabetes o enfermedades cardiovasculares.
+          </p>
+
+          <p>
+            La albuminuria se clasifica habitualmente mediante el ratio uACR:
+          </p>
+
+          <!-- Tabla 2: Ratio uACR -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">uACR (mg/g)</th>
+                  <th class="py-2.5 px-3">Interpretación</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Menos de 30</td>
+                  <td class="py-2 px-3 text-emerald-700 font-medium">Normal o ligeramente aumentada</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">30-300</td>
+                  <td class="py-2 px-3 text-amber-700 font-medium">Moderadamente aumentada</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Más de 300</td>
+                  <td class="py-2 px-3 text-rose-700 font-medium">Gravemente aumentada</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Sección Importante -->
+          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
+              <span>⚠️</span> Importante sobre la interpretación de los resultados
+            </h4>
+            <p class="text-amber-900 leading-relaxed">
+              Los valores de referencia son orientativos y deben interpretarse teniendo en cuenta la edad, la masa muscular, la hidratación, los medicamentos y las enfermedades previas. La creatinina y el filtrado estimado pueden experimentar variaciones transitorias sin que necesariamente exista un daño renal permanente. Del mismo modo, la albuminuria puede aumentar temporalmente por situaciones como ejercicio intenso, fiebre o determinadas enfermedades.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Según las recomendaciones KDIGO, generalmente debe existir una alteración de la estructura o función renal durante al menos tres meses para establecer ese diagnóstico.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los cambios relevantes deben ser interpretados por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios complementarios.
+            </p>
+          </div>
+
+          <p class="text-[11px] text-slate-500 italic pt-1">
+            <strong>Referencias clínicas:</strong> KDIGO, Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease (2024).
+          </p>
+        </div>
+      </template>
+
+      <!-- Plantilla: Función Hepática -->
+      <template id="eval-tpl-hepatico">
+        <ul class="text-sm text-slate-600 space-y-2.5 leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>GPT / ALT:</strong> Enzima cuya elevación puede indicar inflamación o lesión hepática.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>GOT / AST:</strong> Enzima cuya elevación puede indicar lesión hepática, como también está en los músculos debe interpretarse junto a ALT.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>GGT:</strong> Enzima que puede elevarse por alteraciones hepáticas, alcohol o determinados medicamentos.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Fosfatasa alcalina (FA):</strong> Ayuda a detectar dificultades en la circulación de la bilis. También se produce en los huesos, por lo que una elevación no siempre indica un problema hepático.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Bilirrubina total:</strong> Desecho de los glóbulos rojos envejecidos, su elevación puede indicar alteraciones hepáticas, biliares o de la sangre.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Albúmina:</strong> Proteína producida por el hígado que ayuda a mantener líquidos en la sangre y transporta diversas sustancias. Su disminución puede relacionarse con enfermedad hepática, inflamación general, pérdidas de proteínas por los riñones o problemas nutricionales.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Tiempo de protrombina (TP):</strong> Tiempo que tarda la sangre en coagular. El hígado fabrica varias proteínas necesarias para la coagulación, por lo que un aumento del TP puede indicar una disminución de su capacidad de producción.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>INR:</strong> Forma estandarizada de expresar el TP para reducir las diferencias entre laboratorios.</span>
+          </li>
+        </ul>
+
+        <div class="pt-2 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600 border-t border-slate-100">
+          <p>
+            Los límites pueden variar según el método utilizado, la edad y el sexo. Por ello, esta aplicación utiliza los intervalos proporcionados por el laboratorio que ha realizado cada analítica. Una elevación simultánea de varios indicadores aporta información más útil que una alteración aislada.
+          </p>
+
+          <p>
+            Su seguimiento resulta especialmente interesante en personas con sobrepeso, diabetes, consumo habitual de alcohol o tratamientos farmacológicos que puedan afectar al hígado.
+          </p>
+
+          <p>
+            Como orientación general:
+          </p>
+
+          <!-- Tabla de valores orientativos -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Indicador</th>
+                  <th class="py-2.5 px-3">Qué puede indicar su elevación</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">GPT / ALT</td>
+                  <td class="py-2 px-3 text-slate-700">Posible inflamación o lesión de las células hepáticas</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">GOT / AST</td>
+                  <td class="py-2 px-3 text-slate-700">Posible alteración hepática o muscular</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">GGT</td>
+                  <td class="py-2 px-3 text-slate-700">Posible alteración hepática o de las vías biliares</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Fosfatasa alcalina</td>
+                  <td class="py-2 px-3 text-slate-700">Posible alteración biliar u ósea</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Bilirrubina total</td>
+                  <td class="py-2 px-3 text-slate-700">Posible alteración en la producción, procesamiento o eliminación de la bilirrubina</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Albúmina sérica</td>
+                  <td class="py-2 px-3 text-slate-700 font-medium">3.4-5.4 g/dL (34-54 g/L)</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">Tiempo de protrombina (TP)</td>
+                  <td class="py-2 px-3 text-slate-700 font-medium">11-13.5 segundos</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">INR</td>
+                  <td class="py-2 px-3 text-slate-700 font-medium">0.8-1.1 (personas no anticoaguladas)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Sección Importante -->
+          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
+              <span>⚠️</span> Importante sobre la interpretación de los resultados
+            </h4>
+            <p class="text-amber-900 leading-relaxed">
+              Los valores fuera de rango no significan necesariamente que exista una enfermedad hepática. Las enzimas pueden experimentar elevaciones transitorias relacionadas con ejercicio intenso, medicamentos, infecciones u otras circunstancias.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Las enzimas ALT, AST, GGT y fosfatasa alcalina informan sobre posibles alteraciones hepáticas, pero no miden directamente la capacidad funcional del hígado.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Las alteraciones persistentes o importantes deben ser evaluadas por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios adicionales.
+            </p>
+          </div>
+
+          <p class="text-[11px] text-slate-500 italic pt-1">
+            <strong>Referencias clínicas:</strong> American Association for the Study of Liver Diseases (AASLD), How to Approach Elevated Liver Enzymes (2025). British Society of Gastroenterology (BSG), Guidelines on the Management of Abnormal Liver Blood Tests (2018). MedlinePlus, Pruebas funcionales hepáticas.
+          </p>
+        </div>
+      </template>
+
+      <!-- Plantilla: Hemograma y Hierro -->
+      <template id="eval-tpl-hemograma">
+        <ul class="text-sm text-slate-600 space-y-2.5 leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Hemoglobina:</strong> es la proteína de los glóbulos rojos encargada de transportar oxígeno a los tejidos. Su disminución es uno de los principales indicadores de anemia.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Hematocrito:</strong> indica qué proporción de la sangre está formada por glóbulos rojos. Ayuda a valorar posibles alteraciones en su cantidad, aunque también depende del estado de hidratación.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Volumen corpuscular medio (VCM):</strong> indica el tamaño medio de los glóbulos rojos. Puede ayudar a orientar las posibles causas de una anemia, como la falta de hierro o de determinadas vitaminas.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Leucocitos:</strong> son las células encargadas de defender al organismo frente a infecciones y otras amenazas. Sus niveles pueden variar por infecciones, inflamación, medicamentos y otras circunstancias.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Plaquetas:</strong> participan en la formación de coágulos para detener las hemorragias. Sus alteraciones pueden relacionarse con diferentes enfermedades o afectar a la capacidad de coagulación.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Ferritina:</strong> refleja principalmente las reservas de hierro del organismo. Es uno de los indicadores más útiles para detectar una falta de hierro, incluso antes de que aparezca anemia.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Hierro sérico:</strong> mide el hierro que circula en la sangre unido principalmente a la transferrina. Su concentración puede variar considerablemente y debe interpretarse junto con la ferritina y otros indicadores.</span>
+          </li>
+        </ul>
+
+        <div class="pt-2 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600 border-t border-slate-100">
+          <p>
+            Como orientación general, los siguientes valores pueden ayudar a comprender algunos resultados del hemograma y del metabolismo del hierro:
+          </p>
+
+          <!-- Tabla de valores orientativos -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Indicador</th>
+                  <th class="py-2.5 px-3">Valor orientativo</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Hemoglobina en hombres adultos</td>
+                  <td class="py-2.5 px-3 text-slate-700 font-medium">13 g/dL o más</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Hemoglobina en mujeres adultas no embarazadas</td>
+                  <td class="py-2.5 px-3 text-slate-700 font-medium">12 g/dL o más</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">VCM</td>
+                  <td class="py-2.5 px-3 text-slate-700 font-medium">Aproximadamente 80-100 fL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Leucocitos</td>
+                  <td class="py-2.5 px-3 text-slate-700 font-medium">Aproximadamente 4-11 × 10⁹/L</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Plaquetas</td>
+                  <td class="py-2.5 px-3 text-slate-700 font-medium">Aproximadamente 150-400 × 10⁹/L</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2.5 px-3 font-semibold text-slate-800">Ferritina</td>
+                  <td class="py-2.5 px-3 text-slate-700 font-medium">Menos de 15 ng/mL sugiere reservas de hierro agotadas en adultos sin inflamación</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            Los umbrales de hemoglobina para definir anemia proceden de la OMS (2024). Los intervalos del VCM, leucocitos y plaquetas son orientativos y pueden variar entre laboratorios.
+          </p>
+
+          <p>
+            Sobre la ferritina: valores inferiores a 30 ng/mL también pueden orientar hacia una deficiencia de hierro, especialmente cuando existe anemia. Sin embargo, la ferritina puede elevarse por inflamación, infecciones o enfermedades hepáticas, por lo que un resultado aparentemente normal no siempre descarta una falta de hierro.
+          </p>
+
+          <p>
+            El hierro sérico debe interpretarse según el intervalo proporcionado por el laboratorio. No es recomendable utilizarlo aisladamente para determinar si existe deficiencia de hierro.
+          </p>
+
+          <p>
+            Una disminución progresiva de la hemoglobina puede indicar el desarrollo de anemia, mientras que una reducción de la ferritina puede revelar un agotamiento de las reservas de hierro antes de que la hemoglobina descienda.
+          </p>
+
+          <!-- Sección Importante -->
+          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
+              <span>⚠️</span> Importante sobre la interpretación de los resultados
+            </h4>
+            <p class="text-amber-900 leading-relaxed">
+              Los valores de referencia deben interpretarse teniendo en cuenta la edad, el sexo, los antecedentes médicos, los tratamientos y las circunstancias individuales.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              No todas las anemias se deben a una falta de hierro. También pueden aparecer por déficit de vitamina B12 o ácido fólico, pérdidas de sangre, enfermedades renales, inflamación crónica y otras causas.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Asimismo, un aumento o descenso de los leucocitos o las plaquetas no indica necesariamente una enfermedad grave. Su significado depende de la magnitud de la alteración, su persistencia y los demás resultados.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Una consideración especialmente importante es que no todas las tendencias ascendentes o descendentes representan una mejoría o un empeoramiento. En parámetros como la hemoglobina, los leucocitos o las plaquetas, tanto los valores excesivamente altos como los bajos pueden requerir atención.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los resultados alterados o los cambios persistentes deben ser evaluados por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios complementarios.
+            </p>
+          </div>
+
+          <p class="text-[11px] text-slate-500 italic pt-1">
+            <strong>Referencias clínicas:</strong> Organización Mundial de la Salud (OMS), Guideline on haemoglobin cutoffs to define anaemia in individuals and populations (2024). Guideline on use of ferritin concentrations to assess iron status (2020). British Society of Gastroenterology, Guidelines for the management of iron deficiency anaemia in adults (2021). MedlinePlus, Conteo sanguíneo completo y Prueba de sangre de ferritina.
+          </p>
+        </div>
+      </template>
+
+      <!-- Plantilla: Función Tiroidea -->
+      <template id="eval-tpl-tiroideo">
+        <ul class="text-sm text-slate-600 space-y-2.5 leading-relaxed">
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>TSH:</strong> Hormona que regula la actividad de la tiroides. Aumenta cuando la tiroides produce pocas hormonas y disminuye cuando produce demasiadas.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>T4 libre:</strong> Principal hormona de la tiroides. Su valor junto a TSH permite valorar si la producción es adecuada.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>T3 libre:</strong> Forma activa de la hormona tiroidea. Aporta información complementaria, menos fiable que la de otras hormonas tiroideas.</span>
+          </li>
+        </ul>
+
+        <div class="mt-3 pt-2.5 border-t border-slate-100">
+          <p class="text-xs font-bold text-slate-700 mb-2">Determinaciones complementarias:</p>
+          <ul class="text-sm text-slate-600 space-y-2 leading-relaxed">
+            <li class="flex items-start gap-2">
+              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+              <span><strong>Anticuerpos anti-TPO:</strong> Para identificar enfermedades autoinmunes que atacan la tiroides (tiroiditis de Hashimoto).</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+              <span><strong>Anticuerpos antirreceptor de TSH (TRAb):</strong> Ayuda a identificar la enfermedad de Graves, causa frecuente de hipertiroidismo.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="pt-2 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-600 border-t border-slate-100">
+          <p>
+            Como orientación general, los siguientes intervalos se utilizan habitualmente en adultos:
+          </p>
+
+          <!-- Tabla 1: Intervalos orientativos -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Indicador</th>
+                  <th class="py-2.5 px-3">Intervalo orientativo</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">TSH</td>
+                  <td class="py-2 px-3 text-slate-700 font-medium">0.4-4.5 mUI/L, aproximadamente</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">T4 libre</td>
+                  <td class="py-2 px-3 text-slate-700 font-medium">0.8-1.9 ng/dL</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">T3 libre</td>
+                  <td class="py-2 px-3 text-slate-700 font-medium">Según el laboratorio y el método utilizado</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            Los intervalos pueden variar entre laboratorios y según la edad, el embarazo y determinadas circunstancias médicas.
+          </p>
+
+          <p>
+            La combinación de TSH y T4 libre ayuda a orientar la interpretación:
+          </p>
+
+          <!-- Tabla 2: Combinación de TSH y T4 libre -->
+          <div class="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50/50">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">Resultados habituales</th>
+                  <th class="py-2.5 px-3">Posible interpretación</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 bg-white">
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">TSH elevada y T4 libre baja</td>
+                  <td class="py-2 px-3 text-slate-700">Hipotiroidismo primario</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">TSH elevada y T4 libre normal</td>
+                  <td class="py-2 px-3 text-slate-700">Posible hipotiroidismo subclínico</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">TSH baja y T4 libre elevada</td>
+                  <td class="py-2 px-3 text-slate-700">Posible hipertiroidismo</td>
+                </tr>
+                <tr class="hover:bg-slate-50/50">
+                  <td class="py-2 px-3 font-semibold text-slate-800">TSH baja y T4/T3 libres normales</td>
+                  <td class="py-2 px-3 text-slate-700">Posible hipertiroidismo subclínico</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            Una producción insuficiente de hormonas tiroideas puede relacionarse con cansancio, intolerancia al frío, aumento de peso o disminución de la frecuencia cardíaca.
+          </p>
+
+          <p>
+            Una producción excesiva puede provocar palpitaciones, pérdida de peso, nerviosismo o intolerancia al calor.
+          </p>
+
+          <p>
+            El seguimiento resulta especialmente importante en personas con enfermedades cardiovasculares, alteraciones del ritmo cardíaco o tratamientos que puedan afectar a la función tiroidea.
+          </p>
+
+          <!-- Sección Importante -->
+          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs">
+            <h4 class="font-bold text-amber-950 flex items-center gap-1.5">
+              <span>⚠️</span> Importante sobre la interpretación de los resultados
+            </h4>
+            <p class="text-amber-900 leading-relaxed">
+              Los valores de referencia son orientativos y deben interpretarse teniendo en cuenta la edad, los síntomas, los antecedentes médicos y los medicamentos utilizados.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Una TSH fuera de rango no significa necesariamente que exista una enfermedad tiroidea que requiera tratamiento. Las alteraciones leves pueden ser transitorias y necesitar nuevas determinaciones para confirmar su persistencia.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              También es importante considerar que la TSH y las hormonas tiroideas se regulan mutuamente. Por ello, sus tendencias no deben interpretarse de forma independiente: una TSH ascendente no siempre representa un empeoramiento, ni una descendente significa necesariamente una mejoría.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Determinados medicamentos y suplementos, especialmente los que contienen biotina (vitamina B7) en dosis elevadas, pueden interferir con algunas pruebas de laboratorio y producir resultados engañosos.
+            </p>
+            <p class="text-amber-900 leading-relaxed">
+              Esta aplicación facilita el seguimiento y la comprensión de tus analíticas, pero no realiza diagnósticos ni sustituye la valoración de un profesional sanitario. Los resultados alterados deben ser interpretados por tu médico, quien determinará si es necesario repetir las pruebas o realizar estudios complementarios.
+            </p>
+          </div>
+
+          <p class="text-[11px] text-slate-500 italic pt-1">
+            <strong>Referencias clínicas:</strong> American Thyroid Association (ATA), Thyroid Function Tests y How to Order Thyroid Function Tests (2026). NICE, Thyroid disease: assessment and management, NG145 (2019, actualización de 2023 y revisión de 2025). MedlinePlus, Examen de TSH y Examen de T4.
+          </p>
+        </div>
+      </template>
+
+    </div>
+
+    <!-- TAB 2: HISTORIAL DE RESULTADOS -->
+    <div id="tab-table" class="space-y-4 hidden">
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col lg:flex-row items-center justify-between gap-3 mb-3">
+          <!-- Leyenda de colores -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-800 bg-blue-50 border border-blue-300 px-2.5 py-1 rounded-lg shadow-sm" title="Valor por debajo del rango de referencia del laboratorio">
+              <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+              Bajo
+            </span>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-900 bg-amber-50/90 border border-amber-200 px-2.5 py-1 rounded-lg shadow-sm" title="Valor en rango pero situado en el 10% más cercano a los límites de referencia">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              En rango, próximo al límite
+            </span>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-800 bg-rose-50 border border-rose-300 px-2.5 py-1 rounded-lg shadow-sm" title="Valor por encima del rango de referencia del laboratorio">
+              <span class="w-2 h-2 rounded-full bg-rose-600"></span>
+              Alto
+            </span>
+          </div>
+
+          <!-- Botones de navegación horizontal centrados -->
+          <div class="flex items-center gap-2 justify-center">
+            <button type="button" onclick="scrollTableToStart(true)" title="Desplazar a las analíticas más antiguas" class="px-3 py-1.5 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 rounded-xl border border-slate-300 shadow-sm hover:shadow transition-all flex items-center gap-1 cursor-pointer">
+              <span>⏮️</span> Más antiguas
+            </button>
+            <button type="button" onclick="scrollTableToEnd(true)" title="Desplazar a las analíticas más recientes y promedio de 18 meses" class="px-3 py-1.5 text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-200 shadow-sm hover:shadow transition-all flex items-center gap-1 cursor-pointer">
+              Más recientes <span>⏭️</span>
+            </button>
+          </div>
+
+          <!-- Caja de búsqueda a la derecha -->
+          <div class="relative w-full lg:w-72">
+            <input type="text" id="tableFilter" onkeyup="filterTable()" placeholder="🔍 Buscar parámetro o analito..." class="w-full text-xs sm:text-sm border border-slate-300 rounded-xl px-4 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-left placeholder:text-slate-400">
+          </div>
+        </div>
+
+        <!-- Barra de desplazamiento horizontal superior sincronizada -->
+        <div id="bioTableTopScroll" class="mb-2 rounded-lg bg-slate-100 border border-slate-200">
+          <div id="bioTableTopScrollContent" style="height: 1px;"></div>
+        </div>
+
+        <div id="bioTableContainer" class="table-container border border-slate-200 rounded-xl">
+          <table id="mainBioTable" class="w-full text-xs text-left">
+            <thead class="bg-slate-800 text-white font-semibold" id="tableHeaderDates"></thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700" id="tableBodyRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: GRÁFICOS EVOLUTIVOS -->
     <div id="tab-charts" class="space-y-6 hidden">
       <div class="grid md:grid-cols-2 gap-6">
         
@@ -871,25 +1334,7 @@
       </div>
     </div>
 
-    <!-- TAB 3: HISTORIAL DE RESULTADOS -->
-    <div id="tab-table" class="space-y-4 hidden">
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div class="flex justify-center items-center mb-4">
-          <div class="relative w-full max-w-md">
-            <input type="text" id="tableFilter" onkeyup="filterTable()" placeholder="🔍 Buscar parámetro o analito..." class="w-full text-xs sm:text-sm border border-slate-300 rounded-xl px-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-center placeholder:text-slate-400">
-          </div>
-        </div>
-
-        <div class="table-container border border-slate-200 rounded-xl">
-          <table id="mainBioTable" class="w-full text-xs text-left">
-            <thead class="bg-slate-800 text-white font-semibold" id="tableHeaderDates"></thead>
-            <tbody class="divide-y divide-slate-100 text-slate-700" id="tableBodyRows"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 4: AUDITORÍA DE ARCHIVOS -->
+    <!-- TAB 4: AUDITORÍA Y EDICIÓN DE ARCHIVOS -->
     <div id="tab-audit" class="space-y-6 hidden">
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
@@ -1094,7 +1539,7 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho <span id="footer-app-version">v0.6.0</span> • Control de Analíticas Clínicas personal y privado
+      cac-elrocho <span id="footer-app-version">v0.7.0</span> • Control de Analíticas Clínicas personal y privado
     </footer>
 
   </div>
@@ -1332,6 +1777,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=3.2"></script>
+  <script src="/static/app.js?v=4.0"></script>
 </body>
 </html>

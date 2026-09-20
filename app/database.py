@@ -52,6 +52,9 @@ def init_db():
                     conn.execute(text("ALTER TABLE auditorias_rango ADD COLUMN aplicado_en_historico BOOLEAN DEFAULT 0"))
                 if "fecha_aplicacion" not in col_auditorias:
                     conn.execute(text("ALTER TABLE auditorias_rango ADD COLUMN fecha_aplicacion DATETIME"))
+                if "estado" not in col_auditorias:
+                    conn.execute(text("ALTER TABLE auditorias_rango ADD COLUMN estado VARCHAR(30) DEFAULT 'pendiente'"))
+                    conn.execute(text("UPDATE auditorias_rango SET estado = 'aplicado' WHERE aplicado_en_historico = 1"))
                 conn.commit()
     except Exception:
         pass

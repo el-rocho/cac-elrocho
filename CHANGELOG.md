@@ -1,6 +1,29 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.7.0] - 2026-09-20
+
+### 📌 Tabla Evolutiva con Columnas Fijas y Doble Scroll Sincronizado
+* **Columnas Fijas (Sticky)**: Parámetro, Unidades e Intervalo de Referencia permanecen anclados a la izquierda con delimitador sombreado, facilitando la lectura sin perder el contexto al desplazarse horizontalmente por fechas.
+* **Doble Barra de Desplazamiento**: Scroll horizontal superior e inferior sincronizados en tiempo real para una navegación fluida en historiales analíticos extensos.
+* **Navegación Rápida**: Botones dedicados para saltar de forma inmediata a los resultados más antiguos (inicio) o a las analíticas más recientes (final).
+
+### 🔍 Modal de Detalle Completo de KPIs y Jerarquía de Parámetros
+* **Ventana Modal Interactiva**: Apertura de desglose detallado al hacer clic en cualquier tarjeta KPI del cuadro de mando (o con teclado `Enter`/`Espacio`), con navegación directa entre tarjetas mediante flechas anterior y siguiente.
+* **Jerarquización Analítica**: Clasificación visual de analitos en **Principal**, **Secundario** y **Complementario** (`es_principal`, `tipo_parametro`), aportando claridad diagnóstica inmediata.
+* **Detalle Enriquecido**: Presentación amplia y sin recortes de valores históricos con notas al pie, variación respecto al control anterior y estado de tendencia longitudinal.
+
+### ⚖️ Gestión Reversible de Auditorías de Rangos de Referencia
+* **Opción "Mantener Histórico"**: Posibilidad de conservar los rangos de normalidad originales tanto de forma individual como en lote ("Mantener todos"), evitando sobreescribir los criterios históricos cuando el usuario lo prefiera.
+* **Ciclo de Estados Formal**: Auditorías estructuradas en estados `pendiente`, `aplicado` y `mantenido`.
+* **Reversibilidad y Recálculo Automático**: Si se revierte una decisión, se restauran los rangos previos y se recalculan al instante los semáforos clínicos de las mediciones afectadas.
+* **Persistencia en Copias de Seguridad**: Soporte completo en el servicio de respaldo (backup/restore JSON) para conservar el estado de auditorías y decisiones tomadas.
+
+### 🦋 Función Tiroidea Avanzada y Catalogación de Anticuerpos
+* **Evaluación Fisiológica Conjunta**: Análisis integrado y recíproco de **TSH** y **T4 Libre** en la tarjeta "Función Tiroidea" (eutiroideo, hipotiroidismo, hipertiroidismo o discordancias clínicas).
+* **Carácter Complementario**: Parámetros como **T3 Libre** y anticuerpos no penalizan negativamente por sí solos la valoración global si el eje principal TSH-T4L es normal.
+* **Nuevos Analitos Específicos**: Inclusión en catálogo y normalización automática de **Anti-TPO** (Anticuerpos anti-peroxidasa), **Anti-TG** (Anticuerpos anti-tiroglobulina) y **TRAb** (Anticuerpos anti-receptor de TSH).
+
 ---
 ## [v0.6.0] - 2026-09-19
 
