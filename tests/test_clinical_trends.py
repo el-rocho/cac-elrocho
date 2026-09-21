@@ -778,6 +778,36 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertEqual(num_eos, 30.0)
         self.assertEqual(clean_eos, "30")
 
+        # 7. Homogeneización basada en comparación de rangos de referencia (ref_ratio)
+        # 7.1. Basófilos con rango en /L (ratio ~ 0.001): 40000 con ref 0 - 200000 /L -> 40 /µL, 0 - 200 /µL
+        num_b_l, clean_b_l, unit_b_l, ref_b_l = standardize_medicion("BASOFILOS_ABS", "40000", "/L", "0 - 200000 /L")
+        self.assertEqual(num_b_l, 40.0)
+        self.assertEqual(clean_b_l, "40")
+        self.assertEqual(unit_b_l, "/µL")
+        self.assertIn("200", ref_b_l)
+
+        # 7.2. Leucocitos con rango en /µL (ratio ~ 0.001): 7500 con ref 4000 - 11000 /µL -> 7.50 x10^3/µL
+        num_leu, clean_leu, unit_leu, ref_leu = standardize_medicion("LEUCOCITOS", "7500", "/µL", "4000 - 11000 /µL")
+        self.assertEqual(num_leu, 7.5)
+        self.assertEqual(clean_leu, "7.50")
+        self.assertEqual(unit_leu, "x10^3/µL")
+        self.assertEqual(ref_leu, "4 - 11 x10^3/µL")
+
+        # 7.3. Hemoglobina con rango en g/L (ratio ~ 0.1): 145 con ref 135 - 180 g/L -> 14.5 g/dL
+        num_hb, clean_hb, unit_hb, ref_hb = standardize_medicion("HEMOGLOBINA", "145", "g/L", "135 - 180 g/L")
+        self.assertEqual(num_hb, 14.5)
+        self.assertEqual(clean_hb, "14.5")
+        self.assertEqual(unit_hb, "g/dL")
+        self.assertEqual(ref_hb, "13.5 - 18 g/dL")
+
+        # 7.4. Proteínas Totales con rango en g/L (ratio ~ 0.1): 72 con ref 64 - 83 g/L -> 7.2 g/dL
+        num_prot, clean_prot, unit_prot, ref_prot = standardize_medicion("PROTEINAS_TOTALES", "72", "g/L", "64 - 83 g/L")
+        self.assertEqual(num_prot, 7.2)
+        self.assertEqual(clean_prot, "7.2")
+        self.assertEqual(unit_prot, "g/dL")
+        self.assertEqual(ref_prot, "6.4 - 8.3 g/dL")
+
+
 
 if __name__ == "__main__":
     unittest.main()

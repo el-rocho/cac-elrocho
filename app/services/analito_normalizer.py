@@ -1568,6 +1568,18 @@ def standardize_medicion(
 
     u_lower = (unidad or "").lower()
 
+    # Comparación de magnitudes de los rangos de referencia (informe vs canónico)
+    # Permite detectar y homogeneizar automáticamente unidades diferenciadas en un factor 1000, 10 o 1000000
+    ref_clean_for_nums = re.sub(r"(?i)[/\s]*(?:x?10[\^%3][36]?|[pµu]?l|g/dl|g/l|mg/dl|ui/ml|ng/ml|%)\b.*$", "", str(ref_in).strip())
+    canon_clean_for_nums = re.sub(r"(?i)[/\s]*(?:x?10[\^%3][36]?|[pµu]?l|g/dl|g/l|mg/dl|ui/ml|ng/ml|%)\b.*$", "", str(default_ref).strip())
+    
+    ref_nums = [float(n.replace(",", ".")) for n in re.findall(r"\d+(?:[\.,]\d+)?", ref_clean_for_nums)]
+    canon_nums = [float(n.replace(",", ".")) for n in re.findall(r"\d+(?:[\.,]\d+)?", canon_clean_for_nums)]
+    
+    max_ref = max(ref_nums) if ref_nums else None
+    max_canon = max(canon_nums) if canon_nums else None
+    ref_ratio = (max_canon / max_ref) if (max_canon and max_ref and max_ref > 0) else None
+
     # 1. Fórmula Leucocitaria Absoluta (Linfocitos, Neutrófilos, Monocitos, Eosinófilos, Basófilos) -> Unidad fija: /µL
     if code_up in ["LINFOCITOS_ABS", "NEUTROFILOS_ABS", "MONOCITOS_ABS", "EOSINOFILOS_ABS", "BASOFILOS_ABS"]:
         # Umbrales máximos fisiológicos en x10^3/µL para distinguir de valores ya expresados en /µL:
@@ -1585,28 +1597,44 @@ def standardize_medicion(
         }
         th_scale, th_artifact = wbc_thresholds.get(code_up, (20.0, 25000.0))
 
-        # A. Artefacto de haber sido multiplicado erróneamente por 1000 (ej: 40000 para basófilos)
-        if num_val >= th_artifact:
-            num_val = round(num_val / 1000.0, 1)
+        # A. Rango del laboratorio viene en miles (x10^3/µL, ej: 0.0 - 0.2 vs < 200)
+        if ref_ratio is not None and ref_ratio >= 400.0:
+            ref_final = scale_ref_range(ref_in, 1000.0, "/µL")
+            if num_val < th_scale:
+                num_val = round(num_val * 1000.0, 1)
+        # B. Rango del laboratorio viene en escala 1000 veces mayor (ej: /L con rango 0 - 200000)
+        elif ref_ratio is not None and ref_ratio <= 0.0025:
+            ref_final = scale_ref_range(ref_in, 0.001, "/µL")
+            if num_val >= th_artifact:
+                num_val = round(num_val / 1000.0, 1)
+        # C. Rango del laboratorio ya en la misma escala (/µL, ej: 0 - 200 /µL)
+        elif ref_ratio is not None and 0.2 <= ref_ratio <= 5.0:
             ref_final = ref_in or default_ref
-        # B. Viene en x10^3/µL (número decimal pequeño < th_scale)
-        elif 0 < num_val < th_scale:
-            num_val = round(num_val * 1000.0, 1)
-            ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < th_scale for n in nums)) if ref_in else default_ref
-        # C. Viene con unidad explícita de miles pero valor < th_artifact (e.g. 1.79 x10^3/µL)
-        elif any(k in u_lower for k in ["10^3", "10*3", "103", "10%", "mil", "k/", "10^9", "g/l"]) and num_val < th_artifact and num_val < 50.0:
-            num_val = round(num_val * 1000.0, 1)
-            ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < 50.0 for n in nums)) if ref_in else default_ref
-        # D. Ya viene en /µL estándar (ej: 40, 50, 60, 1590, 1790)
+            if num_val >= th_artifact:
+                # Artefacto evidente (ej: valor 40000 con rango 0 - 200)
+                num_val = round(num_val / 1000.0, 1)
+            elif 0 < num_val < th_scale:
+                num_val = round(num_val * 1000.0, 1)
+        # D. Fallback cuando no hay rango de referencia numérico claro
         else:
-            ref_final = ref_in or default_ref
+            if num_val >= th_artifact:
+                num_val = round(num_val / 1000.0, 1)
+                ref_final = ref_in or default_ref
+            elif 0 < num_val < th_scale:
+                num_val = round(num_val * 1000.0, 1)
+                ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < th_scale for n in nums)) if ref_in else default_ref
+            elif any(k in u_lower for k in ["10^3", "10*3", "103", "10%", "mil", "k/", "10^9", "g/l"]) and num_val < th_artifact and num_val < 50.0:
+                num_val = round(num_val * 1000.0, 1)
+                ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < 50.0 for n in nums)) if ref_in else default_ref
+            else:
+                ref_final = ref_in or default_ref
 
         formatted = str(int(round(num_val))) if num_val.is_integer() else f"{num_val:.1f}"
         return num_val, formatted, "/µL", ref_final
 
     # 2. Leucocitos Totales -> Unidad fija: x10^3/µL
     if code_up == "LEUCOCITOS":
-        if num_val > 100.0:
+        if (ref_ratio is not None and ref_ratio <= 0.0025) or num_val > 100.0:
             num_val = round(num_val / 1000.0, 2)
             ref_final = scale_ref_range(ref_in, 0.001, "x10^3/µL", lambda nums: any(n > 100 for n in nums)) if ref_in else default_ref
         else:
@@ -1616,7 +1644,7 @@ def standardize_medicion(
 
     # 3. Plaquetas -> Unidad fija: x10^3/µL
     if code_up == "PLAQUETAS":
-        if num_val > 10_000.0:
+        if (ref_ratio is not None and ref_ratio <= 0.0025) or num_val > 10_000.0:
             num_val = round(num_val / 1000.0, 1)
             ref_final = scale_ref_range(ref_in, 0.001, "x10^3/µL", lambda nums: any(n > 1000 for n in nums)) if ref_in else default_ref
         else:
@@ -1626,7 +1654,7 @@ def standardize_medicion(
 
     # 4. Hematíes -> Unidad fija: x10^6/µL
     if code_up in ["HEMATIES", "HEMATÍES"]:
-        if num_val > 100_000.0:
+        if (ref_ratio is not None and ref_ratio <= 0.0000025) or num_val > 100_000.0:
             num_val = round(num_val / 1_000_000.0, 3)
             ref_final = scale_ref_range(ref_in, 0.000001, "x10^6/µL", lambda nums: any(n > 100000 for n in nums)) if ref_in else default_ref
         else:
@@ -1636,7 +1664,7 @@ def standardize_medicion(
 
     # 5. Hemoglobina -> Unidad fija: g/dL
     if code_up == "HEMOGLOBINA":
-        if num_val > 50.0 or ("g/l" in u_lower and "dl" not in u_lower):
+        if (ref_ratio is not None and 0.05 <= ref_ratio <= 0.25) or num_val > 50.0 or ("g/l" in u_lower and "dl" not in u_lower):
             num_val = round(num_val / 10.0, 1)
             ref_final = scale_ref_range(ref_in, 0.1, "g/dL", lambda nums: any(n > 50 for n in nums)) if ref_in else default_ref
         else:
@@ -1646,7 +1674,7 @@ def standardize_medicion(
 
     # 6. Proteínas Totales y Albúmina -> Unidad fija: g/dL
     if code_up in ["PROTEINAS_TOTALES", "ALBUMINA", "ALBUMINA_SERICA"]:
-        if num_val > 20.0 or ("g/l" in u_lower and "dl" not in u_lower):
+        if (ref_ratio is not None and 0.05 <= ref_ratio <= 0.25) or num_val > 20.0 or ("g/l" in u_lower and "dl" not in u_lower):
             num_val = round(num_val / 10.0, 1)
             ref_final = scale_ref_range(ref_in, 0.1, "g/dL", lambda nums: any(n > 20 for n in nums)) if ref_in else default_ref
         else:

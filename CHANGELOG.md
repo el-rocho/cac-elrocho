@@ -23,6 +23,11 @@ Todas las modificaciones notables de este proyecto están documentadas en este a
 * **Normalización Semántica de la Fórmula Leucocitaria**: Inclusión de reglas explícitas en `normalize_analito` para asignar directamente los códigos canónicos (`BASOFILOS_ABS`, `EOSINOFILOS_ABS`, `MONOCITOS_ABS`, `LINFOCITOS_ABS`, `NEUTROFILOS_ABS`) a partir de los nombres textuales del laboratorio.
 * **Extracción Robusta ante Columnas Relativas y Absolutas**: Optimización de expresiones regulares en extracción para priorizar la columna de valor absoluto en lugar del porcentaje (`%`) en la fórmula leucocitaria.
 
+### 📐 Homogeneización Automática de Magnitudes Basada en Rangos de Referencia
+* **Detección Dinámica de Órdenes de Magnitud (`ref_ratio`)**: Algoritmo matemático en `standardize_medicion` que compara los límites del intervalo de referencia informado por el laboratorio frente al intervalo canónico (`max_canon / max_ref`). Permite discernir de forma infalible cuándo una analítica expresa magnitudes diferenciadas en un factor de 1000 (ej: `x10^3/µL` vs `/µL`), submúltiplos (`/L`), o escalas de concentración (`g/L` vs `g/dL`).
+* **Conversión Dual Sincronizada (Valor y Rango)**: Homogeneización simétrica de la cifra numérica y del intervalo de referencia al formato estándar de la aplicación (ej: `0.0 - 0.2` en miles se escala a `0 - 200 /µL`), garantizando que la evaluación del semáforo clínico (`Normal`, `Alto`, `Bajo`) no arroje falsas alertas por desalineación de escalas.
+* **Ampliación a Analitos Críticos**: Cobertura integral en fórmula leucocitaria (`BASOFILOS_ABS`, `EOSINOFILOS_ABS`, `MONOCITOS_ABS`, `LINFOCITOS_ABS`, `NEUTROFILOS_ABS`), `LEUCOCITOS`, `PLAQUETAS`, `HEMATIES`, `HEMOGLOBINA`, `PROTEINAS_TOTALES` y `ALBUMINA`.
+
 ---
 ## [v0.7.0] - 2026-09-20
 
