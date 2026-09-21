@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.7.0`
+# cac-elrocho 🩺 `v0.8.0`
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
@@ -10,11 +10,11 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.7.0`
-* 📌 **Columnas Fijas y Doble Scroll Sincronizado**: Parámetro, unidades e intervalo de referencia anclados a la izquierda en la tabla evolutiva con sombra delimitadora, doble barra de desplazamiento horizontal sincronizada en tiempo real y botones de salto rápido al inicio o final del historial.
-* 🔍 **Modal de Detalle Completo de Tarjetas KPI**: Ventana interactiva al hacer clic en cualquier tarjeta del cuadro de mando con desglose amplio sin recortes, jerarquía analítica clara (parámetros Principales, Secundarios y Complementarios) y navegación fluida entre tarjetas.
-* ⚖️ **Gestión Reversible de Rangos de Referencia**: Opción individual y masiva para "Mantener histórico" respetando los rangos originales de laboratorio, trazabilidad de estados (pendiente, aplicado, mantenido) y reversibilidad con recálculo automático de semáforos.
-* 🦋 **Función Tiroidea Avanzada y Anticuerpos**: Evaluación fisiológica integrada del eje TSH - T4 Libre, análisis complementario no penalizador de T3 Libre y soporte completo de catalogación/extracción para Anti-TPO, Anti-TG y TRAb.
+## ✨ Novedades de la Versión `v0.8.0`
+* 📄 **Extracción Tabular Avanzada y Resiliencia Multimodal**: Reconstrucción espacial horizontal en informes PDF columnarios (`sort=True` / `layout`) y red determinista de rescate para analitos críticos (Filtrado Glomerular y Eje Tiroideo).
+* 🦋 **Eje Tiroideo Completo (T4 y T3 Total)**: Integración de T4 Total como métrica Principal y T3 Total como Secundario en tarjetas KPI, desambiguación semántica en el catálogo y ampliación del modal explicativo.
+* 🩸 **Calibración Leucocitaria y Basófilos**: Umbrales fisiológicos específicos para evitar multiplicaciones erróneas de escala (`40` vs `40000`), extracción robusta ante porcentajes/absolutos y armonización retrospectiva.
+* 📐 **Homogeneización Automática de Magnitudes y Rangos**: Detección dinámica de órdenes de magnitud (`ref_ratio`) para estandarizar en sincronía cifras e intervalos de referencia clínicos, depurando unidades redundantes.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
 
 ---
@@ -120,7 +120,7 @@ http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máqui
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.7.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.8.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho

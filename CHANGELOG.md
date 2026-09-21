@@ -1,7 +1,7 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Próxima versión] (En desarrollo)
+## [v0.8.0] - 2026-09-21
 
 ### 📄 Extracción Tabular Avanzada de PDFs y Resiliencia Multimodal
 * **Reconstrucción Horizontal de Tablas**: Configuración de extracción con ordenamiento espacial (`sort=True` en PyMuPDF y modo `layout` en pypdf), garantizando que las tablas columnarias de laboratorios (como Recoletas o Quirónsalud) asocien analito, valor y rangos en la misma línea en lugar de separar columnas en bloques distantes.
@@ -27,6 +27,7 @@ Todas las modificaciones notables de este proyecto están documentadas en este a
 * **Detección Dinámica de Órdenes de Magnitud (`ref_ratio`)**: Algoritmo matemático en `standardize_medicion` que compara los límites del intervalo de referencia informado por el laboratorio frente al intervalo canónico (`max_canon / max_ref`). Permite discernir de forma infalible cuándo una analítica expresa magnitudes diferenciadas en un factor de 1000 (ej: `x10^3/µL` vs `/µL`), submúltiplos (`/L`), o escalas de concentración (`g/L` vs `g/dL`).
 * **Conversión Dual Sincronizada (Valor y Rango)**: Homogeneización simétrica de la cifra numérica y del intervalo de referencia al formato estándar de la aplicación (ej: `0.0 - 0.2` en miles se escala a `0 - 200 /µL`), garantizando que la evaluación del semáforo clínico (`Normal`, `Alto`, `Bajo`) no arroje falsas alertas por desalineación de escalas.
 * **Ampliación a Analitos Críticos**: Cobertura integral en fórmula leucocitaria (`BASOFILOS_ABS`, `EOSINOFILOS_ABS`, `MONOCITOS_ABS`, `LINFOCITOS_ABS`, `NEUTROFILOS_ABS`), `LEUCOCITOS`, `PLAQUETAS`, `HEMATIES`, `HEMOGLOBINA`, `PROTEINAS_TOTALES` y `ALBUMINA`.
+* **Depuración de Unidades Redundantes**: Limpieza preventiva en `db_harmonizer` para evitar duplicidad de unidades textuales en la referencia oficial de analitos (`ref_texto_defecto`).
 
 ---
 ## [v0.7.0] - 2026-09-20
