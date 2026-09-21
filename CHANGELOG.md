@@ -15,6 +15,14 @@ Todas las modificaciones notables de este proyecto están documentadas en este a
 * **Modal de Detalle Clínico y Guía Informativa**: Actualización de la ventana modal y del panel informativo con explicaciones fisiológicas y tablas de referencia para T4 Total (5.1 – 14.1 µg/dL) y T3 Total (0.80 – 2.00 ng/mL).
 * **Catálogo Canónico y Desambiguación Semántica**: Registro en `CANONICAL_CATALOG` y reglas de discriminación en `analito_normalizer.py` para distinguir inequívocamente entre formas totales y libres ante sinónimos como `T4`, `TT4`, `T3` o `TT3`.
 
+### 🩸 Calibración y Corrección de Escala en Basófilos y Diferencial Leucocitario
+* **Resolución del Error de Multiplicación x1000 en Basófilos (`40` vs `40000`)**:
+  * Sustituido el umbral genérico fijo (`< 50.0`) en `standardize_medicion` por umbrales fisiológicos específicos para cada subpoblación celular (Basófilos: `< 2.0`, Eosinófilos: `< 5.0`, Monocitos: `< 15.0`, Linfocitos: `< 25.0`, Neutrófilos: `< 30.0`).
+  * Resuelto el problema que provocaba que cualquier valor normal de basófilos inferior a 50 (como `40 /µL`) se multiplicara automáticamente a `40000`, impidiendo además su corrección manual en la herramienta de edición y en la ventana de pre-ingesta.
+  * Detección y corrección retrospectiva automática mediante `db_harmonizer` para restaurar los valores anómalos preexistentes a su magnitud clínica real (`40 /µL`).
+* **Normalización Semántica de la Fórmula Leucocitaria**: Inclusión de reglas explícitas en `normalize_analito` para asignar directamente los códigos canónicos (`BASOFILOS_ABS`, `EOSINOFILOS_ABS`, `MONOCITOS_ABS`, `LINFOCITOS_ABS`, `NEUTROFILOS_ABS`) a partir de los nombres textuales del laboratorio.
+* **Extracción Robusta ante Columnas Relativas y Absolutas**: Optimización de expresiones regulares en extracción para priorizar la columna de valor absoluto en lugar del porcentaje (`%`) en la fórmula leucocitaria.
+
 ---
 ## [v0.7.0] - 2026-09-20
 

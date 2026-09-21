@@ -1442,6 +1442,16 @@ def normalize_analito(
         return "PLAQUETAS", "Plaquetas", "hemograma", "x10^3/µL"
     if "leucocitos" in nom_lower and not es_orina:
         return "LEUCOCITOS", "Leucocitos", "hemograma", "x10^3/µL"
+    if any(k in nom_lower for k in ["neutrófilo", "neutrofilo", "segmentado"]) and not any(k in nom_lower for k in ["%", "relativ"]):
+        return "NEUTROFILOS_ABS", "Neutrófilos Absolutos", "hemograma", "/µL"
+    if any(k in nom_lower for k in ["linfocito"]) and not any(k in nom_lower for k in ["%", "relativ"]):
+        return "LINFOCITOS_ABS", "Linfocitos Absolutos", "hemograma", "/µL"
+    if any(k in nom_lower for k in ["monocito"]) and not any(k in nom_lower for k in ["%", "relativ"]):
+        return "MONOCITOS_ABS", "Monocitos Absolutos", "hemograma", "/µL"
+    if any(k in nom_lower for k in ["eosinófilo", "eosinofilo"]) and not any(k in nom_lower for k in ["%", "relativ"]):
+        return "EOSINOFILOS_ABS", "Eosinófilos Absolutos", "hemograma", "/µL"
+    if any(k in nom_lower for k in ["basófilo", "basofilo"]) and not any(k in nom_lower for k in ["%", "relativ"]):
+        return "BASOFILOS_ABS", "Basófilos Absolutos", "hemograma", "/µL"
 
     # 4.9 Coagulación y Hemostasia
     if "tiempo de protrombina" in nom_lower or (nom_lower.startswith("tiempo") and "protromb" in nom_lower):
@@ -1560,12 +1570,37 @@ def standardize_medicion(
 
     # 1. Fórmula Leucocitaria Absoluta (Linfocitos, Neutrófilos, Monocitos, Eosinófilos, Basófilos) -> Unidad fija: /µL
     if code_up in ["LINFOCITOS_ABS", "NEUTROFILOS_ABS", "MONOCITOS_ABS", "EOSINOFILOS_ABS", "BASOFILOS_ABS"]:
-        # Si viene en x10^3/µL o el valor es menor a 50, se escala x1000 a /µL
-        if num_val < 50.0 or any(k in u_lower for k in ["10^3", "10*3", "10%", "mil", "k/", "10^9"]):
+        # Umbrales máximos fisiológicos en x10^3/µL para distinguir de valores ya expresados en /µL:
+        # - Basófilos: en 10^3/µL son 0.01-0.20 (umbral < 2.0). En /µL son 10-200 (un valor como 40 ya está en /µL).
+        # - Eosinófilos: en 10^3/µL son 0.02-0.80 (umbral < 5.0). En /µL son 20-500.
+        # - Monocitos: en 10^3/µL son 0.10-1.20 (umbral < 15.0). En /µL son 200-1000.
+        # - Linfocitos: en 10^3/µL son 0.80-5.00 (umbral < 25.0). En /µL son 1000-4500.
+        # - Neutrófilos: en 10^3/µL son 1.50-8.00 (umbral < 30.0). En /µL son 1800-7500.
+        wbc_thresholds = {
+            "BASOFILOS_ABS": (2.0, 2000.0),    # (umbral_escala_1000, umbral_artefacto_multiplicado)
+            "EOSINOFILOS_ABS": (5.0, 5000.0),
+            "MONOCITOS_ABS": (15.0, 15000.0),
+            "LINFOCITOS_ABS": (25.0, 25000.0),
+            "NEUTROFILOS_ABS": (30.0, 35000.0),
+        }
+        th_scale, th_artifact = wbc_thresholds.get(code_up, (20.0, 25000.0))
+
+        # A. Artefacto de haber sido multiplicado erróneamente por 1000 (ej: 40000 para basófilos)
+        if num_val >= th_artifact:
+            num_val = round(num_val / 1000.0, 1)
+            ref_final = ref_in or default_ref
+        # B. Viene en x10^3/µL (número decimal pequeño < th_scale)
+        elif 0 < num_val < th_scale:
             num_val = round(num_val * 1000.0, 1)
-            ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < 50 for n in nums)) if ref_in else default_ref
+            ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < th_scale for n in nums)) if ref_in else default_ref
+        # C. Viene con unidad explícita de miles pero valor < th_artifact (e.g. 1.79 x10^3/µL)
+        elif any(k in u_lower for k in ["10^3", "10*3", "103", "10%", "mil", "k/", "10^9", "g/l"]) and num_val < th_artifact and num_val < 50.0:
+            num_val = round(num_val * 1000.0, 1)
+            ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < 50.0 for n in nums)) if ref_in else default_ref
+        # D. Ya viene en /µL estándar (ej: 40, 50, 60, 1590, 1790)
         else:
             ref_final = ref_in or default_ref
+
         formatted = str(int(round(num_val))) if num_val.is_integer() else f"{num_val:.1f}"
         return num_val, formatted, "/µL", ref_final
 

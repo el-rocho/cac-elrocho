@@ -387,6 +387,7 @@ NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
       * Basófilos: código "BASOFILOS_ABS", nombre "Basófilos Absolutos"
     - PRIORIDAD DE VALORES (ABSOLUTOS vs PORCENTAJES): En análisis clínicos (Megalab, Recoletas, etc.) se presentan habitualmente dos columnas: "%" (relativo) y "/µL" o "x10^3/µL" (absoluto). DEBES EXTRAER SIEMPRE EL VALOR ABSOLUTO en "/µL" (ej: si Neutrófilos = 64.0 % y 4.800 /µL, extrae valor = "4800", unidad = "/µL", código = "NEUTROFILOS_ABS"; si Linfocitos = 2.150 /µL, extrae valor = "2150", unidad = "/µL").
     - Si el laboratorio expresa la fórmula leucocitaria en "x10^3/µL" o "mil/µL" (ej: Linfocitos = 1.59 x10^3/µL, ref 1.1 - 4.5), debes convertirlo a "/µL" multiplicando por 1000: valor = "1590", unidad = "/µL", rango_referencia = "1100 - 4500 /µL".
+      * ATENCIÓN ESPECIAL EN BASÓFILOS: El rango habitual de basófilos es 0 - 200 /µL (típicamente 10 - 80 /µL). Si el informe indica "0.04 *10^3/µL" (o "0.04" en columna de miles), al multiplicarlo por 1000 el valor absoluto real es "40" (¡NUNCA "40000" ni "0.04"!). Si el informe ya indica 40 /µL, el valor es "40".
     - ¡Bajo ningún concepto omitas la fórmula leucocitaria ni consideres que extraer únicamente "Leucocitos" totales es suficiente!
 
 11. PROCESAMIENTO EXHAUSTIVO MULTIPÁGINA Y SISTEMÁTICO DE ORINA:
@@ -1194,11 +1195,11 @@ def generate_mock_extraction(
         ("Leucocitos", r"Leucocitos[^\d]*(\d+[\.,]?\d*)", "x10^3/µL", "4.00 - 11.00"),
 
         # Fórmula leucocitaria absoluta
-        ("Neutrófilos Absolutos", r"(?:Neutr[oó]filos|Segmentados)[^\d]*(\d+[\.,]?\d*)", "/µL", "1800 - 7500"),
-        ("Linfocitos Absolutos", r"Linfocitos[^\d]*(\d+[\.,]?\d*)", "/µL", "1000 - 4500"),
-        ("Monocitos Absolutos", r"Monocitos[^\d]*(\d+[\.,]?\d*)", "/µL", "200 - 1000"),
-        ("Eosinófilos Absolutos", r"Eosin[oó]filos[^\d]*(\d+[\.,]?\d*)", "/µL", "< 800"),
-        ("Basófilos Absolutos", r"Bas[oó]filos[^\d]*(\d+[\.,]?\d*)", "/µL", "< 200"),
+        ("Neutrófilos Absolutos", r"(?:Neutr[oó]filos|Segmentados)[^\d\n\r]*(?:\d+[\.,]?\d*\s*%(?:[^\n\r\)]*\))?)?\s*(\d+[\.,]?\d*)", "/µL", "1800 - 7500"),
+        ("Linfocitos Absolutos", r"Linfocitos[^\d\n\r]*(?:\d+[\.,]?\d*\s*%(?:[^\n\r\)]*\))?)?\s*(\d+[\.,]?\d*)", "/µL", "1000 - 4500"),
+        ("Monocitos Absolutos", r"Monocitos[^\d\n\r]*(?:\d+[\.,]?\d*\s*%(?:[^\n\r\)]*\))?)?\s*(\d+[\.,]?\d*)", "/µL", "200 - 1000"),
+        ("Eosinófilos Absolutos", r"Eosin[oó]filos[^\d\n\r]*(?:\d+[\.,]?\d*\s*%(?:[^\n\r\)]*\))?)?\s*(\d+[\.,]?\d*)", "/µL", "< 800"),
+        ("Basófilos Absolutos", r"Bas[oó]filos[^\d\n\r]*(?:\d+[\.,]?\d*\s*%(?:[^\n\r\)]*\))?)?\s*(\d+[\.,]?\d*)", "/µL", "< 200"),
 
         # Coagulación y hemostasia
         ("Tiempo de Protrombina (TP)", r"(?:Tiempo\s+de\s+Protrombina|TP)[^\d]*(\d+[\.,]?\d*)", "segundos", "9.5 - 13.5"),

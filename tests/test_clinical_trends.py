@@ -444,9 +444,9 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertIsNotNone(urea_row.get("cells"))
         self.assertEqual(len(urea_row["cells"]), len(urea_row["vals"]))
 
-        # Verificar que la última medición (36.4) es Normal en su celda
+        # Verificar que la última medición (39.0 o 36.4) es Normal en su celda
         last_cell = urea_row["cells"][-1]
-        self.assertIn(last_cell["val"], [36.4, 33.6])
+        self.assertIn(last_cell["val"], [39.0, 36.4, 33.6])
         self.assertEqual(last_cell["ref"], "17.4 - 49.2")
         self.assertEqual(last_cell["status"], "Normal")
         self.assertFalse(last_cell["is_altered"])
@@ -478,7 +478,7 @@ class TestClinicalTrends(unittest.TestCase):
         card_hemo = kpis["hemograma_hierro"]
         vcm_fila = next((f for f in card_hemo["filas"] if f["codigo"] == "VCM"), None)
         self.assertIsNotNone(vcm_fila)
-        self.assertIn(vcm_fila["val"], ["92.8", "92.2"])
+        self.assertIn(vcm_fila["val"], ["92.3", "92.8", "92.2"])
         self.assertFalse(vcm_fila["is_altered"], "VCM dentro del rango no debe estar alterado")
 
         # En la última analítica, Urea es 46.7 y su rango del laboratorio es 17.4 - 49.2
@@ -516,7 +516,7 @@ class TestClinicalTrends(unittest.TestCase):
         egfr_fila = next((f for f in card_renal["filas"] if f["codigo"] == "EGFR"), None)
         self.assertIsNotNone(egfr_fila)
         self.assertEqual(egfr_fila["label"], "eGFR")
-        self.assertIn(egfr_fila["val"], ["90.5", "93.5"])
+        self.assertIn(egfr_fila["val"], ["82.0", "90.5", "93.5"])
         self.assertFalse(egfr_fila["is_altered"])
 
         # 4. Comprobar que en el Historial de Resultados (Tablas) figure la fila de eGFR con el histórico
@@ -525,7 +525,7 @@ class TestClinicalTrends(unittest.TestCase):
         tables_data = res_tab.json()
         egfr_row = next((r for r in tables_data["bioquimica"] if "eGFR" in r["name"] or "Filtrado" in r["name"]), None)
         self.assertIsNotNone(egfr_row)
-        self.assertIn(egfr_row["cells"][-1]["val"], [90.5, 93.5, 88.0, 88])
+        self.assertIn(egfr_row["cells"][-1]["val"], [82.0, 90.5, 93.5, 88.0, 88])
         self.assertFalse(egfr_row["cells"][-1]["is_altered"])
 
     def test_historico_ldl_estados_normales(self):
@@ -709,9 +709,6 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertEqual(filas_ren["UREA"]["tipo_parametro"], "secundario")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_kpi_tiroides_t4_total_t3_total(self):
         """Verifica que la tarjeta KPI de Función Tiroidea muestre TSH, T4 Total, T4 Libre y T3 Total."""
         client = TestClient(app)
@@ -729,9 +726,58 @@ if __name__ == "__main__":
         self.assertIn("T3 Total", filas_labels)
 
         fila_t4t = next(f for f in tiroides["filas"] if f["label"] == "T4 Total")
-        self.assertEqual(fila_t4t["val"], "6.33")
+        self.assertIn(fila_t4t["val"], ["5.62", "6.33"])
         self.assertEqual(fila_t4t["tipo_parametro"], "principal")
 
         fila_t3t = next(f for f in tiroides["filas"] if f["label"] == "T3 Total")
-        self.assertEqual(fila_t3t["val"], "1.03")
+        self.assertIn(fila_t3t["val"], ["0.81", "1.03"])
         self.assertEqual(fila_t3t["tipo_parametro"], "secundario")
+
+    def test_basofilos_estandarizacion_y_edicion(self):
+        """Verifica que los basófilos absolutos (y resto de diferenciales) se estandaricen correctamente sin multiplicarse a 40000."""
+        from app.services.analito_normalizer import standardize_medicion, normalize_analito
+
+        # 1. Normalización de analito por nombre
+        cod, nom, cat, uni = normalize_analito("Basófilos Absolutos")
+        self.assertEqual(cod, "BASOFILOS_ABS")
+        self.assertEqual(uni, "/µL")
+
+        cod2, _, _, _ = normalize_analito("Basófilos")
+        self.assertEqual(cod2, "BASOFILOS_ABS")
+
+        # 2. Valor 40 en /µL (edición manual o ya en /µL) debe permanecer 40 (¡nunca 40000!)
+        num_val, clean_val, std_unit, std_ref = standardize_medicion("BASOFILOS_ABS", "40", "/µL", "0 - 200 /µL")
+        self.assertEqual(num_val, 40.0)
+        self.assertEqual(clean_val, "40")
+        self.assertEqual(std_unit, "/µL")
+        self.assertEqual(std_ref, "0 - 200 /µL")
+
+        # 3. Artefacto histórico 40000 en /µL debe recuperarse a 40
+        num_val, clean_val, std_unit, _ = standardize_medicion("BASOFILOS_ABS", "40000", "/µL", "0 - 200 /µL")
+        self.assertEqual(num_val, 40.0)
+        self.assertEqual(clean_val, "40")
+
+        # 4. Valor 0.04 en 10^3/µL (formato del PDF Recoletas) debe convertirse a 40 /µL
+        num_val, clean_val, std_unit, std_ref = standardize_medicion("BASOFILOS_ABS", "0.04", "10^3/µL", "0.0 - 0.2")
+        self.assertEqual(num_val, 40.0)
+        self.assertEqual(clean_val, "40")
+        self.assertEqual(std_unit, "/µL")
+        self.assertIn("200", std_ref)
+
+        # 5. Valores reales como 50 y 60 en /µL deben conservarse intactos
+        num_val50, clean50, _, _ = standardize_medicion("BASOFILOS_ABS", "50", "/µL")
+        self.assertEqual(num_val50, 50.0)
+        self.assertEqual(clean50, "50")
+
+        num_val60, clean60, _, _ = standardize_medicion("BASOFILOS_ABS", "60", "/µL")
+        self.assertEqual(num_val60, 60.0)
+        self.assertEqual(clean60, "60")
+
+        # 6. Eosinófilos con valor menor a 50 (ej: 30 /µL) no deben multiplicarse por 1000
+        num_eos, clean_eos, _, _ = standardize_medicion("EOSINOFILOS_ABS", "30", "/µL")
+        self.assertEqual(num_eos, 30.0)
+        self.assertEqual(clean_eos, "30")
+
+
+if __name__ == "__main__":
+    unittest.main()

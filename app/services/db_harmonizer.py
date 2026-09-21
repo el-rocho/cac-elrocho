@@ -66,7 +66,9 @@ def harmonize_database_records(db: Session) -> int:
             if m.valor_numerico is not None and m.ref_texto:
                 from app.services.analito_normalizer import evaluar_estado_semaforo
                 calc_status = evaluar_estado_semaforo(m.valor_numerico, m.ref_texto)
-                if calc_status != "Normal" and m.estado_semaforo in [None, "Normal"]:
+                if modified and m.estado_semaforo != calc_status:
+                    m.estado_semaforo = calc_status
+                elif calc_status != "Normal" and m.estado_semaforo in [None, "Normal"]:
                     m.estado_semaforo = calc_status
                     modified = True
 
