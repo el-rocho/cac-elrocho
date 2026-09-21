@@ -34,8 +34,26 @@ def harmonize_database_records(db: Session) -> int:
     Retorna el número de mediciones actualizadas.
     """
     try:
+        # 0. Asegurar que todos los analitos del catálogo canónico existan en la BD
+        existing_analitos = {a.codigo: a for a in db.query(Analito).all()}
+        for cod, meta in CANONICAL_CATALOG.items():
+            if cod not in existing_analitos:
+                clean_ref = clean_unit_from_ref(meta.get("ref"), meta.get("unidad"))
+                new_a = Analito(
+                    codigo=cod,
+                    nombre_visible=meta.get("nombre", cod),
+                    categoria=meta.get("categoria", "bioquimica"),
+                    unidad_estandar=meta.get("unidad", ""),
+                    ref_texto_defecto=clean_ref,
+                    orden=meta.get("orden", 0)
+                )
+                db.add(new_a)
+                existing_analitos[cod] = new_a
+        db.flush()
+
         meds = db.query(Medicion, Analito).join(Analito).all()
         if not meds:
+            db.commit()
             return 0
 
         updated_count = 0

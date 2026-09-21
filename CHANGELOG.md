@@ -1,6 +1,16 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.8.1] - 2026-09-21
+
+### 🐛 Corrección en Carga de Cabecera y Tarjetas KPI en Producción
+* **Resolución de NameError en Tipado (`Optional`, `Tuple`)**: Incorporadas las importaciones de tipado estricto en `app/api/analiticas.py` requeridas por Python 3.12 en entornos de despliegue Docker, resolviendo el fallo en el endpoint `/api/v1/analiticas/summary` que impedía renderizar la información personal del header, las etiquetas del modelo LLM/analítica y las tarjetas KPI tras cargar datos.
+
+### 🛡️ Robustez y Armonización Automática en Importación de Respaldos
+* **Auto-registro del Catálogo Canónico**: Garantizada la existencia de todas las determinaciones analíticas canónicas (`T4_TOTAL`, `T3_TOTAL`, anticuerpos, etc.) en la base de datos al importar copias de seguridad de cualquier versión previa.
+* **Armonización Post-Importación Inmediata**: Integración de la rutina de armonización de escalas, unidades y semáforos al restaurar copias de seguridad (`/api/v1/backup/import`), asegurando consistencia clínica inmediata sin requerir reinicio del servidor.
+
+---
 ## [v0.8.0] - 2026-09-21
 
 ### 📄 Extracción Tabular Avanzada de PDFs y Resiliencia Multimodal

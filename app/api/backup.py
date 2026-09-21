@@ -13,6 +13,7 @@ from app.services.backup_service import (
     import_database_from_dict,
     wipe_database
 )
+from app.services.db_harmonizer import harmonize_database_records
 from app.seed_data import run_seed
 
 router = APIRouter(prefix="/backup", tags=["Gestión y Respaldo de Datos"])
@@ -57,6 +58,10 @@ async def import_backup(
             payload = decrypt_backup(payload, passphrase.strip())
 
         import_database_from_dict(db, payload)
+        try:
+            harmonize_database_records(db)
+        except Exception:
+            pass
         return {
             "status": "success",
             "message": f"Datos restaurados con éxito ({len(payload.get('informes', []))} informes importados)."

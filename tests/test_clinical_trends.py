@@ -807,7 +807,36 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertEqual(unit_prot, "g/dL")
         self.assertEqual(ref_prot, "6.4 - 8.3 g/dL")
 
+    def test_backup_export_import_and_summary(self):
+        client = TestClient(app)
+        # 1. Obtener summary inicial
+        res = client.get("/api/v1/analiticas/summary")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("paciente", data)
+        self.assertIn("kpis", data)
+        self.assertIn("motor_llm_info", data)
+        self.assertIn("total_controles", data)
+
+        # 2. Exportar backup
+        res_export = client.get("/api/v1/backup/export")
+        self.assertEqual(res_export.status_code, 200)
+        backup_content = res_export.content
+
+        # 3. Importar backup
+        files = {"file": ("backup.json", backup_content, "application/json")}
+        res_import = client.post("/api/v1/backup/import", files=files)
+        self.assertEqual(res_import.status_code, 200)
+
+        # 4. Verificar que /summary responde con status 200 tras la importación
+        res_after = client.get("/api/v1/analiticas/summary")
+        self.assertEqual(res_after.status_code, 200)
+        data_after = res_after.json()
+        self.assertTrue(len(data_after["kpis"]) > 0)
+        self.assertIsNotNone(data_after["paciente"]["nombre"])
+        self.assertTrue(data_after["total_controles"] > 0)
 
 
 if __name__ == "__main__":
     unittest.main()
+
