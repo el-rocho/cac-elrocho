@@ -1,10 +1,23 @@
 import logging
-from typing import Tuple
+import re
+from typing import Tuple, Optional
 from sqlalchemy.orm import Session
 from app.models import Medicion, Analito, Informe
 from app.services.analito_normalizer import standardize_medicion, CANONICAL_CATALOG
 
 logger = logging.getLogger("cac-elrocho.harmonizer")
+
+def clean_unit_from_ref(ref_str: Optional[str], unit: Optional[str] = None) -> str:
+    """Elimina la unidad redundante del final de un texto de referencia (ej: '0 - 200 /µL' -> '0 - 200')."""
+    if not ref_str:
+        return ""
+    s = str(ref_str).strip()
+    if unit:
+        pattern = r"\s*" + re.escape(unit.strip()) + r"\s*$"
+        s = re.sub(pattern, "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s*(?:/[µu]?L|x10\^[36]/[µu]?L|mm|g/dL|mg/dL|UI/mL|ng/mL|%)\s*$", "", s, flags=re.IGNORECASE)
+    return s.strip()
+
 
 def harmonize_database_records(db: Session) -> int:
     """
@@ -80,7 +93,7 @@ def harmonize_database_records(db: Session) -> int:
                 a.unidad_estandar = std_unit
                 analitos_updated.add(a.id)
 
-        # 6. Sincronizar ref_texto_defecto del Analito con el informe más reciente
+        # 6. Sincronizar ref_texto_defecto del Analito con el informe más reciente (limpiando unidades redundantes)
         analitos_all = db.query(Analito).all()
         for a in analitos_all:
             latest_med = (
@@ -90,12 +103,14 @@ def harmonize_database_records(db: Session) -> int:
                 .order_by(Informe.fecha.desc())
                 .first()
             )
-            if latest_med and latest_med.ref_texto:
-                ref_clean = latest_med.ref_texto.strip()
+            raw_ref = latest_med.ref_texto if (latest_med and latest_med.ref_texto) else a.ref_texto_defecto
+            if raw_ref:
+                ref_clean = clean_unit_from_ref(raw_ref, a.unidad_estandar)
                 if ref_clean and ref_clean not in ["-", "Sin referencia", "No especificado"]:
                     if a.ref_texto_defecto != ref_clean:
                         a.ref_texto_defecto = ref_clean
                         analitos_updated.add(a.id)
+
 
         if updated_count > 0 or analitos_updated:
             db.commit()
