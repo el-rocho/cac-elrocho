@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.8.1`
+# cac-elrocho 🩺 `v0.9.0`
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
@@ -10,9 +10,11 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.8.1`
-* 🐛 **Corrección en Carga de Cabecera y KPIs**: Subsanada la resolución de tipado estricto en Python 3.12 para el endpoint del resumen clínico (`/summary`), habilitando el renderizado instantáneo de datos personales, estado del motor LLM y tarjetas KPI.
-* 🛡️ **Robustez y Armonización en Copias de Seguridad**: Auto-registro de analitos canónicos y armonización inmediata de escalas, unidades y semáforos tras restaurar respaldos.
+## ✨ Novedades de la Versión `v0.9.0`
+* 🔗 **Unificación de informes coincidentes**: Al detectar informes de la misma fecha se puede fusionar conservando analitos previos y actualizando los recibidos, o reemplazar el informe por completo.
+* 🔖 **Referencia de petición trazable**: Extracción, revisión y edición del número de referencia; visible en la auditoría de archivos y preservado en las copias/restauraciones.
+* 📈 **Variaciones clínicas refinadas**: Las variaciones solo se muestran frente a una determinación previa dentro de 24 meses y superando el umbral clínico aplicable.
+* ✅ **Pruebas aisladas**: La cobertura de unificación, fusión y respaldo se ejecuta contra SQLite temporal, sin afectar datos clínicos locales.
 * 📄 **Extracción Tabular Avanzada y Resiliencia Multimodal**: Reconstrucción espacial horizontal en informes PDF columnarios (`sort=True` / `layout`) y red determinista de rescate para analitos críticos (Filtrado Glomerular y Eje Tiroideo).
 * 🦋 **Eje Tiroideo Completo (T4 y T3 Total)**: Integración de T4 Total como métrica Principal y T3 Total como Secundario en tarjetas KPI, desambiguación semántica en el catálogo y ampliación del modal explicativo.
 * 🩸 **Calibración Leucocitaria y Basófilos**: Umbrales fisiológicos específicos para evitar multiplicaciones erróneas de escala (`40` vs `40000`), extracción robusta ante porcentajes/absolutos y armonización retrospectiva.
@@ -122,7 +124,7 @@ http://IP_DE_TU_SERVIDOR:8000    # Si lo ejecutas en un servidor remoto o máqui
 
 ## 🔄 Actualización Rápida en el Servidor (Sin Compilar)
 
-Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.8.1`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
+Con el flujo de **GitHub Actions** configurado, cada versión etiquetada (`v0.9.0`) y cambio en `main` genera automáticamente la imagen en **GitHub Container Registry (GHCR)**. Para actualizar tu servidor en segundos:
 
 ```bash
 cd cac-elrocho

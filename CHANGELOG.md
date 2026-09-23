@@ -1,6 +1,18 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.0] - 2026-09-23
+
+### 🔗 Unificación de informes y referencias
+* **Fusión o reemplazo de informes coincidentes**: Ante informes de la misma fecha, permite conservar analitos previos y actualizar/añadir los nuevos, o reemplazar íntegramente el informe seleccionado.
+* **Número de referencia de petición**: Se extrae desde PDF/LLM, se puede revisar y editar en la interfaz, y se expone en el historial y auditoría de archivos.
+* **Respaldo íntegro**: Las referencias de informe se serializan y restauran en las copias de seguridad JSON, incluidas las cifradas AES-GCM.
+
+### 📈 Seguimiento clínico y verificación
+* **Variaciones contextualizadas**: El panel compara únicamente con el control anterior dentro de 24 meses y respeta los umbrales de significación clínica.
+* **Pruebas seguras**: Incorporada cobertura de extracción de referencias, fusión y restauración usando SQLite temporal; retirados escenarios dependientes de datos demo no deterministas.
+
+---
 ## [v0.8.1] - 2026-09-21
 
 ### 🐛 Corrección en Carga de Cabecera y Tarjetas KPI en Producción
