@@ -1,6 +1,11 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.1] - 2026-09-23
+
+* **Datos de demostración sintéticos**: una instalación nueva muestra tres analíticas ficticias anonimizadas, sin incluir ni modificar datos clínicos reales.
+* **CI/CD**: pruebas obligatorias sobre SQLite temporal, runner fijado a Ubuntu 24.04 y acciones Docker actualizadas para Node 24.
+
 ## [v0.9.0] - 2026-09-23
 
 ### 🔗 Unificación de informes y referencias

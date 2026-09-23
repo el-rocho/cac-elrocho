@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.9.0`
+# cac-elrocho 🩺 `v0.9.1`
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
@@ -10,7 +10,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.0`
+## ✨ Novedades de la Versión `v0.9.1`
 * 🔗 **Unificación de informes coincidentes**: Al detectar informes de la misma fecha se puede fusionar conservando analitos previos y actualizando los recibidos, o reemplazar el informe por completo.
 * 🔖 **Referencia de petición trazable**: Extracción, revisión y edición del número de referencia; visible en la auditoría de archivos y preservado en las copias/restauraciones.
 * 📈 **Variaciones clínicas refinadas**: Las variaciones solo se muestran frente a una determinación previa dentro de 24 meses y superando el umbral clínico aplicable.

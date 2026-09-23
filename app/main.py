@@ -11,7 +11,7 @@ from app import __version__
 
 from app.config import settings
 from app.database import init_db, SessionLocal
-from app.seed_data import run_seed
+from app.seed_data import run_recent_synthetic_seed
 from app.services.watcher import inbox_watcher
 from app.services.backup_service import backfill_informe_hashes
 from app.services.db_harmonizer import harmonize_database_records
@@ -29,8 +29,9 @@ async def lifespan(app: FastAPI):
     # Inicialización de la base de datos
     logger.info("Iniciando cac-elrocho: verificando base de datos SQLite...")
     init_db()
-    if settings.APP_ENV == "demo":
-        run_seed()
+    # Una instalación nueva muestra datos demostrativos sintéticos. La semilla
+    # no actúa si ya existe cualquier informe, por lo que nunca toca datos reales.
+    run_recent_synthetic_seed()
     
     # Backfill de hashes SHA-256 para informes existentes
     backfill_informe_hashes()
