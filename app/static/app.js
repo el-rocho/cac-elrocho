@@ -542,18 +542,28 @@ async function loadTables() {
       else if (idx === data.dates.length - 3) bgCls = 'bg-blue-900 hover:bg-blue-800 font-bold';
 
       const inf = infList[idx];
+      const refText = (inf && inf.referencia) ? inf.referencia : '-';
       if (inf && inf.id) {
         hHtml += `
           <th class="p-3 text-center min-w-[105px] whitespace-nowrap ${bgCls} cursor-pointer group transition-all select-none border-b-2 border-transparent hover:border-amber-400"
               onclick="openEditInformeModal(${inf.id})"
-              title="Hacer clic para revisar o editar analítica del ${escapeHtml(inf.fecha)} (${escapeHtml(inf.laboratorio)})">
-            <div class="flex items-center justify-center gap-1.5">
-              <span>${escapeHtml(d)}</span>
-              <span class="text-[10px] opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-transform" title="Editar este control">✏️</span>
+              title="Hacer clic para revisar o editar analítica del ${escapeHtml(inf.fecha)} (${escapeHtml(inf.laboratorio)}) - Ref: ${escapeHtml(refText)}">
+            <div class="flex flex-col items-center justify-center">
+              <div class="flex items-center justify-center gap-1.5">
+                <span>${escapeHtml(d)}</span>
+                <span class="text-[10px] opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-transform" title="Editar este control">✏️</span>
+              </div>
+              <div class="text-[10px] font-normal text-slate-300 group-hover:text-amber-200 mt-0.5 tracking-tight" title="Referencia: ${escapeHtml(refText)}">Ref: ${escapeHtml(refText)}</div>
             </div>
           </th>`;
       } else {
-        hHtml += `<th class="p-3 text-center min-w-[105px] whitespace-nowrap ${bgCls}">${escapeHtml(d)}</th>`;
+        hHtml += `
+          <th class="p-3 text-center min-w-[105px] whitespace-nowrap ${bgCls}">
+            <div class="flex flex-col items-center justify-center">
+              <span>${escapeHtml(d)}</span>
+              <div class="text-[10px] font-normal text-slate-300 mt-0.5">Ref: -</div>
+            </div>
+          </th>`;
       }
     });
     hHtml += `
@@ -602,18 +612,37 @@ async function loadTables() {
           if (cellObj) {
             const cRef = cellObj.ref || row.ref || 'Sin referencia';
             let cStatus = cellObj.status || 'Normal';
+            const numVal = parseFloat(String(v).replace(',', '.'));
+
+            if ((!cStatus || cStatus === 'Normal') && !isNaN(numVal) && cRef) {
+              const calcSt = evaluateStatusClient(numVal, cRef);
+              if (calcSt !== 'Normal') {
+                cStatus = calcSt;
+              }
+            }
+
             const isAltered = !!(cellObj.is_altered || cStatus === 'Alto' || cStatus === 'Bajo' || cStatus === 'Atencion' || cStatus === 'Alerta' || cStatus === 'Alérgeno');
 
             if (isAltered) {
-              if (cStatus === 'Alto' || cStatus === 'Atencion' || cStatus === 'Alerta' || cStatus === 'Alérgeno') {
-                cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
-              } else if (cStatus === 'Bajo') {
+              if (cStatus === 'Bajo') {
                 cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
-              } else {
+              } else if (cStatus === 'Alto' || cStatus === 'Atencion' || cStatus === 'Alerta' || cStatus === 'Alérgeno') {
                 cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+              } else {
+                if (!isNaN(numVal) && cRef) {
+                  const bounds = parseReferenceBoundsClient(cRef);
+                  if (bounds.low !== null && numVal < bounds.low) {
+                    cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+                    cStatus = 'Bajo';
+                  } else {
+                    cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+                    cStatus = 'Alto';
+                  }
+                } else {
+                  cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+                }
               }
             } else {
-              const numVal = parseFloat(String(v).replace(',', '.'));
               const borderline = (!isNaN(numVal)) ? evaluateBorderlineClient(numVal, cRef, row.name) : null;
               if (borderline && borderline.isBorderline) {
                 cellCls = 'text-amber-900 bg-amber-50/80 border border-amber-200 font-medium px-1.5 py-0.5 rounded shadow-sm';
@@ -627,10 +656,10 @@ async function loadTables() {
             const num = parseFloat(String(v).replace(',', '.'));
             const st = (!isNaN(num) && row.ref) ? evaluateStatusClient(num, row.ref) : 'Normal';
             let stText = st;
-            if (st === 'Alto') {
-              cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
-            } else if (st === 'Bajo') {
+            if (st === 'Bajo') {
               cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+            } else if (st === 'Alto') {
+              cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
             } else {
               const borderline = (!isNaN(num) && row.ref) ? evaluateBorderlineClient(num, row.ref, row.name) : null;
               if (borderline && borderline.isBorderline) {
@@ -901,10 +930,10 @@ async function loadAiAuditorias(manualTrigger = false) {
         `;
         actionButtons = `
           <div class="flex flex-wrap items-center gap-2">
-            <button onclick="keepAuditHistorical(${aud.id}, '${safeAnalito}')" class="px-3 py-1.5 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-xs" title="Mantener los rangos de referencia originales de las analíticas pasadas">
-              <span>🛡️</span> <span>Mantener rangos históricos</span>
+            <button onclick="keepAuditHistorical(${aud.id}, '${safeAnalito}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-sm" title="Mantener los rangos de referencia originales de las analíticas pasadas">
+              <span>🛡️</span> <span>Mantener rangos históricos</span> <span class="bg-indigo-700/90 text-indigo-100 text-[10px] font-medium px-1.5 py-0.2 rounded-full">(Recomendado)</span>
             </button>
-            <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-sm" title="Homologar este nuevo rango a todas las analíticas anteriores">
+            <button onclick="applyAuditCriteria(${aud.id}, '${safeAnalito}', '${safeRangoNuevo}')" class="px-3 py-1.5 bg-white hover:bg-slate-100 active:scale-95 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1.5 shadow-xs" title="Homologar este nuevo rango a todas las analíticas anteriores">
               <span>⚡</span> <span>Aplicar a todo el historial</span>
             </button>
           </div>
@@ -983,12 +1012,12 @@ async function loadAiAuditorias(manualTrigger = false) {
         </div>
         ${pendientes.length > 1 ? `
           <div class="flex items-center gap-3 text-[11px]">
-            <button onclick="keepAllAuditHistorical()" class="font-semibold text-slate-600 hover:text-slate-800 hover:underline flex items-center gap-1">
-              <span>🛡️</span> Mantener todos los históricos
+            <button onclick="keepAllAuditHistorical()" class="font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1" title="Mantener rangos históricos en todas las analíticas anteriores">
+              <span>🛡️</span> <span>Mantener todos los históricos</span> <span class="text-[10px] font-medium text-indigo-500">(Recomendado)</span>
             </button>
             <span class="text-slate-300">|</span>
-            <button onclick="applyAllAuditCriteria()" class="font-semibold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1">
-              <span>⚡</span> Aplicar y actualizar todo el historial
+            <button onclick="applyAllAuditCriteria()" class="font-semibold text-slate-600 hover:text-slate-800 hover:underline flex items-center gap-1" title="Homologar los nuevos rangos a todas las analíticas pasadas">
+              <span>⚡</span> <span>Aplicar y actualizar todo el historial</span>
             </button>
           </div>
         ` : ''}
@@ -1292,6 +1321,9 @@ function renderUploadPreview(data) {
   const facEl = document.getElementById('previewFacultativoInput');
   if (facEl) facEl.value = data.facultativo || '';
 
+  const refEl = document.getElementById('previewReferenciaInput');
+  if (refEl) refEl.value = data.referencia || '';
+
   const dictEl = document.getElementById('previewDictamenInput');
   if (dictEl) dictEl.value = data.dictamen_preliminar || '';
 
@@ -1302,6 +1334,7 @@ function renderUploadPreview(data) {
   const dupContainer = document.getElementById('previewDuplicateWarning');
   const dupTitle = document.getElementById('previewDuplicateTitle');
   const dupMsg = document.getElementById('previewDuplicateMessage');
+  const mergeRadio = document.getElementById('duplicateActionMerge');
   const overwriteRadio = document.getElementById('duplicateActionOverwrite');
 
   if (data.es_duplicado && data.aviso_duplicado) {
@@ -1312,9 +1345,13 @@ function renderUploadPreview(data) {
         : '📅 <strong>Analítica con misma fecha registrada previamente</strong>';
     }
     if (dupMsg) {
-      dupMsg.textContent = `${data.aviso_duplicado} Elige a continuación si deseas actualizar el registro existente o guardarlo como una nueva analítica independiente.`;
+      dupMsg.textContent = `${data.aviso_duplicado} Elige a continuación cómo deseas proceder:`;
     }
-    if (overwriteRadio) overwriteRadio.checked = true;
+    if (mergeRadio) {
+      mergeRadio.checked = true;
+    } else if (overwriteRadio) {
+      overwriteRadio.checked = true;
+    }
   } else {
     if (dupContainer) dupContainer.classList.add('hidden');
   }
@@ -1690,6 +1727,7 @@ async function confirmUploadData() {
   const fecha = document.getElementById('previewFechaInput').value.trim();
   const laboratorio = document.getElementById('previewLabInput').value.trim();
   const facultativo = document.getElementById('previewFacultativoInput').value.trim();
+  const referencia = document.getElementById('previewReferenciaInput')?.value.trim() || '';
 
   // Si se modificaron valores en la tabla y aún no se ha sincronizado el dictamen, ofrecer regenerarlo
   const syncNotice = document.getElementById('previewDictamenSyncNotice');
@@ -1738,8 +1776,20 @@ async function confirmUploadData() {
   btn.disabled = true;
   btn.innerHTML = '<span>⏳</span> Guardando en base de datos...';
 
+  const mergeRadio = document.getElementById('duplicateActionMerge');
   const overwriteRadio = document.getElementById('duplicateActionOverwrite');
-  const sobrescribir = (currentPreviewData.es_duplicado && overwriteRadio && overwriteRadio.checked) ? true : false;
+  let modoCoincidencia = 'fusionar';
+  let sobrescribir = false;
+
+  if (currentPreviewData.es_duplicado) {
+    if (overwriteRadio && overwriteRadio.checked) {
+      modoCoincidencia = 'reemplazar';
+      sobrescribir = true;
+    } else {
+      modoCoincidencia = 'fusionar';
+      sobrescribir = true;
+    }
+  }
 
   try {
     const payload = {
@@ -1747,11 +1797,13 @@ async function confirmUploadData() {
       fecha: fecha,
       laboratorio: laboratorio || 'Laboratorio Clínico',
       facultativo: facultativo || 'No especificado',
+      referencia: referencia || null,
       mediciones: mediciones,
       dictamen_global: dictamen || 'Control favorable',
       sha256: currentPreviewData.sha256 || null,
       sobrescribir_existente: sobrescribir,
-      informe_id_a_reemplazar: currentPreviewData.informe_existente_id || null
+      informe_id_a_reemplazar: currentPreviewData.informe_existente_id || null,
+      modo_coincidencia: modoCoincidencia
     };
 
     const res = await fetch('/api/v1/upload/confirm', {
@@ -1800,6 +1852,8 @@ async function openEditInformeModal(informeId) {
     document.getElementById('editInformeFecha').value = data.fecha;
     document.getElementById('editInformeLab').value = data.laboratorio || '';
     document.getElementById('editInformeFacultativo').value = data.facultativo || '';
+    const refInput = document.getElementById('editInformeReferencia');
+    if (refInput) refInput.value = data.referencia || '';
     const dictamenEl = document.getElementById('editInformeDictamen');
     if (dictamenEl) {
       dictamenEl.value = data.dictamen_global || '';
@@ -2098,6 +2152,7 @@ async function saveEditedInforme() {
   const fecha = document.getElementById('editInformeFecha').value.trim();
   const laboratorio = document.getElementById('editInformeLab').value.trim();
   const facultativo = document.getElementById('editInformeFacultativo').value.trim();
+  const referencia = document.getElementById('editInformeReferencia')?.value.trim() || '';
   const dictamen = document.getElementById('editInformeDictamen').value.trim();
 
   if (!fecha) {
@@ -2148,6 +2203,7 @@ async function saveEditedInforme() {
       fecha: fecha,
       laboratorio: laboratorio || 'Laboratorio Clínico',
       facultativo: facultativo || 'No especificado',
+      referencia: referencia || null,
       dictamen_global: dictamen || 'Control favorable',
       mediciones: mediciones
     };
@@ -2528,8 +2584,15 @@ async function loadAuditFiles() {
     files.forEach(f => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-slate-50 transition-colors';
+      const refHtml = f.referencia
+        ? `<div class="text-[11px] font-medium text-slate-500 font-mono mt-0.5">Ref: ${escapeHtml(f.referencia)}</div>`
+        : `<div class="text-[11px] font-normal text-slate-400 font-mono mt-0.5">Ref: -</div>`;
+
       tr.innerHTML = `
-        <td class="p-3 font-bold text-slate-900">${escapeHtml(f.fecha)} <span class="text-[10px] text-slate-400 font-normal">(${escapeHtml(f.etiqueta_corta)})</span></td>
+        <td class="p-3">
+          <div class="font-bold text-slate-900">${escapeHtml(f.fecha)}</div>
+          ${refHtml}
+        </td>
         <td class="p-3 font-medium text-slate-800">${escapeHtml(f.laboratorio)}</td>
         <td class="p-3 text-slate-600">${escapeHtml(f.facultativo || 'No especificado')}</td>
         <td class="p-3 font-mono text-[11px] text-slate-500">${escapeHtml(f.archivo_pdf || '-')}</td>
@@ -2660,12 +2723,6 @@ function openKpiModal(index) {
 
   const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-extrabold' : 'text-slate-900 font-extrabold');
 
-  const mainVarBadgeHtml = kpi.main_var_delta ? `
-    <span class="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-900 font-mono font-bold text-xs" title="Variación vs control anterior">
-      ${kpi.main_var_delta}
-    </span>
-  ` : '';
-
   let mainDotClass = 'bg-slate-300';
   let mainTrendTitle = 'Sin tendencia evaluable';
   if (kpi.main_clinical_trend === 'FAVORABLE') {
@@ -2678,10 +2735,6 @@ function openKpiModal(index) {
     mainDotClass = 'bg-blue-500';
     mainTrendTitle = 'Tendencia estable';
   }
-
-  const mainFootnoteHtml = (kpi.main_is_historical && kpi.main_footnote_symbol) ? `
-    <sup class="text-amber-700 font-bold text-sm ml-1" title="Dato de informe anterior: ${kpi.main_fecha_origen || ''}">${kpi.main_footnote_symbol}</sup>
-  ` : '';
 
   const mainTrendBadge = kpi.main_clinical_trend ? `
     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-2xs">
@@ -2698,14 +2751,11 @@ function openKpiModal(index) {
         <div class="space-y-1.5">
           ${kpi.filas.map(f => {
             const isHistorical = f.es_historico;
-            const footnoteSymHtml = (isHistorical && f.footnote_symbol) ? `
-              <sup class="text-amber-700 font-bold text-xs ml-0.5" title="Dato de informe anterior: ${f.fecha_origen || ''}">${f.footnote_symbol}</sup>
-            ` : '';
             const varBadgeHtml = f.var_delta ? `
-              <span class="inline-block px-2 py-0.5 rounded bg-white border border-slate-200/90 text-slate-900 font-mono font-bold text-xs shadow-2xs" title="Variación vs control anterior">
+              <span class="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-900 font-mono font-bold text-xs shadow-2xs" title="Variación vs control anterior">
                 ${f.var_delta}
               </span>
-            ` : '<span class="text-slate-300 text-xs font-mono">-</span>';
+            ` : '';
             const isAltered = f.is_altered;
             const isUndetermined = f.val === '-' || !f.val;
             const valClass = isAltered 
@@ -2749,7 +2799,7 @@ function openKpiModal(index) {
                 </div>
                 <div class="flex items-center gap-2 sm:gap-3 shrink-0">
                   <span class="${valClass} text-xs sm:text-sm min-w-[55px] text-right">
-                    ${f.val} <span class="text-[11px] font-normal text-slate-500">${f.unit || ''}</span>${footnoteSymHtml}
+                    ${f.val} <span class="text-[11px] font-normal text-slate-500">${f.unit || ''}</span>
                   </span>
                   <div class="min-w-[44px] flex justify-end">
                     ${varBadgeHtml}
@@ -2802,23 +2852,22 @@ function openKpiModal(index) {
     <div class="bg-gradient-to-r from-slate-50 to-blue-50/40 border border-slate-200 rounded-2xl p-3.5 sm:p-4">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
               ${kpi.main_label ? kpi.main_label : 'Parámetro Principal'}
             </span>
             <span class="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-1.5 py-0.2 rounded shrink-0">Principal</span>
+            ${kpi.main_is_historical ? `<span class="text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-200 shrink-0">Histórico ${kpi.main_fecha_origen || ''}</span>` : ''}
           </div>
           <div class="text-2xl sm:text-3xl ${valColorClass} mt-0.5 flex items-baseline flex-wrap">
             <span>${kpi.main_value}</span>
             <span class="text-sm font-semibold text-slate-500 ml-1.5">${kpi.unit}</span>
-            ${mainFootnoteHtml}
           </div>
         </div>
         <div class="flex items-center gap-2.5 flex-wrap">
-          ${mainVarBadgeHtml ? `
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-700 shadow-2xs" title="Variación vs control anterior">
-              <span class="text-[10px] uppercase font-bold text-slate-400">Var:</span>
-              <span class="font-mono font-bold text-slate-900">${kpi.main_var_delta}</span>
+          ${kpi.main_var_delta ? `
+            <span class="inline-block px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/90 text-slate-900 font-mono font-bold text-xs shadow-2xs" title="Variación vs control anterior">
+              ${kpi.main_var_delta}
             </span>
           ` : ''}
           ${mainTrendBadge}

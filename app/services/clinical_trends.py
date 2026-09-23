@@ -608,8 +608,8 @@ def calcular_variacion_reciente(val_actual: Optional[float], val_anterior: Optio
     Calcula la variación respecto a la determinación anterior.
     A petición clínica:
     - Sin flechas (↑, ↓, → eliminadas).
-    - Solo muestra el valor numérico con su signo (+delta o -delta) cuando exista variación significativa.
-    - Si la variación es nula o dentro del umbral de estabilidad, retorna cadena vacía "".
+    - Solo muestra el valor numérico con su signo (+delta o -delta) cuando exista variación significativa que supere el umbral clínico.
+    - Si la variación es nula o está dentro del umbral de estabilidad clínica, retorna cadena vacía "".
     """
     if val_actual is None or val_anterior is None:
         return None, "", None, False
@@ -625,18 +625,17 @@ def calcular_variacion_reciente(val_actual: Optional[float], val_anterior: Optio
     if abs(delta) <= umbral:
         return None, "", delta, False
 
-    if delta > 0:
-        if decimals == 0:
-            delta_str = f"+{int(round(delta))}"
-        else:
-            delta_str = f"+{delta:.{decimals}f}"
-        return None, delta_str, delta, True
+    has_decimals = (round(val_actual % 1, 4) != 0) or (round(val_anterior % 1, 4) != 0)
+    effective_decimals = max(decimals, 1 if has_decimals else 0)
+
+    d_rounded = round(delta, effective_decimals) if effective_decimals > 0 else round(delta)
+
+    if d_rounded > 0:
+        delta_str = f"+{d_rounded:.{effective_decimals}f}" if effective_decimals > 0 else f"+{int(d_rounded)}"
     else:
-        if decimals == 0:
-            delta_str = f"-{abs(int(round(delta)))}"
-        else:
-            delta_str = f"-{abs(delta):.{decimals}f}"
-        return None, delta_str, delta, True
+        delta_str = f"-{abs(d_rounded):.{effective_decimals}f}" if effective_decimals > 0 else f"-{abs(int(d_rounded))}"
+
+    return None, delta_str, delta, True
 
 
 def calcular_tendencia_longitudinal(

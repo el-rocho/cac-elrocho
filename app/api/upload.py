@@ -13,7 +13,7 @@ from app.models import Paciente, Informe, Analito, Medicion, AuditoriaRango
 from app.schemas import AnaliticaPreviewResponse, ConfirmacionRequest, RegenerateDictamenRequest, RegenerateDictamenResponse
 from app.services.llm_service import analyze_pdf_with_llm, generate_clinical_summary_from_measurements
 from app.services.metrics import calculate_ratios
-from app.services.analito_normalizer import normalize_analito, normalize_valor_numerico, standardize_medicion, CANONICAL_ANALITOS
+from app.services.analito_normalizer import normalize_analito, normalize_valor_numerico, standardize_medicion, CANONICAL_ANALITOS, evaluar_estado_semaforo
 
 logger = logging.getLogger(__name__)
 
@@ -135,11 +135,12 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
             except Exception as e:
                 logger.warning(f"Aviso al archivar PDF definitivo: {e}")
 
-        # 4. Determinar si se actualiza un informe existente o se crea uno nuevo
+        # 4. Determinar si se actualiza un informe existente, se fusiona o se crea uno nuevo
         informe = None
+        modo = req.modo_coincidencia or ("reemplazar" if req.sobrescribir_existente else "fusionar")
         es_sobrescritura = False
 
-        if req.sobrescribir_existente:
+        if modo in ("reemplazar", "fusionar"):
             if req.informe_id_a_reemplazar:
                 informe = db.query(Informe).filter_by(id=req.informe_id_a_reemplazar).first()
             if not informe and file_sha256:
@@ -149,19 +150,75 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
 
         if informe:
             es_sobrescritura = True
-            informe.fecha = req.fecha
-            informe.etiqueta_corta = etiq_corta
-            informe.laboratorio = req.laboratorio
-            informe.facultativo = req.facultativo or "No especificado"
-            informe.archivo_pdf = nombre_archivo
-            informe.sha256 = file_sha256
-            informe.dictamen_global = req.dictamen_global or "Control favorable"
-            informe.estado = "confirmado"
+            if modo == "reemplazar":
+                informe.fecha = req.fecha
+                informe.etiqueta_corta = etiq_corta
+                informe.laboratorio = req.laboratorio
+                informe.facultativo = req.facultativo or "No especificado"
+                informe.referencia = req.referencia
+                informe.archivo_pdf = nombre_archivo
+                informe.sha256 = file_sha256
+                informe.dictamen_global = req.dictamen_global or "Control favorable"
+                informe.estado = "confirmado"
 
-            # Vaciar mediciones anteriores para reescribirlas limpias
-            db.query(Medicion).filter_by(informe_id=informe.id).delete()
-            db.query(AuditoriaRango).filter_by(informe_id=informe.id).delete()
-            db.flush()
+                # Vaciar mediciones anteriores para reescribirlas limpias
+                db.query(Medicion).filter_by(informe_id=informe.id).delete()
+                db.query(AuditoriaRango).filter_by(informe_id=informe.id).delete()
+                db.flush()
+            elif modo == "fusionar":
+                informe.fecha = req.fecha
+                informe.etiqueta_corta = etiq_corta
+
+                # Combinar facultativos evitando repeticiones
+                if req.facultativo and req.facultativo.strip() and req.facultativo.strip() != "No especificado":
+                    new_fac = req.facultativo.strip()
+                    if informe.facultativo and informe.facultativo.strip() != "No especificado":
+                        partes_fac = [f.strip() for f in informe.facultativo.split("/") if f.strip()]
+                        if new_fac not in partes_fac and new_fac.lower() not in [p.lower() for p in partes_fac]:
+                            informe.facultativo = f"{informe.facultativo} / {new_fac}"
+                    else:
+                        informe.facultativo = new_fac
+
+                # Combinar referencias evitando repeticiones
+                if req.referencia and req.referencia.strip():
+                    new_ref = req.referencia.strip()
+                    if informe.referencia and informe.referencia.strip():
+                        partes_ref = [r.strip() for r in informe.referencia.split("/") if r.strip()]
+                        if new_ref not in partes_ref:
+                            informe.referencia = f"{informe.referencia} / {new_ref}"
+                    else:
+                        informe.referencia = new_ref
+
+                # Combinar laboratorios si son distintos
+                if req.laboratorio and req.laboratorio.strip() and req.laboratorio.strip() != "Desconocido":
+                    new_lab = req.laboratorio.strip()
+                    if informe.laboratorio and informe.laboratorio.strip():
+                        partes_lab = [l.strip() for l in informe.laboratorio.split("/") if l.strip()]
+                        if new_lab not in partes_lab and new_lab.lower() not in [p.lower() for p in partes_lab]:
+                            informe.laboratorio = f"{informe.laboratorio} / {new_lab}"
+                    else:
+                        informe.laboratorio = new_lab
+
+                if req.dictamen_global and req.dictamen_global.strip() and req.dictamen_global != "Control favorable":
+                    informe.dictamen_global = req.dictamen_global
+
+                informe.estado = "confirmado"
+                db.flush()
+            else:
+                informe = Informe(
+                    paciente_id=paciente.id,
+                    fecha=req.fecha,
+                    etiqueta_corta=etiq_corta,
+                    laboratorio=req.laboratorio,
+                    facultativo=req.facultativo or "No especificado",
+                    referencia=req.referencia,
+                    archivo_pdf=nombre_archivo,
+                    sha256=file_sha256,
+                    dictamen_global=req.dictamen_global or "Control favorable",
+                    estado="confirmado"
+                )
+                db.add(informe)
+                db.flush()
         else:
             informe = Informe(
                 paciente_id=paciente.id,
@@ -169,6 +226,7 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 etiqueta_corta=etiq_corta,
                 laboratorio=req.laboratorio,
                 facultativo=req.facultativo or "No especificado",
+                referencia=req.referencia,
                 archivo_pdf=nombre_archivo,
                 sha256=file_sha256,
                 dictamen_global=req.dictamen_global or "Control favorable",
@@ -177,9 +235,15 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
             db.add(informe)
             db.flush()
 
-        # 5. Insertar mediciones y calcular ratios
+        # 5. Insertar o actualizar mediciones y calcular ratios
         mediciones_dict = {}
+        existentes = db.query(Medicion).filter_by(informe_id=informe.id).all()
         analitos_procesados = {}  # code_key -> Medicion
+        for em in existentes:
+            if em.analito:
+                analitos_procesados[em.analito.codigo] = em
+                if em.valor_numerico is not None:
+                    mediciones_dict[em.analito.codigo] = em.valor_numerico
 
         for item in req.mediciones:
             if not item.nombre or not item.nombre.strip():
@@ -210,16 +274,21 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 code_key, item.valor, item.unidad, item.rango_referencia
             )
 
+            ref_final = std_ref or item.rango_referencia
+            calc_st = evaluar_estado_semaforo(num_val, ref_final) if num_val is not None else "Normal"
+            est_final = calc_st if calc_st in ["Alto", "Bajo"] else (getattr(item, "estado_estimado", None) or "Normal")
+
             # Si este analito canónico ya se procesó en este informe, resolvemos colisiones:
             # Priorizar siempre valores numéricos de suero sobre valores nulos o cualitativos
             if code_key in analitos_procesados:
                 med_existente = analitos_procesados[code_key]
-                if med_existente.valor_numerico is None and num_val is not None:
+                if num_val is not None or med_existente.valor_numerico is None:
                     med_existente.valor_numerico = num_val
-                    med_existente.valor_texto = None
+                    med_existente.valor_texto = clean_val if num_val is None else None
                     med_existente.unidad = std_unit or norm_unit
-                    med_existente.ref_texto = std_ref or item.rango_referencia
-                    med_existente.estado_semaforo = getattr(item, "estado_estimado", None) or "Normal"
+                    med_existente.ref_texto = ref_final
+                    med_existente.estado_semaforo = est_final
+                if num_val is not None:
                     mediciones_dict[code_key] = num_val
                 continue
 
@@ -229,8 +298,8 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 valor_numerico=num_val,
                 valor_texto=clean_val if num_val is None else None,
                 unidad=std_unit or norm_unit,
-                ref_texto=std_ref or item.rango_referencia,
-                estado_semaforo=getattr(item, "estado_estimado", None) or "Normal"
+                ref_texto=ref_final,
+                estado_semaforo=est_final
             )
             db.add(med)
             db.flush()
@@ -270,17 +339,25 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
                 db.add(a_ratio)
                 db.flush()
 
+            r_calc_st = evaluar_estado_semaforo(r_val, ref) if r_val is not None else "Normal"
             med_ratio = Medicion(
                 informe_id=informe.id,
                 analito_id=a_ratio.id,
                 valor_numerico=r_val,
                 unidad=uni,
-                ref_texto=ref
+                ref_texto=ref,
+                estado_semaforo=r_calc_st
             )
             db.add(med_ratio)
 
         db.commit()
-        msg = f"Analítica del {req.fecha} actualizada y sobrescrita con éxito en el historial." if es_sobrescritura else f"Analítica del {req.fecha} incorporada con éxito al historial."
+        if modo == "fusionar" and es_sobrescritura:
+            msg = f"Analítica del {req.fecha} unificada y fusionada con éxito en el historial."
+        elif es_sobrescritura:
+            msg = f"Analítica del {req.fecha} actualizada y sobrescrita con éxito en el historial."
+        else:
+            msg = f"Analítica del {req.fecha} incorporada con éxito al historial."
+
         return {
             "status": "success",
             "message": msg,

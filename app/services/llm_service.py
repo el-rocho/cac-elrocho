@@ -119,12 +119,13 @@ def verificar_duplicidad_informe(db: Optional[Any], sha256: Optional[str] = None
             if inf_sha:
                 fecha_str = inf_sha.fecha or "Fecha no especificada"
                 lab_str = inf_sha.laboratorio or "Laboratorio no especificado"
+                ref_str = f" - Ref: {inf_sha.referencia}" if inf_sha.referencia else ""
                 return {
                     "es_duplicado": True,
                     "tipo_duplicado": "exacto_archivo",
                     "informe_existente_id": inf_sha.id,
-                    "informe_existente_info": f"Analítica del {fecha_str} ({lab_str})",
-                    "aviso_duplicado": f"Este archivo PDF ya fue registrado previamente en la analítica del {fecha_str} ({lab_str})."
+                    "informe_existente_info": f"Analítica del {fecha_str} ({lab_str}{ref_str})",
+                    "aviso_duplicado": f"Este archivo PDF ya fue registrado previamente en la analítica del {fecha_str} ({lab_str}{ref_str})."
                 }
 
         # 2. Comprobación por Fecha y Laboratorio (o coincidencia de fecha)
@@ -140,17 +141,36 @@ def verificar_duplicidad_informe(db: Optional[Any], sha256: Optional[str] = None
             if inf_fecha:
                 fecha_str = inf_fecha.fecha
                 lab_str = inf_fecha.laboratorio or "Laboratorio"
+                ref_str = f" - Ref: {inf_fecha.referencia}" if inf_fecha.referencia else ""
                 return {
                     "es_duplicado": True,
                     "tipo_duplicado": "misma_fecha_lab",
                     "informe_existente_id": inf_fecha.id,
-                    "informe_existente_info": f"Analítica del {fecha_str} ({lab_str})",
-                    "aviso_duplicado": f"Ya existe una analítica en el historial con fecha {fecha_str} ({lab_str})."
+                    "informe_existente_info": f"Analítica del {fecha_str} ({lab_str}{ref_str})",
+                    "aviso_duplicado": f"Ya existe una analítica en el historial con fecha {fecha_str} ({lab_str}{ref_str}). Puedes unificar las determinaciones de esta extracción o reemplazar el informe existente."
                 }
     except Exception as e:
         logger.error(f"Error al verificar duplicidad de informe: {e}")
 
     return resultado
+
+def extraer_referencia_de_texto(text: str) -> Optional[str]:
+    """
+    Extrae el número de referencia, protocolo, petición o código de muestra del texto del informe.
+    """
+    if not text:
+        return None
+    patterns = [
+        r'\b(?:(?:N[º°\.]?|N[uú]m(?:ero|\.)?)\s*(?:de\s+)?(?:Ref(?:erencia)?|Pet(?:ici[oó]n)?|Protocolo|Informe)|Ref(?:erencia)?|Pet(?:ici[oó]n)?|Protocolo|Episodio|Informe|C[oó]digo\s+de\s+Muestra|Muestra)\b\s*[:\.#]\s*([A-Za-z0-9\-_/]{3,30})',
+        r'\b(?:Ref(?:erencia)?|Pet(?:ici[oó]n)?|Protocolo)\s*[:\.]\s*([A-Za-z0-9\-_/]{3,30})'
+    ]
+    for p in patterns:
+        m = re.search(p, text, re.IGNORECASE)
+        if m:
+            val = m.group(1).strip()
+            if val.lower() not in ["no", "null", "none", "del", "de", "fecha", "pagina", "pag", "informe"]:
+                return val
+    return None
 
 def sanitizar_facultativo_y_laboratorio(raw_fac: Optional[str], raw_lab: Optional[str], text: str) -> tuple[str, str]:
     """
@@ -443,6 +463,7 @@ RESPONDE EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO CON LA SIGUIENTE ESTRUCTURA:
   "fecha": "YYYY-MM-DD",
   "laboratorio": "Nombre del laboratorio",
   "facultativo": "Nombre del doctor o 'No especificado'",
+  "referencia": "Número de referencia, petición, protocolo o código de muestra (ej: '22598017') o null si no figura",
   "paciente_detectado": "Nombre y apellidos del paciente que figuran en el documento (o null si no aparecen)",
   "dni_detectado": "DNI/NIE/identificación del paciente que figura en el documento (o null si no aparece)",
   "mediciones": [
@@ -1075,6 +1096,9 @@ async def analyze_pdf_with_llm(
 
             # Sanitizar facultativo y laboratorio con el texto del documento para evitar tipos de revisión o médicos en el laboratorio
             fac_extraido, lab_extraido = sanitizar_facultativo_y_laboratorio(fac_extraido, lab_extraido, text)
+            ref_extraido = parsed.get("referencia") or extraer_referencia_de_texto(text)
+            if ref_extraido:
+                ref_extraido = str(ref_extraido).strip()
 
             paciente_det = parsed.get("paciente_detectado")
             dni_det = parsed.get("dni_detectado")
@@ -1093,15 +1117,16 @@ async def analyze_pdf_with_llm(
                 laboratorio=lab_extraido
             )
             if dup_info["es_duplicado"] and dup_info["aviso_duplicado"]:
-                alertas.insert(0, f"⚠️ Alerta de duplicidad: {dup_info['aviso_duplicado']}")
+                alertas.insert(0, f"⚠️ Alerta de coincidencia: {dup_info['aviso_duplicado']}")
 
-            logger.info(f"Extracción completada con éxito usando Slot {slot_num} ({model_name}). {len(mediciones)} parámetros extraídos.")
+            logger.info(f"Extracción completada con éxito usando Slot {slot_num} ({model_name}). {len(mediciones)} parámetros extraídos. Referencia: {ref_extraido or 'No detectada'}.")
 
             return AnaliticaPreviewResponse(
                 temp_id=temp_id,
                 fecha=fecha_extraida,
                 laboratorio=lab_extraido,
                 facultativo=fac_extraido,
+                referencia=ref_extraido,
                 total_parametros=len(mediciones),
                 mediciones=mediciones,
                 alertas_ia=alertas,
@@ -1348,6 +1373,7 @@ def generate_mock_extraction(
 
     fecha_meta = meta.get("fecha") or "2026-06-13"
     fac_meta, lab_meta = sanitizar_facultativo_y_laboratorio(meta.get("facultativo"), meta.get("laboratorio"), text)
+    ref_meta = extraer_referencia_de_texto(text)
     aviso_disc = verificar_coincidencia_flexible(paciente_db, None, None)
 
     dup_info = verificar_duplicidad_informe(
@@ -1357,13 +1383,14 @@ def generate_mock_extraction(
         laboratorio=lab_meta
     )
     if dup_info["es_duplicado"] and dup_info["aviso_duplicado"]:
-        alertas.insert(0, f"⚠️ Alerta de duplicidad: {dup_info['aviso_duplicado']}")
+        alertas.insert(0, f"⚠️ Alerta de coincidencia: {dup_info['aviso_duplicado']}")
 
     return AnaliticaPreviewResponse(
         temp_id=temp_id,
         fecha=fecha_meta,
         laboratorio=lab_meta,
         facultativo=fac_meta,
+        referencia=ref_meta,
         total_parametros=len(mediciones),
         mediciones=mediciones,
         alertas_ia=alertas,

@@ -148,6 +148,7 @@ class AnaliticaPreviewResponse(BaseModel):
     fecha: str
     laboratorio: str
     facultativo: Optional[str] = None
+    referencia: Optional[str] = None
     total_parametros: int
     mediciones: List[MedicionExtraida]
     alertas_ia: List[str]
@@ -171,6 +172,7 @@ class RegenerateDictamenRequest(BaseModel):
     fecha: str
     laboratorio: str
     facultativo: Optional[str] = None
+    referencia: Optional[str] = None
     modo: Optional[str] = "completo" # "completo" | "resumido"
 
 class RegenerateDictamenResponse(BaseModel):
@@ -178,14 +180,16 @@ class RegenerateDictamenResponse(BaseModel):
     alertas_ia: List[str]
 
 class ConfirmacionRequest(BaseModel):
-    temp_id: str
+    temp_id: Optional[str] = None
     fecha: str
     laboratorio: str
     facultativo: Optional[str] = None
+    referencia: Optional[str] = None
     mediciones: List[MedicionExtraida]
     dictamen_global: Optional[str] = None
     sha256: Optional[str] = None
     sobrescribir_existente: Optional[bool] = False
+    modo_coincidencia: Optional[str] = "fusionar" # "fusionar" | "reemplazar"
     informe_id_a_reemplazar: Optional[int] = None
 
 class AuditFileItem(BaseModel):
@@ -194,6 +198,7 @@ class AuditFileItem(BaseModel):
     etiqueta_corta: str
     laboratorio: str
     facultativo: Optional[str] = "No especificado"
+    referencia: Optional[str] = None
     archivo_pdf: Optional[str] = None
     total_mediciones: int
     dictamen_global: Optional[str] = None
@@ -215,6 +220,7 @@ class InformeDetailResponse(BaseModel):
     etiqueta_corta: str
     laboratorio: str
     facultativo: Optional[str] = None
+    referencia: Optional[str] = None
     dictamen_global: Optional[str] = None
     archivo_pdf: Optional[str] = None
     mediciones: List[MedicionDetail]
@@ -223,6 +229,7 @@ class InformeUpdateRequest(BaseModel):
     fecha: str
     laboratorio: str
     facultativo: Optional[str] = None
+    referencia: Optional[str] = None
     dictamen_global: Optional[str] = None
     mediciones: List[MedicionDetail]
 

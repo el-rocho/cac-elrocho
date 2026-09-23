@@ -75,6 +75,11 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertEqual(delta_str, "")
         self.assertFalse(is_sig)
 
+        sym, delta_str, delta_num, is_sig = calcular_variacion_reciente(101.0, None, "GLUCOSE")
+        self.assertIsNone(sym)
+        self.assertEqual(delta_str, "")
+        self.assertFalse(is_sig)
+
         sym, delta_str, delta_num, is_sig = calcular_variacion_reciente(5.2, 5.6, "HBA1C")
         self.assertIsNone(sym)
         self.assertEqual(delta_str, "-0.4")
@@ -543,64 +548,81 @@ class TestClinicalTrends(unittest.TestCase):
 
     def test_auditoria_mantener_historico_y_estados(self):
         """Verifica los endpoints de mantener rangos históricos y la persistencia de estados de revisión."""
-        client = TestClient(app)
-
-        # 1. Asegurar detección de auditorías
-        res_det = client.post("/api/v1/ai/detectar")
-        self.assertEqual(res_det.status_code, 200)
-
-        # 2. Consultar lista y verificar campos
-        res_list = client.get("/api/v1/ai/auditorias")
-        self.assertEqual(res_list.status_code, 200)
-        items = res_list.json()
-        self.assertTrue(len(items) > 0)
-
-        first_audit = items[0]
-        self.assertIn("estado", first_audit)
-        self.assertIn(first_audit["estado"], ["pendiente", "aplicado", "mantenido"])
-        audit_id = first_audit["id"]
-
-        # 3. Mantener rangos históricos
-        res_mant = client.post(f"/api/v1/ai/mantener-historico/{audit_id}")
-        self.assertEqual(res_mant.status_code, 200)
-        mant_data = res_mant.json()
-        self.assertEqual(mant_data["status"], "success")
-        self.assertEqual(mant_data["estado"], "mantenido")
-
-        # 4. Comprobar que en la lista figure como 'mantenido' y no aplicado
-        res_list2 = client.get("/api/v1/ai/auditorias")
-        item_updated = next((x for x in res_list2.json() if x["id"] == audit_id), None)
-        self.assertIsNotNone(item_updated)
-        self.assertEqual(item_updated["estado"], "mantenido")
-        self.assertFalse(item_updated["aplicado_en_historico"])
-
-        # 5. Cambiar decisión a aplicar criterio al historial
-        res_app = client.post(f"/api/v1/ai/aplicar-criterio/{audit_id}")
-        self.assertEqual(res_app.status_code, 200)
-        app_data = res_app.json()
-        self.assertEqual(app_data["status"], "success")
-        self.assertEqual(app_data["estado"], "aplicado")
-
-        res_list3 = client.get("/api/v1/ai/auditorias")
-        item_applied = next((x for x in res_list3.json() if x["id"] == audit_id), None)
-        self.assertIsNotNone(item_applied)
-        self.assertEqual(item_applied["estado"], "aplicado")
-        self.assertTrue(item_applied["aplicado_en_historico"])
-
-        # 6. Probar endpoint de mantener todos los pendientes
-        res_all_mant = client.post("/api/v1/ai/mantener-todos")
-        self.assertEqual(res_all_mant.status_code, 200)
-        self.assertEqual(res_all_mant.json()["status"], "success")
-
-        # 7. Limpieza para mantener estado inicial en la base de datos de desarrollo
         from app.database import SessionLocal
         from app.models import AuditoriaRango
-        db = SessionLocal()
+
+        # Snapshot de estados previos para no mutar los datos de desarrollo del usuario
+        db_snap = SessionLocal()
+        snapshot = []
         try:
-            db.query(AuditoriaRango).update({"estado": "pendiente", "aplicado_en_historico": False, "fecha_aplicacion": None})
-            db.commit()
+            snapshot = [
+                (a.id, a.estado, a.aplicado_en_historico, a.fecha_aplicacion)
+                for a in db_snap.query(AuditoriaRango).all()
+            ]
         finally:
-            db.close()
+            db_snap.close()
+
+        client = TestClient(app)
+        try:
+            # 1. Asegurar detección de auditorías
+            res_det = client.post("/api/v1/ai/detectar")
+            self.assertEqual(res_det.status_code, 200)
+
+            # 2. Consultar lista y verificar campos
+            res_list = client.get("/api/v1/ai/auditorias")
+            self.assertEqual(res_list.status_code, 200)
+            items = res_list.json()
+            self.assertTrue(len(items) > 0)
+
+            first_audit = items[0]
+            self.assertIn("estado", first_audit)
+            self.assertIn(first_audit["estado"], ["pendiente", "aplicado", "mantenido"])
+            audit_id = first_audit["id"]
+
+            # 3. Mantener rangos históricos
+            res_mant = client.post(f"/api/v1/ai/mantener-historico/{audit_id}")
+            self.assertEqual(res_mant.status_code, 200)
+            mant_data = res_mant.json()
+            self.assertEqual(mant_data["status"], "success")
+            self.assertEqual(mant_data["estado"], "mantenido")
+
+            # 4. Comprobar que en la lista figure como 'mantenido' y no aplicado
+            res_list2 = client.get("/api/v1/ai/auditorias")
+            item_updated = next((x for x in res_list2.json() if x["id"] == audit_id), None)
+            self.assertIsNotNone(item_updated)
+            self.assertEqual(item_updated["estado"], "mantenido")
+            self.assertFalse(item_updated["aplicado_en_historico"])
+
+            # 5. Cambiar decisión a aplicar criterio al historial
+            res_app = client.post(f"/api/v1/ai/aplicar-criterio/{audit_id}")
+            self.assertEqual(res_app.status_code, 200)
+            app_data = res_app.json()
+            self.assertEqual(app_data["status"], "success")
+            self.assertEqual(app_data["estado"], "aplicado")
+
+            res_list3 = client.get("/api/v1/ai/auditorias")
+            item_applied = next((x for x in res_list3.json() if x["id"] == audit_id), None)
+            self.assertIsNotNone(item_applied)
+            self.assertEqual(item_applied["estado"], "aplicado")
+            self.assertTrue(item_applied["aplicado_en_historico"])
+
+            # 6. Probar endpoint de mantener todos los pendientes
+            res_all_mant = client.post("/api/v1/ai/mantener-todos")
+            self.assertEqual(res_all_mant.status_code, 200)
+            self.assertEqual(res_all_mant.json()["status"], "success")
+        finally:
+            # Restaurar exactamente el estado original de la base de datos
+            db_restore = SessionLocal()
+            try:
+                for a_id, est, apl, f_app in snapshot:
+                    a = db_restore.query(AuditoriaRango).filter_by(id=a_id).first()
+                    if a:
+                        a.estado = est
+                        a.aplicado_en_historico = apl
+                        a.fecha_aplicacion = f_app
+                db_restore.commit()
+            finally:
+                db_restore.close()
 
     def test_tiroides_evaluacion_fisiologica_conjunta(self):
         """Verifica la evaluación fisiológica conjunta de TSH y T4 libre (relación inversa)."""

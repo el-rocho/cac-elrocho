@@ -96,6 +96,7 @@ def export_database_to_dict(db: Session) -> Dict[str, Any]:
             "etiqueta_corta": inf.etiqueta_corta,
             "laboratorio": inf.laboratorio,
             "facultativo": inf.facultativo,
+            "referencia": inf.referencia,
             "dictamen_global": inf.dictamen_global,
             "observaciones_ia": inf.observaciones_ia,
             "estado": inf.estado,
@@ -180,6 +181,7 @@ def import_database_from_dict(db: Session, data: Dict[str, Any]):
             etiqueta_corta=inf_data["etiqueta_corta"],
             laboratorio=inf_data.get("laboratorio"),
             facultativo=inf_data.get("facultativo"),
+            referencia=inf_data.get("referencia"),
             dictamen_global=inf_data.get("dictamen_global"),
             observaciones_ia=inf_data.get("observaciones_ia"),
             estado=inf_data.get("estado", "confirmado"),
@@ -272,4 +274,3 @@ def backfill_informe_hashes():
         logger.error(f"Error en backfill_informe_hashes: {e}")
     finally:
         db.close()
-

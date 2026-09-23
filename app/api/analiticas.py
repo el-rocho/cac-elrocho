@@ -299,14 +299,20 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     def get_analyte_trend_info(cod: str, val_actual_str: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
         pts = hist_series.get(cod, [])
         v_act = parse_num(val_actual_str)
-        if v_act is None:
+        if v_act is None or not pts:
             return None, None, None, None
 
+        d_act = pts[-1][0]
         val_anterior = None
-        if len(pts) >= 2:
-            val_anterior = pts[-2][1]
-        elif len(pts) == 1 and pts[0][1] != v_act:
-            val_anterior = pts[0][1]
+
+        # Buscar la determinación previa más reciente dentro de una ventana máxima de 24 meses (~730 días)
+        for d_prev, v_prev in reversed(pts[:-1]):
+            dias_diff = (d_act - d_prev).days
+            if 0 < dias_diff <= 730:
+                val_anterior = v_prev
+                break
+            elif dias_diff > 730:
+                break
 
         var_sym, var_delta, _, _ = calcular_variacion_reciente(v_act, val_anterior, cod)
         trend_sym, slope, n = calcular_tendencia_longitudinal(pts, fecha_referencia=fecha_ref, ventana_meses=24, min_muestras=3, cod_analito=cod)
@@ -362,9 +368,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     ) -> Tuple[AnalitoFila, str, Optional[str]]:
         var_sym, var_delta, trend_sym, clin_trend = get_analyte_trend_info(cod, val_str)
         is_undetermined = not val_str or val_str == "-"
-        if es_historico:
-            var_sym = None
-            var_delta = None
 
         fila = AnalitoFila(
             codigo=cod,
@@ -449,9 +452,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     glu_badge, glu_badge_cls, glu_tag, glu_tag_cls = get_clean_badge(glu_atencion, glu_seguimiento)
 
     glu_v_sym, glu_v_delta, glu_tr_sym, glu_clin_tr = get_analyte_trend_info("GLUCOSE", glu)
-    if glu_hist:
-        glu_v_sym = None
-        glu_v_delta = None
     glu_filas = []
     glu_subtitles = []
     glu_evals = {"GLUCOSE": glu_clin_tr}
@@ -596,9 +596,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     lipid_badge, lipid_badge_cls, lipid_tag, lipid_tag_cls = get_clean_badge(lipid_atencion, lipid_seguimiento)
 
     col_v_sym, col_v_delta, col_tr_sym, col_clin_tr = get_analyte_trend_info("CHOLESTEROL_TOTAL", col_t)
-    if col_t_hist:
-        col_v_sym = None
-        col_v_delta = None
     lip_filas = []
     lip_subtitles = []
     lip_evals = {"CHOLESTEROL_TOTAL": col_clin_tr}
@@ -710,9 +707,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     renal_badge, renal_badge_cls, renal_tag, renal_tag_cls = get_clean_badge(renal_atencion, renal_seguimiento)
 
     creat_v_sym, creat_v_delta, creat_tr_sym, creat_clin_tr = get_analyte_trend_info("CREATININE", creat)
-    if creat_hist:
-        creat_v_sym = None
-        creat_v_delta = None
     ren_filas = []
     ren_subtitles = []
     ren_evals = {"CREATININE": creat_clin_tr}
@@ -815,9 +809,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     main_hep_date = alt_date if alt != "-" else ast_date
     main_hep_hist = alt_hist if alt != "-" else ast_hist
     hep_v_sym, hep_v_delta, hep_tr_sym, hep_clin_tr = get_analyte_trend_info(main_hep_cod, main_hep_val)
-    if main_hep_hist:
-        hep_v_sym = None
-        hep_v_delta = None
     hep_filas = []
     hep_subtitles = []
     hep_evals = {main_hep_cod: hep_clin_tr}
@@ -909,9 +900,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     hemo_badge, hemo_badge_cls, hemo_tag, hemo_tag_cls = get_clean_badge(hemo_atencion, hemo_seguimiento)
 
     hb_v_sym, hb_v_delta, hb_tr_sym, hb_clin_tr = get_analyte_trend_info("HEMOGLOBINA", hb)
-    if hb_hist:
-        hb_v_sym = None
-        hb_v_delta = None
     hemo_filas = []
     hemo_subtitles = []
     hemo_evals = {"HEMOGLOBINA": hb_clin_tr}
@@ -1003,9 +991,6 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     tsh_badge, tsh_badge_cls, tsh_tag, tsh_tag_cls = get_clean_badge(tsh_atencion, tsh_seguimiento)
 
     tsh_v_sym, tsh_v_delta, tsh_tr_sym, tsh_clin_tr = get_analyte_trend_info("TSH", tsh)
-    if tsh_hist:
-        tsh_v_sym = None
-        tsh_v_delta = None
     tsh_filas = []
     tsh_subtitles = []
     tsh_evals = {"TSH": tsh_clin_tr}
@@ -1412,8 +1397,14 @@ def get_tables(db: Session = Depends(get_db)):
                 m = med_obj_by_inf[inf_id]
                 v = m.valor_numerico if m.valor_numerico is not None else m.valor_texto
                 r = (m.ref_texto or a.ref_texto_defecto or "").strip()
-                st = m.estado_semaforo or evaluar_estado_semaforo(m.valor_numerico, r)
-                is_alt = st in ["Alto", "Bajo", "Atencion", "Alerta", "Alérgeno"] or (isinstance(v, (int, float)) and evaluar_estado_semaforo(v, r) != "Normal")
+                eval_st = evaluar_estado_semaforo(m.valor_numerico, r) if m.valor_numerico is not None else "Normal"
+                if eval_st in ["Alto", "Bajo"]:
+                    st = eval_st
+                elif m.estado_semaforo and m.estado_semaforo != "Normal":
+                    st = m.estado_semaforo
+                else:
+                    st = eval_st
+                is_alt = st in ["Alto", "Bajo", "Atencion", "Alerta", "Alérgeno"]
                 vals.append(v)
                 cells.append(TableCell(val=v, ref=r, status=st, is_altered=is_alt))
             else:
@@ -1514,7 +1505,8 @@ def get_tables(db: Session = Depends(get_db)):
             "id": inf.id,
             "fecha": inf.fecha,
             "etiqueta_corta": inf.etiqueta_corta,
-            "laboratorio": inf.laboratorio or "Desconocido"
+            "laboratorio": inf.laboratorio or "Desconocido",
+            "referencia": inf.referencia or ""
         }
         for inf in informes
     ]
@@ -1686,6 +1678,7 @@ def get_audit_files(db: Session = Depends(get_db)):
             etiqueta_corta=inf.etiqueta_corta,
             laboratorio=inf.laboratorio or "Desconocido",
             facultativo=inf.facultativo or "No especificado",
+            referencia=inf.referencia or "Sin ref.",
             archivo_pdf=inf.archivo_pdf,
             total_mediciones=len(inf.mediciones),
             dictamen_global=inf.dictamen_global or "Sin dictamen",
@@ -1778,6 +1771,7 @@ def get_informe_detail(informe_id: int, db: Session = Depends(get_db)):
         etiqueta_corta=informe.etiqueta_corta,
         laboratorio=informe.laboratorio or "",
         facultativo=informe.facultativo or "",
+        referencia=informe.referencia or "",
         dictamen_global=informe.dictamen_global or "",
         archivo_pdf=informe.archivo_pdf,
         mediciones=mediciones_list
@@ -1803,6 +1797,7 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
 
     informe.laboratorio = req.laboratorio
     informe.facultativo = req.facultativo or "No especificado"
+    informe.referencia = req.referencia
     informe.dictamen_global = req.dictamen_global or "Control favorable"
 
     # 2. Borrar mediciones previas asociadas a este informe para sincronización limpia
@@ -1850,13 +1845,18 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
             code_key, item.valor, item.unidad, item.rango_referencia
         )
 
+        ref_final = std_ref or item.rango_referencia
+        calc_st = evaluar_estado_semaforo(num_val, ref_final) if num_val is not None else "Normal"
+        est_final = calc_st if calc_st in ["Alto", "Bajo"] else (getattr(item, "estado_estimado", None) or "Normal")
+
         if code_key in analitos_procesados:
             med_existente = analitos_procesados[code_key]
             if med_existente.valor_numerico is None and num_val is not None:
                 med_existente.valor_numerico = num_val
                 med_existente.valor_texto = None
                 med_existente.unidad = std_unit or norm_unit
-                med_existente.ref_texto = std_ref or item.rango_referencia
+                med_existente.ref_texto = ref_final
+                med_existente.estado_semaforo = est_final
                 mediciones_dict[code_key] = num_val
             continue
 
@@ -1866,8 +1866,8 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
             valor_numerico=num_val,
             valor_texto=clean_val if num_val is None else None,
             unidad=std_unit or norm_unit,
-            ref_texto=std_ref or item.rango_referencia,
-            estado_semaforo=getattr(item, "estado_estimado", None) or "Normal"
+            ref_texto=ref_final,
+            estado_semaforo=est_final
         )
         db.add(med)
         db.flush()

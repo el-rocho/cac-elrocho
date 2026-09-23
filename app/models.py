@@ -25,6 +25,7 @@ class Informe(Base):
     etiqueta_corta = Column(String(20), nullable=False)    # DD/MM/AA
     laboratorio = Column(String(150), nullable=True)
     facultativo = Column(String(150), nullable=True)
+    referencia = Column(String(100), nullable=True) # Número de referencia / petición / protocolo
     archivo_pdf = Column(String(255), nullable=True)
     sha256 = Column(String(64), nullable=True, unique=True)
     

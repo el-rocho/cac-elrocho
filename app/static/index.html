@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cuadro de Mando de Analíticas Clínicas - cac-elrocho</title>
+  <title>CAC El Rocho</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/static/vendor/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -452,7 +452,7 @@
     </dialog>
 
     <!-- VENTANA MODAL SUPERPUESTA DE INFORMACIÓN COMPLETA DE TARJETA KPI -->
-    <dialog id="kpiDetailModal" closedby="any" aria-labelledby="kpiModalTitle" class="fixed inset-x-0 mx-auto max-w-2xl sm:max-w-3xl w-[96vw] sm:w-[680px] md:w-[760px] lg:w-[840px] h-fit max-h-[92vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+    <dialog id="kpiDetailModal" closedby="any" aria-labelledby="kpiModalTitle" class="fixed inset-x-0 mx-auto max-w-2xl sm:max-w-3xl lg:max-w-4xl w-[96vw] sm:w-[740px] md:w-[820px] lg:w-[880px] h-fit max-h-[92vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
       <div class="relative flex flex-col">
         <!-- Cabecera fija del modal con flechas en los extremos y título centrado -->
         <div class="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 bg-white shrink-0">
@@ -1373,7 +1373,7 @@
           <table class="w-full text-xs text-left">
             <thead class="bg-slate-800 text-white font-semibold">
               <tr>
-                <th class="p-3">Fecha</th>
+                <th class="p-3">Fecha / Referencia</th>
                 <th class="p-3">Laboratorio</th>
                 <th class="p-3">Facultativo</th>
                 <th class="p-3">Archivo PDF</th>
@@ -1598,7 +1598,7 @@
             <span class="text-[11px] text-purple-600 bg-purple-100 px-2.5 py-0.5 rounded-full font-medium">Revisa los datos antes de incorporarlos a la base de datos</span>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 pt-1">
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha del Análisis</label>
               <input type="date" id="previewFechaInput" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none">
@@ -1610,6 +1610,10 @@
             <div>
               <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Facultativo / Médico</label>
               <input type="text" id="previewFacultativoInput" placeholder="Ej: Dra. García" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Referencia / Petición</label>
+              <input type="text" id="previewReferenciaInput" placeholder="Ej: 22598017" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none">
             </div>
           </div>
 
@@ -1631,26 +1635,26 @@
             <textarea id="previewDictamenInput" rows="3" placeholder="Dictamen preliminar o resumen del informe..." class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-y"></textarea>
           </div>
 
-          <!-- CONTENEDOR DE ADVERTENCIA DE DUPLICIDAD Y OPCIÓN DE SOBRESCRITURA -->
+          <!-- CONTENEDOR DE ADVERTENCIA DE DUPLICIDAD Y OPCIÓN DE FUSIÓN / SOBRESCRITURA -->
           <div id="previewDuplicateWarning" class="hidden bg-amber-50 border-2 border-amber-300 p-3.5 rounded-2xl space-y-2 shadow-sm">
             <div class="flex items-start gap-2.5">
               <span class="text-xl">⚠️</span>
               <div class="text-xs text-amber-950 flex-1">
                 <div class="font-bold text-amber-900 text-xs flex items-center gap-1.5" id="previewDuplicateTitle">
-                  Analítica repetida o ya existente detectada
+                  Analítica con la misma fecha de extracción detectada
                 </div>
                 <div id="previewDuplicateMessage" class="text-amber-800 text-[11px] mt-0.5"></div>
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-4 pt-1.5 border-t border-amber-200 text-xs bg-amber-100/50 p-2 rounded-xl">
               <span class="font-bold text-amber-900 text-[11px]">¿Cómo deseas proceder?</span>
-              <label class="flex items-center gap-1.5 cursor-pointer font-bold text-emerald-800">
-                <input type="radio" name="duplicateAction" id="duplicateActionOverwrite" value="overwrite" checked class="text-emerald-600 focus:ring-emerald-500">
-                <span>Sobrescribir / Actualizar registro existente</span>
+              <label class="flex items-center gap-1.5 cursor-pointer font-bold text-blue-900">
+                <input type="radio" name="duplicateAction" id="duplicateActionMerge" value="merge" checked class="text-blue-600 focus:ring-blue-500">
+                <span>🔗 Unificar / Fusionar con el control existente (Misma extracción)</span>
               </label>
-              <label class="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
-                <input type="radio" name="duplicateAction" id="duplicateActionNew" value="new" class="text-purple-600 focus:ring-purple-500">
-                <span>Guardar como nuevo registro adicional</span>
+              <label class="flex items-center gap-1.5 cursor-pointer font-medium text-emerald-800">
+                <input type="radio" name="duplicateAction" id="duplicateActionOverwrite" value="overwrite" class="text-emerald-600 focus:ring-emerald-500">
+                <span>🔄 Reemplazar informe</span>
               </label>
             </div>
           </div>
@@ -1715,7 +1719,7 @@
 
       <!-- METADATOS DEL INFORME -->
       <div class="bg-slate-50 p-4 border border-slate-200 rounded-2xl space-y-3">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Fecha del Análisis</label>
             <input type="date" id="editInformeFecha" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none">
@@ -1727,6 +1731,10 @@
           <div>
             <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Facultativo / Médico</label>
             <input type="text" id="editInformeFacultativo" placeholder="Médico o facultativo" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Número de Referencia</label>
+            <input type="text" id="editInformeReferencia" placeholder="Ej: 22598017" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
         </div>
         <div>

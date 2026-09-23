@@ -82,17 +82,26 @@ def detectar_cambios_de_rango(db: Session) -> List[AuditoriaRango]:
 
             # Comprobar si hubo un cambio real en los límites numéricos
             if bounds != prev_bounds:
-                # Comprobar si ya existe una auditoría para este analito, informe y rango
+                # Comprobar si ya existe una auditoría registrada para este analito y nuevo rango
                 existente = (
                     db.query(AuditoriaRango)
-                    .filter_by(
-                        analito_id=analito.id,
-                        informe_id=inf.id,
-                        rango_nuevo=ref_str
+                    .filter(
+                        AuditoriaRango.analito_id == analito.id,
+                        (
+                            (AuditoriaRango.rango_nuevo == ref_str) |
+                            (
+                                (AuditoriaRango.rango_anterior == prev_ref_str) &
+                                (AuditoriaRango.informe_id == inf.id)
+                            )
+                        )
                     )
                     .first()
                 )
-                if not existente:
+                if existente:
+                    # Si ya existía pero apuntaba a otro informe o le faltaba vincular el informe de origen exacto
+                    if not existente.informe_id:
+                        existente.informe_id = inf.id
+                else:
                     lab_name = inf.laboratorio or "El laboratorio"
                     if analito.codigo == "LDL" and bounds[1] and bounds[1] <= 116.0:
                         explicacion = (
@@ -125,6 +134,7 @@ def detectar_cambios_de_rango(db: Session) -> List[AuditoriaRango]:
                         estado="pendiente"
                     )
                     db.add(audit)
+                    db.flush()
                     auditorias_creadas.append(audit)
 
                 prev_ref_str = ref_str

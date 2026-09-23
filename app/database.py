@@ -45,6 +45,12 @@ def init_db():
                 conn.execute(text("ALTER TABLE pacientes ADD COLUMN sexo VARCHAR(20)"))
                 conn.commit()
 
+            columns_informes = conn.execute(text("PRAGMA table_info(informes)")).fetchall()
+            col_informes = [col[1] for col in columns_informes]
+            if columns_informes and "referencia" not in col_informes:
+                conn.execute(text("ALTER TABLE informes ADD COLUMN referencia VARCHAR(100)"))
+                conn.commit()
+
             columns_auditorias = conn.execute(text("PRAGMA table_info(auditorias_rango)")).fetchall()
             col_auditorias = [col[1] for col in columns_auditorias]
             if columns_auditorias:
