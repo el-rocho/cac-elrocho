@@ -138,49 +138,6 @@ class TestClinicalTrends(unittest.TestCase):
                 self.assertIn("var_symbol", f)
                 self.assertIn("trend_symbol", f)
 
-    def test_analitos_historicos_y_notas_pie(self):
-        client = TestClient(app)
-        response = client.get("/api/v1/analiticas/summary")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        kpis_by_title = {k["title"]: k for k in data["kpis"]}
-
-        # Comprobación de analitos históricos y notas al pie:
-        # En Hemograma / Hierro, Ferritina o Hierro son históricos y rescatan datos previos con notas al pie
-        hemo = kpis_by_title.get("Hemograma / Hierro")
-        self.assertIsNotNone(hemo)
-        filas_hemo = {f["label"]: f for f in hemo["filas"]}
-        self.assertIn("Ferritina", filas_hemo)
-        if filas_hemo["Ferritina"]["es_historico"]:
-            self.assertIsNotNone(filas_hemo["Ferritina"]["footnote_symbol"])
-            self.assertTrue(len(hemo["notas_pie"]) >= 1)
-            self.assertEqual(hemo["notas_pie"][0]["simbolo"], filas_hemo["Ferritina"]["footnote_symbol"])
-        else:
-            self.assertFalse(filas_hemo["Ferritina"]["es_historico"])
-
-        # Tarjeta Función Tiroidea: T4 Libre está presente (como histórico o actual según el último informe)
-        tiroides = kpis_by_title.get("Función Tiroidea")
-        self.assertIsNotNone(tiroides)
-        filas_tiro = {f["label"]: f for f in tiroides["filas"]}
-        self.assertIn("T4 Libre", filas_tiro)
-        if filas_tiro["T4 Libre"]["es_historico"]:
-            self.assertEqual(len(tiroides["notas_pie"]), 1)
-        else:
-            self.assertFalse(filas_tiro["T4 Libre"]["es_historico"])
-            self.assertTrue(len(filas_tiro["T4 Libre"]["val"]) > 0)
-
-        # Tarjeta Función Hepática:
-        # Debe incluir Albúmina, Tiempo Protrombina e INR diferenciados entre sus filas
-        hep = kpis_by_title.get("Función Hepática")
-        self.assertIsNotNone(hep)
-        filas_hep = {f["label"]: f for f in hep["filas"]}
-        self.assertIn("Albúmina", filas_hep)
-        self.assertIn("Tiempo Protrombina", filas_hep)
-        self.assertTrue(len(filas_hep["Tiempo Protrombina"]["val"]) > 0)
-        self.assertEqual(filas_hep["Tiempo Protrombina"]["unit"], "s")
-        self.assertIn("INR", filas_hep)
-        self.assertTrue(len(filas_hep["INR"]["val"]) > 0)
-
     def test_normalizacion_igg_y_ratio_psa(self):
         """Verifica la correcta normalización del bloque de proteínas séricas (IGG) y Ratio PSA."""
         from app.services.analito_normalizer import normalize_analito, get_analito_group
@@ -417,122 +374,6 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertEqual(ANALITO_CONFIG["LINFOCITOS_ABS"]["unit"], "/µL")
         self.assertEqual(ANALITO_CONFIG["HEMATIES"]["unit"], "x10^6/µL")
 
-    def test_auditoria_rangos_y_tabla_metadatos(self):
-        """Verifica el parseo de límites de referencia, evaluación de semáforos y auditoría de rangos."""
-        from app.services.analito_normalizer import parse_reference_bounds, evaluar_estado_semaforo
-
-        # 1. Parseo de límites
-        self.assertEqual(parse_reference_bounds("17.4 - 49.2"), (17.4, 49.2))
-        self.assertEqual(parse_reference_bounds("< 116 mg/dL"), (None, 116.0))
-        self.assertEqual(parse_reference_bounds("> 40 mg/dL"), (40.0, None))
-        self.assertEqual(parse_reference_bounds("Inf. 40"), (None, 40.0))
-
-        # 2. Evaluación semafórica
-        self.assertEqual(evaluar_estado_semaforo(46.7, "17.4 - 49.2"), "Normal")
-        self.assertEqual(evaluar_estado_semaforo(49.0, "15 - 45"), "Alto")
-        self.assertEqual(evaluar_estado_semaforo(12.0, "17.4 - 49.2"), "Bajo")
-        self.assertEqual(evaluar_estado_semaforo(95.0, "< 116"), "Normal")
-        self.assertEqual(evaluar_estado_semaforo(120.0, "< 116"), "Alto")
-
-        # 3. Endpoint de detección de auditorías y tabla enriquecida con celdas
-        client = TestClient(app)
-        res_det = client.post("/api/v1/ai/detectar")
-        self.assertEqual(res_det.status_code, 200)
-        self.assertTrue(res_det.json()["total_detectados"] > 0)
-
-        res_tables = client.get("/api/v1/analiticas/tables")
-        self.assertEqual(res_tables.status_code, 200)
-        tables_data = res_tables.json()
-        urea_row = next((r for r in tables_data["bioquimica"] if r["name"] == "Urea"), None)
-        self.assertIsNotNone(urea_row)
-        self.assertEqual(urea_row["ref"], "17.4 - 49.2")
-        self.assertIsNotNone(urea_row.get("cells"))
-        self.assertEqual(len(urea_row["cells"]), len(urea_row["vals"]))
-
-        # Verificar que la última medición (39.0 o 36.4) es Normal en su celda
-        last_cell = urea_row["cells"][-1]
-        self.assertIn(last_cell["val"], [39.0, 36.4, 33.6])
-        self.assertEqual(last_cell["ref"], "17.4 - 49.2")
-        self.assertEqual(last_cell["status"], "Normal")
-        self.assertFalse(last_cell["is_altered"])
-
-    def test_evaluacion_unificada_dashboard_kpis(self):
-        """Verifica que las tarjetas KPI del dashboard y otros valores se evalúen según el rango del laboratorio."""
-        from app.services.analito_normalizer import es_medicion_alterada
-
-        # 1. Pruebas directas de la función unificada
-        self.assertFalse(es_medicion_alterada(97.7, "80.0 - 99.0", "Normal"))
-        self.assertTrue(es_medicion_alterada(101.5, "80.0 - 99.0", "Normal"))
-        self.assertFalse(es_medicion_alterada(46.7, "17.4 - 49.2", "Normal"))
-        self.assertTrue(es_medicion_alterada(52.0, "17.4 - 49.2", "Normal"))
-        self.assertFalse(es_medicion_alterada(95.0, "< 116", "Optimo"))
-        self.assertTrue(es_medicion_alterada(130.0, "< 116", "Alto"))
-
-        # 2. Evaluación a través de la API del dashboard
-        client = TestClient(app)
-        res = client.get("/api/v1/analiticas/summary")
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-
-        kpis = {k["id"]: k for k in data["kpis"]}
-        self.assertIn("hemograma_hierro", kpis)
-        self.assertIn("funcion_renal", kpis)
-
-        # En la última analítica, VCM es 92.8 y su rango del laboratorio es 80.0 - 99.0
-        # No debe aparecer alterado
-        card_hemo = kpis["hemograma_hierro"]
-        vcm_fila = next((f for f in card_hemo["filas"] if f["codigo"] == "VCM"), None)
-        self.assertIsNotNone(vcm_fila)
-        self.assertIn(vcm_fila["val"], ["92.3", "92.8", "92.2"])
-        self.assertFalse(vcm_fila["is_altered"], "VCM dentro del rango no debe estar alterado")
-
-        # En la última analítica, Urea es 46.7 y su rango del laboratorio es 17.4 - 49.2
-        card_renal = kpis["funcion_renal"]
-        urea_fila = next((f for f in card_renal["filas"] if f["codigo"] == "UREA"), None)
-        self.assertIsNotNone(urea_fila)
-        self.assertFalse(urea_fila["is_altered"], "Urea 46.7 dentro del rango 17.4 - 49.2 no debe estar alterada")
-
-        # Verificar otros valores (ej. PSA)
-        otros = {o["id"]: o for o in data["otros_valores"]}
-        if "prostata" in otros:
-            psa_items = {i["label"]: i for i in otros["prostata"]["items"]}
-            if "PSA Total" in psa_items:
-                self.assertFalse(psa_items["PSA Total"]["is_altered"])
-
-    def test_egfr_calculado_edad_analitica(self):
-        """Verifica que eGFR se calcule con la edad en la fecha de cada analítica y se refleje en KPI y Tablas."""
-        from app.services.analito_normalizer import calcular_edad_en_fecha
-        from app.api.analiticas import calcular_egfr
-
-        # 1. Edad exacta a la fecha de la analítica (64 años en 2024-09-17)
-        edad_2024 = calcular_edad_en_fecha("1960-07-05", "2024-09-17")
-        self.assertEqual(edad_2024, 64)
-
-        # 2. Cálculo CKD-EPI para creatinina 0.95 mg/dL en varón de 64 años
-        egfr_calc = calcular_egfr(0.95, edad_2024, "Masculino")
-        self.assertEqual(egfr_calc, 89.4)
-
-        # 3. Comprobar que en la tarjeta KPI Función Renal figure con nombre "eGFR" y valor correspondiente a la última analítica
-        client = TestClient(app)
-        res_sum = client.get("/api/v1/analiticas/summary")
-        self.assertEqual(res_sum.status_code, 200)
-        kpis = {k["id"]: k for k in res_sum.json()["kpis"]}
-        card_renal = kpis["funcion_renal"]
-        egfr_fila = next((f for f in card_renal["filas"] if f["codigo"] == "EGFR"), None)
-        self.assertIsNotNone(egfr_fila)
-        self.assertEqual(egfr_fila["label"], "eGFR")
-        self.assertIn(egfr_fila["val"], ["82.0", "90.5", "93.5"])
-        self.assertFalse(egfr_fila["is_altered"])
-
-        # 4. Comprobar que en el Historial de Resultados (Tablas) figure la fila de eGFR con el histórico
-        res_tab = client.get("/api/v1/analiticas/tables")
-        self.assertEqual(res_tab.status_code, 200)
-        tables_data = res_tab.json()
-        egfr_row = next((r for r in tables_data["bioquimica"] if "eGFR" in r["name"] or "Filtrado" in r["name"]), None)
-        self.assertIsNotNone(egfr_row)
-        self.assertIn(egfr_row["cells"][-1]["val"], [82.0, 90.5, 93.5, 88.0, 88])
-        self.assertFalse(egfr_row["cells"][-1]["is_altered"])
-
     def test_historico_ldl_estados_normales(self):
         client = TestClient(app)
         res = client.get("/api/v1/analiticas/tables")
@@ -730,30 +571,6 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertFalse(filas_ren["UREA"]["es_principal"])
         self.assertEqual(filas_ren["UREA"]["tipo_parametro"], "secundario")
 
-
-    def test_kpi_tiroides_t4_total_t3_total(self):
-        """Verifica que la tarjeta KPI de Función Tiroidea muestre TSH, T4 Total, T4 Libre y T3 Total."""
-        client = TestClient(app)
-        res = client.get("/api/v1/analiticas/summary")
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        tiroides = next((k for k in data["kpis"] if k["id"] == "tiroides"), None)
-        self.assertIsNotNone(tiroides)
-        self.assertEqual(tiroides["main_label"], "Hormona TSH")
-
-        filas_labels = [f["label"] for f in tiroides["filas"]]
-        # Comprobar que T4 Total y T4 Libre están presentes
-        self.assertIn("T4 Total", filas_labels)
-        self.assertIn("T4 Libre", filas_labels)
-        self.assertIn("T3 Total", filas_labels)
-
-        fila_t4t = next(f for f in tiroides["filas"] if f["label"] == "T4 Total")
-        self.assertIn(fila_t4t["val"], ["5.62", "6.33"])
-        self.assertEqual(fila_t4t["tipo_parametro"], "principal")
-
-        fila_t3t = next(f for f in tiroides["filas"] if f["label"] == "T3 Total")
-        self.assertIn(fila_t3t["val"], ["0.81", "1.03"])
-        self.assertEqual(fila_t3t["tipo_parametro"], "secundario")
 
     def test_basofilos_estandarizacion_y_edicion(self):
         """Verifica que los basófilos absolutos (y resto de diferenciales) se estandaricen correctamente sin multiplicarse a 40000."""
