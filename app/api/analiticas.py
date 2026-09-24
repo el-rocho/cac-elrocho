@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import __version__
 from app.config import settings
+from app.services.configuration_service import configuration_service
 from app.database import get_db
 from app.models import Paciente, Informe, Analito, Medicion
 from app.schemas import (
@@ -78,7 +79,7 @@ def calcular_egfr(creat_mg_dl: float, edad_anos: Any, sexo: str) -> Any:
 
 def get_motor_llm_summary() -> Dict[str, Any]:
     """Retorna información del estado de los modelos LLM configurados."""
-    slots = settings.get_configured_llm_slots()
+    slots = configuration_service.get_configured_llm_slots()
     llm_slots = [s for s in slots if s.get("provider") != "mock" and s.get("api_key") and s.get("model")]
     return {
         "activo": len(llm_slots) > 0,
@@ -481,7 +482,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Glucosa en ayunas",
         main_value=fmt(glu),
         unit="mg/dL",
-        main_value_class="text-rose-600 font-extrabold" if glu_alt else "text-slate-900 font-extrabold",
+        main_value_class="text-rose-600 font-semibold" if glu_alt else "text-slate-900 font-semibold",
         is_altered=glu_alt,
         main_var_symbol=glu_v_sym,
         main_var_delta=glu_v_delta,
@@ -637,7 +638,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Colesterol Total",
         main_value=fmt(col_t),
         unit="mg/dL",
-        main_value_class="text-rose-600 font-extrabold" if col_alt else "text-slate-900 font-extrabold",
+        main_value_class="text-rose-600 font-semibold" if col_alt else "text-slate-900 font-semibold",
         is_altered=col_alt,
         main_var_symbol=col_v_sym,
         main_var_delta=col_v_delta,
@@ -739,7 +740,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Creatinina sérica",
         main_value=fmt(creat, 2),
         unit="mg/dL",
-        main_value_class="text-rose-600 font-extrabold" if creat_alt else "text-slate-900 font-extrabold",
+        main_value_class="text-rose-600 font-semibold" if creat_alt else "text-slate-900 font-semibold",
         is_altered=creat_alt,
         main_var_symbol=creat_v_sym,
         main_var_delta=creat_v_delta,
@@ -846,7 +847,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="GPT / ALT",
         main_value=fmt(alt) if alt != "-" else fmt(ast),
         unit="U/L",
-        main_value_class="text-rose-600 font-extrabold" if (alt_alt if alt != "-" else ast_alt) else "text-slate-900 font-extrabold",
+        main_value_class="text-rose-600 font-semibold" if (alt_alt if alt != "-" else ast_alt) else "text-slate-900 font-semibold",
         is_altered=(alt_alt if alt != "-" else ast_alt),
         main_var_symbol=hep_v_sym,
         main_var_delta=hep_v_delta,
@@ -934,7 +935,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Hemoglobina (Hb)",
         main_value=fmt(hb, 1),
         unit="g/dL",
-        main_value_class="text-rose-600 font-extrabold" if hb_alt else "text-slate-900 font-extrabold",
+        main_value_class="text-rose-600 font-semibold" if hb_alt else "text-slate-900 font-semibold",
         is_altered=hb_alt,
         main_var_symbol=hb_v_sym,
         main_var_delta=hb_v_delta,
@@ -1064,7 +1065,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Hormona TSH",
         main_value=fmt(tsh, 2),
         unit="µUI/mL",
-        main_value_class="text-rose-600 font-extrabold" if tsh_alt else "text-slate-900 font-extrabold",
+        main_value_class="text-rose-600 font-semibold" if tsh_alt else "text-slate-900 font-semibold",
         is_altered=tsh_alt,
         main_var_symbol=tsh_v_sym,
         main_var_delta=tsh_v_delta,
@@ -1696,7 +1697,7 @@ def delete_audit_file(informe_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Analítica no encontrada")
 
     if informe.archivo_pdf:
-        pdf_path = settings.DATA_DIR / "uploads" / informe.archivo_pdf
+        pdf_path = settings.paths.uploads_dir / informe.archivo_pdf
         if pdf_path.exists():
             try:
                 pdf_path.unlink()

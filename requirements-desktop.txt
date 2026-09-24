@@ -1,0 +1,14 @@
+# Dependencias para ejecutar el cliente de escritorio de forma nativa.
+# requirements.txt continúa siendo suficiente para Docker y el servidor web.
+-r requirements.txt
+
+# En Windows se usa Edge WebView2 a través de pywebview. Windows 10/11 suele
+# incluir el runtime; el instalador debe comprobarlo en los equipos donde no.
+pywebview>=6.2,<7; sys_platform == "win32"
+
+# En Linux se selecciona Qt explícitamente, evitando depender de bibliotecas
+# GTK instaladas por la distribución. No se incluye en la imagen Docker.
+pywebview[qt]>=6.2,<7; sys_platform == "linux"
+
+# Herramienta de compilación; el ejecutable Windows se genera desde Windows.
+pyinstaller>=6.0,<7; sys_platform == "win32"

@@ -11,6 +11,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./inbox:/app/inbox
+      - ./config:/app/config
+      - ./backups:/app/backups
+      - ./logs:/app/logs
 
 
   # Proxy inverso Caddy opcional para gestión automática de certificados SSL/HTTPS

@@ -1,8 +1,17 @@
 import os
+import sys
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-from pydantic import model_validator
+from typing import Optional
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from app.paths import AppPaths, default_data_root
+
+
+# Un .env del repositorio es útil en desarrollo, pero un ejecutable puede
+# iniciarse desde cualquier directorio (incluido el repositorio original). En
+# modo congelado no debe heredar por accidente claves de desarrollo; las
+# credenciales del usuario se guardan mediante SecretStore en el sistema.
+DOTENV_FILE = None if getattr(sys, "frozen", False) else ".env"
 
 class Settings(BaseSettings):
     APP_NAME: str = "cac-elrocho"
@@ -10,13 +19,13 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
-    # Rutas relativas o absolutas
+    # APP_DATA_DIR es la única raíz de datos persistentes. Las variables
+    # heredadas se aceptan durante la transición, pero no se usan en negocio.
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
-    DATA_DIR: Path = Path(os.getenv("DATA_DIR", "./data"))
-    INBOX_DIR: Path = Path(os.getenv("INBOX_DIR", "./inbox"))
-    
-    # Base de Datos
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/analiticas.db")
+    APP_DATA_DIR: Optional[Path] = None
+    DATA_DIR: Optional[Path] = None
+    INBOX_DIR: Optional[Path] = None
+    DATABASE_URL: Optional[str] = None
     
     # Inteligencia Artificial (LLM) - Multi-modelo (hasta 3 slots configurables)
     LLM_PROVIDER1: Optional[str] = None
@@ -32,72 +41,60 @@ class Settings(BaseSettings):
     MODEL3: Optional[str] = None
 
     # Parámetros heredados (retrocompatibilidad)
-    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini") # 'gemini' o 'mock'
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+    LLM_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-flash-lite-latest"
 
-    def get_configured_llm_slots(self) -> list:
-        """
-        Retorna la lista de slots LLM configurados por el usuario (del 1 al 3).
-        Permite configurar 1, 2 o 3 modelos independientes con sus respectivas claves.
-        """
-        slots = []
-        for i in (1, 2, 3):
-            p = getattr(self, f"LLM_PROVIDER{i}", None)
-            k = getattr(self, f"API_KEY{i}", None)
-            m = getattr(self, f"MODEL{i}", None)
-
-            p = (p or "").strip()
-            k = (k or "").strip()
-            m = (m or "").strip()
-
-            if p or m or k:
-                if not p:
-                    p = "mock" if m.lower() == "mock" else "gemini"
-                slots.append({
-                    "slot": i,
-                    "provider": p.lower(),
-                    "api_key": k,
-                    "model": m
-                })
-
-        # Retrocompatibilidad si no se configuró ningún slot 1, 2 o 3
-        if not slots and (self.GEMINI_API_KEY or self.LLM_PROVIDER):
-            slots.append({
-                "slot": 1,
-                "provider": (self.LLM_PROVIDER or "gemini").lower(),
-                "api_key": self.GEMINI_API_KEY or "",
-                "model": self.GEMINI_MODEL or "gemini-flash-lite-latest"
-            })
-        return slots
-    
     # Seguridad básica opcional
     AUTH_ENABLED: bool = False
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin"
     SECRET_KEY: str = "cac-elrocho-secret-key-change-me"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    CORS_ORIGINS: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
 
-    @model_validator(mode="after")
-    def resolve_paths(self):
-        # Si estamos en Windows o fuera del contenedor Docker y la ruta apunta a /app/...
-        if os.name == "nt" or not Path("/app").exists():
-            str_data = str(self.DATA_DIR).replace("\\", "/")
-            if str_data.startswith("/app/"):
-                self.DATA_DIR = self.BASE_DIR / str_data[5:]
-            str_inbox = str(self.INBOX_DIR).replace("\\", "/")
-            if str_inbox.startswith("/app/"):
-                self.INBOX_DIR = self.BASE_DIR / str_inbox[5:]
-            if "/app/" in self.DATABASE_URL:
-                db_rel = self.DATABASE_URL.split("/app/")[-1]
-                db_path = (self.BASE_DIR / db_rel).resolve().as_posix()
-                self.DATABASE_URL = f"sqlite:///{db_path}"
-        return self
+    model_config = SettingsConfigDict(
+        env_file=DOTENV_FILE,
+        env_file_encoding="utf-8",
+        extra="ignore",
+        enable_decoding=False,
+    )
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def split_list(cls, value):
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    def _resolve_legacy_path(self, value: Path) -> Path:
+        text = str(value).replace("\\", "/")
+        if (text == "/app" or text.startswith("/app/")) and (os.name == "nt" or not Path("/app").exists()):
+            return self.BASE_DIR / text.removeprefix("/app").lstrip("/")
+        return value if value.is_absolute() else self.BASE_DIR / value
+
+    @property
+    def paths(self) -> AppPaths:
+        if self.APP_DATA_DIR:
+            root = self._resolve_legacy_path(self.APP_DATA_DIR)
+        elif self.DATA_DIR:
+            root = self._resolve_legacy_path(self.DATA_DIR).parent
+        elif self.INBOX_DIR:
+            root = self._resolve_legacy_path(self.INBOX_DIR).parent
+        else:
+            root = default_data_root(self.BASE_DIR)
+        return AppPaths(root.resolve())
+
+    @property
+    def database_url(self) -> str:
+        if self.DATABASE_URL:
+            legacy_url = self.DATABASE_URL
+            if "/app/" in legacy_url and (os.name == "nt" or not Path("/app").exists()):
+                database_relative_path = legacy_url.split("/app/", 1)[1]
+                database_path = (self.BASE_DIR / database_relative_path).resolve().as_posix()
+                return f"sqlite:///{database_path}"
+            return legacy_url
+        return f"sqlite:///{self.paths.database_file.as_posix()}"
 
 settings = Settings()
-
-# Asegurar directorios
-settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-settings.INBOX_DIR.mkdir(parents=True, exist_ok=True)
-(settings.DATA_DIR / "uploads").mkdir(parents=True, exist_ok=True)
+settings.paths.ensure_directories()

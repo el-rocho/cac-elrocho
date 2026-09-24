@@ -259,7 +259,7 @@ def backfill_informe_hashes():
         updated = 0
         for inf in informes:
             if inf.archivo_pdf:
-                pdf_path = settings.DATA_DIR / "uploads" / inf.archivo_pdf
+                pdf_path = settings.paths.uploads_dir / inf.archivo_pdf
                 if pdf_path.exists():
                     try:
                         with open(pdf_path, "rb") as f:

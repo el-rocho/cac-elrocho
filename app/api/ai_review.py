@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Paciente, AuditoriaRango, Analito, Informe, Medicion
+from app.time_utils import utc_now
 
 router = APIRouter(prefix="/ai", tags=["Módulo IA"])
 
@@ -129,7 +130,7 @@ def detectar_cambios_de_rango(db: Session) -> List[AuditoriaRango]:
                         rango_anterior=prev_ref_str,
                         rango_nuevo=ref_str,
                         explicacion_ia=explicacion,
-                        fecha_deteccion=datetime.utcnow(),
+                        fecha_deteccion=utc_now(),
                         aplicado_en_historico=False,
                         estado="pendiente"
                     )
@@ -190,7 +191,7 @@ def aplicar_criterio_historico(auditoria_id: int, db: Session = Depends(get_db))
     # 3. Marcar la auditoría como aplicada
     audit.aplicado_en_historico = True
     audit.estado = "aplicado"
-    audit.fecha_aplicacion = datetime.utcnow()
+    audit.fecha_aplicacion = utc_now()
 
     db.commit()
 
@@ -238,7 +239,7 @@ def mantener_criterio_historico(auditoria_id: int, db: Session = Depends(get_db)
 
     audit.aplicado_en_historico = False
     audit.estado = "mantenido"
-    audit.fecha_aplicacion = datetime.utcnow()
+    audit.fecha_aplicacion = utc_now()
 
     db.commit()
 
@@ -260,7 +261,7 @@ def mantener_todos_criterios_historicos(db: Session = Depends(get_db)):
     from app.services.analito_normalizer import evaluar_estado_semaforo
 
     auditorias = db.query(AuditoriaRango).all()
-    now = datetime.utcnow()
+    now = utc_now()
     count = 0
     for audit in auditorias:
         curr_estado = audit.estado if audit.estado else ("aplicado" if audit.aplicado_en_historico else "pendiente")
@@ -311,7 +312,7 @@ def aplicar_todos_criterios_historico(db: Session = Depends(get_db)):
         }
 
     total_mediciones = 0
-    now = datetime.utcnow()
+    now = utc_now()
 
     for audit in auditorias:
         analito = db.query(Analito).filter_by(id=audit.analito_id).first()

@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "build:styles": "tailwindcss --config tailwind.config.cjs --input packaging/tailwind.input.css --output app/static/vendor/tailwind.min.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

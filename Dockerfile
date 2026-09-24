@@ -20,8 +20,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copiar el código de la aplicación
 COPY app/ /app/app/
 
-# Crear directorios para persistencia y buzón
-RUN mkdir -p /app/data /app/inbox
+# Crear directorios persistentes de una instalación nueva
+RUN mkdir -p /app/data /app/inbox /app/backups /app/config /app/logs
 
 EXPOSE 8000
 

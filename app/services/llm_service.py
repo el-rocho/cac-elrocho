@@ -10,7 +10,7 @@ from google import genai
 from google.genai import types
 
 import unicodedata
-from app.config import settings
+from app.services.configuration_service import configuration_service
 from app.schemas import AnaliticaPreviewResponse, MedicionExtraida, RangoDetectado
 from app.services.parser import extract_text_from_pdf, extract_metadata_fallback
 from app.services.analito_normalizer import normalize_analito, normalize_valor_numerico, standardize_medicion
@@ -691,7 +691,7 @@ async def analyze_pdf_with_llm(
     else:
         gemini_contents = prompt_content
 
-    slots = settings.get_configured_llm_slots()
+    slots = configuration_service.get_configured_llm_slots()
     llm_slots = [
         s for s in slots
         if s.get("provider") != "mock" and s.get("api_key") and s.get("model")
@@ -1503,7 +1503,7 @@ async def generate_clinical_summary_from_measurements(
         f"LISTADO DE MEDICIONES A EVALUAR:\n" + "\n".join(med_lines)
     )
 
-    slots = settings.get_configured_llm_slots()
+    slots = configuration_service.get_configured_llm_slots()
     llm_slots = [
         s for s in slots
         if s.get("provider") != "mock" and s.get("api_key") and s.get("model")

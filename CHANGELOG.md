@@ -1,6 +1,15 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.2] - 2026-09-24
+
+### ⚙️ Configuración segura y experiencia de escritorio
+* **Preferencias de IA desde la aplicación**: nueva pantalla de configuración para seleccionar el modelo y gestionar la credencial de Gemini sin guardarla en SQLite, ficheros de configuración ni copias de seguridad.
+* **Almacén de credenciales del sistema**: las claves introducidas por el usuario se conservan mediante el mecanismo seguro del sistema operativo; los valores administrados por variables de entorno siguen teniendo prioridad y son de solo lectura.
+* **Preparación para Windows**: añadido el lanzador de escritorio, los recursos de marca, el empaquetado reproducible y la comprobación en CI del ejecutable. La aplicación se ofrecerá próximamente como ejecutable para Windows; los detalles de descarga se comunicarán más adelante.
+* **Marca renovada**: incorporado el nuevo logotipo en la interfaz, el instalador y la documentación.
+* **Verificación de distribución**: CI valida pruebas aisladas, la hoja de estilos generada y los recursos web incluidos en el paquete de escritorio.
+
 ## [v0.9.1] - 2026-09-23
 
 * **Datos de demostración sintéticos**: una instalación nueva muestra tres analíticas ficticias anonimizadas, sin incluir ni modificar datos clínicos reales.

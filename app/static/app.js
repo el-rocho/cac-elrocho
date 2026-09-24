@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTables();
   loadAuditFiles();
   loadPatientConfig();
+  loadAiConfiguration();
   setupDragAndDrop();
   setupBioTableScrollSync();
 });
@@ -119,10 +120,10 @@ function setTab(tabId) {
     
     if (t === tabId) {
       el.classList.remove('hidden');
-      btn.className = 'pb-3 px-4 border-b-2 tab-active transition-colors';
+      btn.className = 'px-5 py-3 text-base rounded-t-lg border-b-2 tab-active transition-colors';
     } else {
       el.classList.add('hidden');
-      btn.className = 'pb-3 px-4 border-b-2 tab-inactive transition-colors';
+      btn.className = 'px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors';
     }
   });
 
@@ -140,6 +141,7 @@ function setTab(tabId) {
   } else if (tabId === 'config') {
     loadPatientConfig();
     loadAiAuditorias();
+    loadAiConfiguration();
   }
 }
 
@@ -178,26 +180,7 @@ async function loadSummary() {
 
     const p = data.paciente || {};
     const nombre = (p.nombre || '').trim();
-    document.getElementById('paciente-nombre').textContent = 'Control de analíticas clínicas: ' + (nombre || 'Paciente');
-    
-    let partesDetalles = [];
-    if (p.nacimiento && p.nacimiento !== '-') {
-      let nacStr = `Fecha de nacimiento: <strong>${escapeHtml(p.nacimiento)}</strong>`;
-      if (p.edad && p.edad !== '-') {
-        nacStr += ` (${escapeHtml(p.edad)})`;
-      }
-      partesDetalles.push(nacStr);
-    }
-    if (p.sexo && p.sexo !== '-' && p.sexo !== 'No especificado') {
-      partesDetalles.push(`Sexo: <strong>${escapeHtml(p.sexo)}</strong>`);
-    }
-    if (p.dni && p.dni !== '-') {
-      partesDetalles.push(`Identificación fiscal (DNI): <strong>${escapeHtml(p.dni)}</strong>`);
-    }
-
-    document.getElementById('paciente-detalles').innerHTML = partesDetalles.length > 0 
-      ? partesDetalles.join(' <span class="text-slate-300">•</span> ') 
-      : 'Sin datos personales configurados';
+    document.getElementById('paciente-nombre').textContent = nombre || 'Usuario (paciente)';
 
     document.getElementById('dictamen-titulo').textContent = data.dictamen_global || 'Control favorable';
     const subEl = document.getElementById('dictamen-sub');
@@ -232,7 +215,7 @@ async function loadSummary() {
       const labelHtml = kpi.main_label 
         ? `<div class="text-[11px] font-medium text-slate-500 mt-1 truncate" title="${kpi.main_label}">${kpi.main_label}</div>` 
         : '';
-      const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-extrabold' : 'text-slate-900 font-extrabold');
+      const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-semibold' : 'text-slate-900 font-semibold');
       
       const mainVarBadgeHtml = kpi.main_var_delta ? `
         <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight" title="Variación vs control anterior">
@@ -2377,8 +2360,127 @@ async function savePatientConfig(event) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span>💾</span> Guardar Datos del Paciente';
+      btn.innerHTML = '<span>💾</span> Guardar datos';
     }
+  }
+}
+
+function setAiStatus(message, tone = 'slate') {
+  const status = document.getElementById('cfg-ai-status');
+  if (!status) return;
+  const colors = {
+    slate: 'text-slate-600',
+    success: 'text-emerald-600',
+    error: 'text-rose-600',
+    warning: 'text-amber-700'
+  };
+  status.textContent = message;
+  status.className = `text-xs font-semibold ${colors[tone] || colors.slate}`;
+}
+
+function setAiControlsDisabled(disabled) {
+  document.querySelectorAll('[data-ai-config-control]').forEach(el => { el.disabled = disabled; });
+  const save = document.getElementById('btn-save-ai-config');
+  if (save) save.disabled = disabled;
+}
+
+async function loadAiConfiguration() {
+  try {
+    const res = await fetch('/api/v1/settings/ai');
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo consultar la configuración IA'));
+    const ai = await res.json();
+    const provider = document.getElementById('cfg-ai-provider');
+    const model = document.getElementById('cfg-ai-model');
+    const fallback = document.getElementById('cfg-ai-fallback');
+    const notice = document.getElementById('cfg-ai-environment-notice');
+    const key = document.getElementById('cfg-ai-key');
+    const saveKey = document.getElementById('btn-save-ai-key');
+    const deleteKey = document.getElementById('btn-delete-ai-key');
+    const test = document.getElementById('btn-test-ai');
+
+    if (provider) provider.value = ai.provider || 'gemini';
+    if (model) model.value = ai.model || '';
+    if (fallback) fallback.checked = Boolean(ai.fallback_enabled);
+    if (notice) notice.classList.toggle('hidden', !ai.managed_by_environment);
+    setAiControlsDisabled(Boolean(ai.managed_by_environment));
+    const credentialManaged = Boolean(ai.credential_managed_by_environment);
+    if (key) key.disabled = credentialManaged;
+    if (saveKey) saveKey.disabled = credentialManaged;
+    if (deleteKey) deleteKey.disabled = credentialManaged || !ai.credential_configured;
+    if (test) test.disabled = !ai.credential_configured || ai.provider !== 'gemini';
+    setAiStatus(ai.credential_configured ? 'Gemini configurado' : 'Gemini sin configurar', ai.credential_configured ? 'success' : 'warning');
+  } catch (error) {
+    setAiStatus(error.message, 'error');
+  }
+}
+
+async function saveAiConfiguration() {
+  const btn = document.getElementById('btn-save-ai-config');
+  const payload = {
+    provider: document.getElementById('cfg-ai-provider').value,
+    model: document.getElementById('cfg-ai-model').value.trim(),
+    fallback_enabled: document.getElementById('cfg-ai-fallback').checked
+  };
+  try {
+    if (btn) btn.disabled = true;
+    const res = await fetch('/api/v1/settings/ai', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudieron guardar las preferencias'));
+    setAiStatus('Configuración guardada', 'success');
+    await loadAiConfiguration();
+    await loadSummary();
+  } catch (error) {
+    setAiStatus(error.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function saveAiCredential() {
+  const input = document.getElementById('cfg-ai-key');
+  const value = input ? input.value.trim() : '';
+  if (!value) {
+    setAiStatus('Introduce una clave antes de guardarla.', 'warning');
+    return;
+  }
+  try {
+    const res = await fetch('/api/v1/settings/ai/credentials', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: value })
+    });
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo guardar la clave'));
+    input.value = '';
+    setAiStatus('Credencial guardada', 'success');
+    await loadAiConfiguration();
+  } catch (error) {
+    setAiStatus(error.message, 'error');
+  }
+}
+
+async function deleteAiCredential() {
+  if (!confirm('¿Eliminar la credencial de Gemini de esta instalación?')) return;
+  try {
+    const res = await fetch('/api/v1/settings/ai/credentials', { method: 'DELETE' });
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo eliminar la clave'));
+    setAiStatus('Credencial eliminada', 'success');
+    await loadAiConfiguration();
+  } catch (error) {
+    setAiStatus(error.message, 'error');
+  }
+}
+
+async function testAiConnection() {
+  const btn = document.getElementById('btn-test-ai');
+  try {
+    if (btn) btn.disabled = true;
+    setAiStatus('Comprobando conexión…');
+    const res = await fetch('/api/v1/settings/ai/test', { method: 'POST' });
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo comprobar Gemini'));
+    setAiStatus('Conexión con Gemini verificada', 'success');
+  } catch (error) {
+    setAiStatus(error.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -2721,7 +2823,7 @@ function openKpiModal(index) {
 
   if (titleEl) titleEl.textContent = kpi.title;
 
-  const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-extrabold' : 'text-slate-900 font-extrabold');
+  const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-semibold' : 'text-slate-900 font-semibold');
 
   let mainDotClass = 'bg-slate-300';
   let mainTrendTitle = 'Sin tendencia evaluable';
@@ -2900,6 +3002,18 @@ function closeKpiModal() {
   }
 }
 
+function openCreditsModal() {
+  const modal = document.getElementById('creditsModal');
+  if (!modal) return;
+  document.body.classList.add('overflow-hidden');
+  modal.showModal();
+}
+
+function closeCreditsModal() {
+  const modal = document.getElementById('creditsModal');
+  if (modal && modal.open) modal.close();
+}
+
 function navigateKpiModal(offset) {
   if (!currentKpisData || currentKpisData.length === 0) return;
   let newIndex = activeKpiIndex + offset;
@@ -2910,6 +3024,12 @@ function navigateKpiModal(offset) {
 
 // Configurar observadores y fallback de cierre para los diálogos modales
 document.addEventListener('DOMContentLoaded', () => {
+  const creditsModal = document.getElementById('creditsModal');
+  if (creditsModal) {
+    creditsModal.addEventListener('close', () => document.body.classList.remove('overflow-hidden'));
+    creditsModal.addEventListener('cancel', () => document.body.classList.remove('overflow-hidden'));
+  }
+
   const modal = document.getElementById('evalClinicalModal');
   if (modal) {
     modal.addEventListener('close', () => {

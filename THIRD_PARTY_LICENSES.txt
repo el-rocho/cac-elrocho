@@ -1,0 +1,22 @@
+THIRD-PARTY LICENSES
+====================
+
+Créditos gráficos
+-----------------
+El icono de esta aplicación está basado en un diseño de reynaindra,
+publicado en SVG Repo.
+
+Autor: reynaindra
+Autor: https://www.svgrepo.com/author/reynaindra/
+Fuente: SVG Repo (https://www.svgrepo.com/)
+Licencia: Creative Commons Attribution (CC BY)
+https://creativecommons.org/licenses/by/4.0/
+
+Modificaciones realizadas: conversión del archivo SVG original a formato ICO
+y adaptación de sus dimensiones para su utilización como icono de Windows.
+
+El reconocimiento de autoría no implica que el autor original respalde esta
+aplicación.
+
+URL del recurso original:
+https://www.svgrepo.com/svg/385141/blood-healthcare-laboratory-medical-science-test

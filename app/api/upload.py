@@ -56,7 +56,7 @@ async def upload_pdf_for_analysis(file: UploadFile = File(...), db: Session = De
         raise HTTPException(status_code=400, detail="Solo se admiten documentos en formato PDF.")
 
     temp_id = str(uuid.uuid4())
-    upload_dir = settings.DATA_DIR / "uploads"
+    upload_dir = settings.paths.uploads_dir
     upload_dir.mkdir(parents=True, exist_ok=True)
     temp_path = upload_dir / f"temp_{temp_id}.pdf"
 
@@ -91,7 +91,7 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
     revisada y aprobada por el usuario. Permite actualizar y sobrescribir si ya existía.
     """
     try:
-        upload_dir = settings.DATA_DIR / "uploads"
+        upload_dir = settings.paths.uploads_dir
         upload_dir.mkdir(parents=True, exist_ok=True)
         temp_path = upload_dir / f"temp_{req.temp_id}.pdf"
         

@@ -27,6 +27,8 @@ __pycache__/
 env/
 venv/
 .venv/
+.venv-win/
+.venv-wsl/
 build/
 develop-eggs/
 dist/
@@ -58,4 +60,9 @@ run_dev.ps1
 !dev.bat.example
 *.ps1
 !run_dev.ps1.example
+!packaging/*.ps1
 scripts/
+
+# Dependencias de compilación del frontend; el CSS generado sí se versiona.
+node_modules/
+dist-installer/

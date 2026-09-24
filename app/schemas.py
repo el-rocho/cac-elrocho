@@ -252,3 +252,17 @@ class PacienteUpdateRequest(BaseModel):
     centro_referencia: Optional[str] = None
 
 
+# --- Configuración de la aplicación ---
+
+class AIConfigurationUpdate(BaseModel):
+    provider: Optional[str] = Field(default=None, pattern="^(gemini|none)$")
+    model: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    fallback_enabled: Optional[bool] = None
+    local_endpoint: Optional[str] = Field(default=None, max_length=500)
+    local_model: Optional[str] = Field(default=None, max_length=200)
+
+
+class AICredentialsUpdate(BaseModel):
+    api_key: str = Field(min_length=1, max_length=4096)
+
+

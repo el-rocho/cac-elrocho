@@ -10,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 
 from app.config import settings
-from app.database import init_db, SessionLocal
-from app.seed_data import run_recent_synthetic_seed
+from app.database import init_db, SessionLocal, close_database
 from app.services.watcher import inbox_watcher
 from app.services.backup_service import backfill_informe_hashes
 from app.services.db_harmonizer import harmonize_database_records
@@ -29,9 +28,6 @@ async def lifespan(app: FastAPI):
     # Inicialización de la base de datos
     logger.info("Iniciando cac-elrocho: verificando base de datos SQLite...")
     init_db()
-    # Una instalación nueva muestra datos demostrativos sintéticos. La semilla
-    # no actúa si ya existe cualquier informe, por lo que nunca toca datos reales.
-    run_recent_synthetic_seed()
     
     # Backfill de hashes SHA-256 para informes existentes
     backfill_informe_hashes()
@@ -51,6 +47,7 @@ async def lifespan(app: FastAPI):
     # Finalización
     logger.info("Deteniendo servicios de cac-elrocho...")
     inbox_watcher.stop()
+    close_database()
 
 app = FastAPI(
     title="cac-elrocho",
@@ -59,11 +56,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Soporte CORS para desarrollo
+# Solo se habilitan orígenes administrativos declarados. La interfaz propia se
+# sirve desde el mismo origen y no depende de CORS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -75,6 +73,13 @@ app.include_router(api_router)
 static_dir = Path(__file__).resolve().parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Los recursos de marca viven fuera del paquete ``app`` para que puedan
+# reutilizarse en el ejecutable y el instalador. PyInstaller los copia como
+# hermanos del paquete en la distribución congelada.
+branding_dir = Path(__file__).resolve().parent.parent / "assets"
+if branding_dir.exists():
+    app.mount("/branding", StaticFiles(directory=str(branding_dir)), name="branding")
 
 import time
 

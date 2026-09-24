@@ -44,4 +44,4 @@ class InboxWatcher:
                 logger.error(f"Error en monitor de buzón: {e}")
             time.sleep(5)
 
-inbox_watcher = InboxWatcher(settings.INBOX_DIR)
+inbox_watcher = InboxWatcher(settings.paths.inbox_dir)

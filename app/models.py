@@ -1,7 +1,7 @@
-from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Text, Date, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from app.database import Base
+from app.time_utils import utc_now
 
 class Paciente(Base):
     __tablename__ = "pacientes"
@@ -32,7 +32,7 @@ class Informe(Base):
     dictamen_global = Column(String(200), nullable=True)
     observaciones_ia = Column(Text, nullable=True)
     estado = Column(String(20), default="confirmado") # 'borrador' o 'confirmado'
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
 
     paciente = relationship("Paciente", back_populates="informes")
     mediciones = relationship("Medicion", back_populates="informe", cascade="all, delete-orphan")
@@ -85,7 +85,7 @@ class AuditoriaRango(Base):
     rango_anterior = Column(String(100), nullable=True)
     rango_nuevo = Column(String(100), nullable=False)
     explicacion_ia = Column(Text, nullable=True)
-    fecha_deteccion = Column(DateTime, default=datetime.utcnow)
+    fecha_deteccion = Column(DateTime(timezone=True), default=utc_now)
     aplicado_en_historico = Column(Boolean, default=False)
     fecha_aplicacion = Column(DateTime, nullable=True)
     estado = Column(String(30), default="pendiente")  # 'pendiente', 'aplicado', 'mantenido'

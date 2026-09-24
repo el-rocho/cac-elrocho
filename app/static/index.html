@@ -4,16 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CAC El Rocho</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <script src="/static/vendor/chart.umd.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/vendor/tailwind.min.css">
   <style>
-    body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .tab-active { border-bottom-color: #2563eb; color: #2563eb; font-weight: 700; }
-    .tab-inactive { border-bottom-color: transparent; color: #64748b; font-weight: 500; }
-    .tab-inactive:hover { color: #1e293b; border-bottom-color: #cbd5e1; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .tab-active { background-color: #cbd5e1; border-bottom-color: #2563eb; color: #2563eb; font-weight: 700; }
+    .tab-inactive { background-color: #e2e8f0; border-bottom-color: transparent; color: #64748b; font-weight: 500; }
+    .tab-inactive:hover { background-color: #cbd5e1; color: #1e293b; border-bottom-color: #94a3b8; }
     .table-container { overflow-x: auto; max-width: 100%; }
     ::-webkit-scrollbar { height: 8px; width: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
@@ -22,7 +19,8 @@
 
     /* Estilos para modales de valoración clínica y detalle KPI */
     dialog#evalClinicalModal::backdrop,
-    dialog#kpiDetailModal::backdrop {
+    dialog#kpiDetailModal::backdrop,
+    dialog#creditsModal::backdrop {
       background-color: rgba(15, 23, 42, 0.65);
       backdrop-filter: blur(4px);
     }
@@ -118,35 +116,34 @@
     
     <!-- HEADER -->
     <header class="bg-white border border-slate-200 rounded-2xl p-5 md:p-6 shadow-sm space-y-3.5">
-      <!-- FILA 1: Etiquetas informativas y botón de acción -->
+      <!-- FILA 1: Logotipo, etiquetas informativas y botón de acción -->
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-lg uppercase tracking-wider">Historial Clínico Integral</span>
-          <span id="badge-total-controles" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">Cargando controles...</span>
-          <span id="badge-ultima-fecha" class="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg">Última analítica: -</span>
-          <span id="badge-motor-llm" class="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1">
-            ✨ LLM Activo
-          </span>
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" onclick="openCreditsModal()" class="shrink-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2" title="Ver créditos gráficos" aria-label="Ver créditos gráficos">
+            <img src="/branding/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" class="h-14 w-14 object-contain" />
+          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="px-2.5 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-lg uppercase tracking-wider">Control analíticas clínicas</span>
+            <span id="badge-total-controles" class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">Cargando controles...</span>
+            <span id="badge-ultima-fecha" class="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-lg">Última analítica: -</span>
+            <span id="badge-motor-llm" class="px-2.5 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-lg flex items-center gap-1">
+              ✨ LLM Activo
+            </span>
+          </div>
         </div>
-
-        <button onclick="openUploadModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all flex items-center gap-1.5 shrink-0">
-          <span>➕</span> Subir Nueva Analítica (PDF)
+        <button onclick="openUploadModal()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all flex items-center gap-1.5 shrink-0">
+          <span>➕</span> Subir nueva analítica PDF
         </button>
       </div>
 
-      <!-- FILA 2: Título y Nombre del Usuario -->
+      <!-- FILA 2: Nombre del Usuario -->
       <div class="border-t border-slate-100 pt-3">
-        <h1 id="paciente-nombre" class="text-lg md:text-xl font-extrabold text-slate-900 tracking-tight truncate">
-          Control de analíticas clínicas: Paciente
+        <h1 id="paciente-nombre" class="text-lg md:text-xl font-semibold text-slate-900 tracking-tight truncate">
+          Usuario (paciente)
         </h1>
       </div>
 
-      <!-- FILA 3: Datos del Usuario -->
-      <div id="paciente-detalles" class="text-xs md:text-sm text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
-        Cargando datos personales...
-      </div>
-
-      <!-- FILA 4: Tarjeta con Dictamen -->
+      <!-- FILA 3: Tarjeta con Dictamen -->
       <div id="dictamen-card" class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
         <div class="relative flex h-3 w-3 shrink-0">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -170,21 +167,21 @@
     </section>
 
     <!-- TABS NAVIGATION -->
-    <div class="border-b border-slate-200 flex flex-wrap gap-2 text-sm font-semibold">
-      <button onclick="setTab('eval')" id="tab-btn-eval" class="pb-3 px-4 border-b-2 tab-active transition-colors">
+    <div class="border-b border-slate-200 flex flex-wrap gap-2 font-semibold">
+      <button onclick="setTab('eval')" id="tab-btn-eval" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-active transition-colors">
         📋 1. Información clínica
       </button>
-      <button onclick="setTab('table')" id="tab-btn-table" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        📊 2. Historial de Resultados
+      <button onclick="setTab('table')" id="tab-btn-table" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors">
+        📊 2. Historial de resultados
       </button>
-      <button onclick="setTab('charts')" id="tab-btn-charts" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        📈 3. Gráficos Evolutivos
+      <button onclick="setTab('charts')" id="tab-btn-charts" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors">
+        📈 3. Gráficos evolutivos
       </button>
-      <button onclick="setTab('audit')" id="tab-btn-audit" class="pb-3 px-4 border-b-2 tab-inactive transition-colors">
-        🔍 4. Auditoría y edición de archivos
+      <button onclick="setTab('audit')" id="tab-btn-audit" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors">
+        🔍 4. Gestión y edición de analíticas
       </button>
-      <button onclick="setTab('config')" id="tab-btn-config" class="pb-3 px-4 border-b-2 tab-inactive transition-colors flex items-center gap-1.5 text-blue-700">
-        <span>⚙️</span> 5. Configuración y Datos
+      <button onclick="setTab('config')" id="tab-btn-config" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors flex items-center gap-1.5 text-blue-700">
+        <span>⚙️</span> 5. Configuración y datos
       </button>
     </div>
 
@@ -1350,16 +1347,13 @@
       </div>
     </div>
 
-    <!-- TAB 4: AUDITORÍA Y EDICIÓN DE ARCHIVOS -->
+    <!-- TAB 4: GESTIÓN Y EDICIÓN DE ANALÍTICAS -->
     <div id="tab-audit" class="space-y-6 hidden">
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
           <div class="flex items-center gap-3">
             <div class="p-2.5 bg-blue-100 text-blue-800 rounded-xl font-bold text-lg">📁</div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Auditoría Documental de Ingesta y Archivos</h3>
-              <p class="text-xs text-slate-500">Registro detallado de todos los informes analíticos consolidados en la base de datos.</p>
-            </div>
+            <h3 class="text-base font-bold text-slate-900">Registro de todos los informes analíticos</h3>
           </div>
           <div class="flex items-center gap-2">
             <span id="audit-files-count" class="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl">0 Informes</span>
@@ -1396,40 +1390,36 @@
     <div id="tab-config" class="space-y-6 hidden">
       
       <!-- Fila 0: Datos del Paciente -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div class="flex items-center gap-3">
             <div class="p-2.5 bg-indigo-100 text-indigo-800 rounded-xl font-bold text-lg">👤</div>
-            <div>
-              <h3 class="text-base font-bold text-slate-900">Datos Personales del Paciente</h3>
-              <p class="text-xs text-slate-500">Configura la identidad del titular para los informes, dictámenes y referencias clínicas.</p>
-            </div>
+            <h3 class="text-base font-bold text-slate-900">Datos personales del paciente</h3>
           </div>
           <div id="cfg-paciente-badge-edad" class="hidden sm:inline-flex items-center px-3 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full border border-slate-200">
             Edad: -
           </div>
         </div>
 
-        <form id="form-paciente-config" onsubmit="savePatientConfig(event)" class="space-y-4">
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        <form id="form-paciente-config" onsubmit="savePatientConfig(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] gap-3 items-end text-xs">
             
             <div>
-              <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-nombre">Nombre Completo</label>
+            <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-nombre">Nombre Completo</label>
               <input type="text" id="cfg-paciente-nombre" placeholder="Ej: Francisco Javier Huerta" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
             </div>
 
             <div>
-              <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-dni">Documento de Identidad (DNI/NIE)</label>
+            <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-dni">Documento de Identidad (DNI/NIE)</label>
               <input type="text" id="cfg-paciente-dni" placeholder="Ej: 12345678Z" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
             </div>
 
             <div>
-              <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-nacimiento">Fecha de Nacimiento</label>
+            <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-nacimiento">Fecha de Nacimiento</label>
               <input type="date" id="cfg-paciente-nacimiento" onchange="updateAgeBadgePreview()" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
             </div>
 
             <div>
-              <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-sexo">Sexo Biológico / Clínico</label>
+            <label class="block font-semibold text-slate-700 mb-1" for="cfg-paciente-sexo">Sexo Biológico / Clínico</label>
               <select id="cfg-paciente-sexo" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
                 <option value="No especificado">No especificado</option>
                 <option value="Masculino">Masculino</option>
@@ -1437,15 +1427,57 @@
               </select>
             </div>
 
-          </div>
-
-          <div class="flex items-center justify-between pt-2">
-            <span id="cfg-paciente-status" class="text-xs font-semibold text-emerald-600"></span>
-            <button type="submit" id="btn-save-paciente" class="ml-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2">
-              <span>💾</span> Guardar Datos del Paciente
-            </button>
-          </div>
+            <div class="relative">
+              <button type="submit" id="btn-save-paciente" class="w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2">
+                <span>💾</span> Guardar datos
+              </button>
+              <span id="cfg-paciente-status" class="hidden absolute right-0 top-full mt-1 whitespace-nowrap text-xs font-semibold text-emerald-600"></span>
+            </div>
         </form>
+      </div>
+
+      <!-- Preferencias de Inteligencia Artificial -->
+      <div class="bg-white border border-violet-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-violet-100 pb-3">
+          <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-violet-100 text-violet-800 rounded-xl font-bold text-lg">✨</div>
+            <h3 class="text-base font-bold text-slate-900">Inteligencia Artificial</h3>
+          </div>
+          <span id="cfg-ai-status" class="text-xs font-semibold text-slate-600"></span>
+        </div>
+
+        <div id="cfg-ai-environment-notice" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+          Esta configuración está administrada por variables de entorno y no puede modificarse desde la aplicación.
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_auto_auto] gap-3 items-end text-xs">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1" for="cfg-ai-provider">Proveedor</label>
+            <select id="cfg-ai-provider" data-ai-config-control class="w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-violet-500 focus:outline-none">
+              <option value="gemini">Gemini</option>
+              <option value="none">Sin IA (extractor local)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1" for="cfg-ai-model">Modelo</label>
+            <input id="cfg-ai-model" data-ai-config-control type="text" maxlength="200" placeholder="gemini-2.5-flash" class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none">
+          </div>
+          <button id="btn-save-ai-config" onclick="saveAiConfiguration()" class="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors whitespace-nowrap">Guardar preferencias IA</button>
+          <button id="btn-test-ai" onclick="testAiConnection()" class="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold rounded-xl text-xs transition-colors whitespace-nowrap">Comprobar conexión</button>
+        </div>
+
+        <label class="flex items-center gap-2 text-xs text-slate-700">
+          <input id="cfg-ai-fallback" data-ai-config-control type="checkbox" class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+          Mantener el extractor local por expresiones regulares como alternativa.
+        </label>
+
+        <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-end border-t border-slate-100 pt-3">
+          <div>
+            <input id="cfg-ai-key" type="password" autocomplete="new-password" placeholder="Clave o token del proveedor o modelo" class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none">
+          </div>
+          <button id="btn-save-ai-key" onclick="saveAiCredential()" class="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors whitespace-nowrap">Actualizar clave</button>
+          <button id="btn-delete-ai-key" onclick="deleteAiCredential()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold border border-slate-300 rounded-xl text-xs transition-colors">Eliminar clave</button>
+        </div>
       </div>
 
       <!-- Fila 1: Auditoría IA y Cambios de Rango -->
@@ -1481,16 +1513,16 @@
           <div class="flex items-center gap-3">
             <div class="p-2.5 bg-blue-100 text-blue-800 rounded-xl font-bold text-lg">📥</div>
             <div>
-              <h3 class="text-base font-bold text-slate-900">Exportar Copia de Seguridad</h3>
+              <h3 class="text-base font-bold text-slate-900">Exportar copia de seguridad</h3>
               <p class="text-xs text-slate-500">Descarga un archivo JSON con todos los datos clínicos de la base de datos.</p>
             </div>
           </div>
           <div class="space-y-2 text-xs">
-            <label class="block font-semibold text-slate-700">Contraseña de Cifrado (Opcional pero recomendado):</label>
+            <label class="block font-semibold text-slate-700">Contraseña de cifrado (recomendado):</label>
             <input type="password" id="exportPassphrase" placeholder="Introduce una contraseña para cifrar con AES-256-GCM..." class="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
-          <button id="btnExportBackup" onclick="downloadBackup()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2">
-            <span>💾</span> Generar y Descargar Respaldo JSON
+          <button id="btnExportBackup" onclick="downloadBackup()" class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2">
+            <span>💾</span> Generar y descargar respaldo JSON
           </button>
         </div>
 
@@ -1499,13 +1531,12 @@
           <div class="flex items-center gap-3">
             <div class="p-2.5 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-lg">📤</div>
             <div>
-              <h3 class="text-base font-bold text-slate-900">Importar Copia de Seguridad</h3>
-              <p class="text-xs text-slate-500">Restaura un archivo JSON previamente exportado (plano o cifrado).</p>
+              <h3 class="text-base font-bold text-slate-900">Importar copia de seguridad</h3>
+              <p class="text-xs text-slate-500">Restaura un archivo JSON previamente exportado.</p>
             </div>
           </div>
           <div class="space-y-3 text-xs">
             <div>
-              <label class="block font-semibold text-slate-700 mb-1">Archivo de Respaldo (.json):</label>
               <input type="file" id="importFileInput" accept=".json" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
             </div>
             <div>
@@ -1514,17 +1545,8 @@
             </div>
           </div>
 
-          <div class="bg-amber-50/90 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
-            <div class="font-bold flex items-center gap-1.5 text-amber-950 text-[11px]">
-              <span>ℹ️</span> <span>Restauración completa:</span>
-            </div>
-            <p class="text-[11px] text-amber-800 leading-relaxed">
-              La importación reemplaza por completo la información actual de la base de datos.<br>Los registros no incluidos en la copia de datos que va a restaurar se perderán.
-            </p>
-          </div>
-
           <button onclick="uploadBackupFile()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2">
-            <span>🔄</span> Restaurar Respaldo en la Base de Datos
+            <span>🔄</span> Restaurar archivo JSON (los datos actuales se perderán)
           </button>
         </div>
 
@@ -1535,18 +1557,16 @@
         <div class="flex items-center gap-3">
           <div class="p-2.5 bg-rose-100 text-rose-800 rounded-xl font-bold text-lg">🗑️</div>
           <div>
-            <h3 class="text-base font-bold text-slate-900">Zona de Limpieza y Puesta a Punto</h3>
+            <h3 class="text-base font-bold text-slate-900">Zona de Peligro</h3>
+            <p class="text-xs text-slate-500">El Modo Demo elimina cualquier dato preexistente en la base de datos.</p>
           </div>
         </div>
-        <p class="text-xs text-slate-600 leading-relaxed">
-          Aplicar los datos de demostración (modo Demo) elimina cualquier dato previamente existente en la base de datos.
-        </p>
         <div class="flex flex-wrap gap-3 pt-2">
           <button onclick="confirmWipeDatabase()" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-2">
-            <span>⚠️</span> Limpiar Base de Datos (Comenzar de Cero)
+            <span>⚠️</span> Limpiar base de datos (comenzar de cero)
           </button>
           <button onclick="confirmResetDemo()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors border border-slate-300 flex items-center gap-2">
-            <span>🔄</span> Cargar datos del modo Demo
+            <span>🔄</span> Cargar datos Modo Demo
           </button>
         </div>
       </div>
@@ -1555,10 +1575,33 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho <span id="footer-app-version">v0.9.0</span> • Control de Analíticas Clínicas personal y privado
+      cac-elrocho <span id="footer-app-version">v0.9.2</span> • Control de Analíticas Clínicas personal y privado •
+      <button type="button" onclick="openCreditsModal()" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Créditos gráficos</button>
     </footer>
 
   </div>
+
+  <!-- CRÉDITOS DEL ICONO -->
+  <dialog id="creditsModal" closedby="any" aria-labelledby="creditsModalTitle" class="fixed inset-0 m-auto max-w-2xl w-[92vw] max-h-[88vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+    <div class="flex flex-col max-h-[88vh]">
+      <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-slate-200">
+        <div class="flex items-center gap-3">
+          <img src="/branding/logo2.png" alt="" class="h-10 w-10 object-contain" />
+          <h2 id="creditsModalTitle" class="text-lg font-bold text-slate-900">Créditos gráficos</h2>
+        </div>
+        <button type="button" onclick="closeCreditsModal()" class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Cerrar créditos">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-3 text-sm leading-relaxed text-slate-700">
+        <p>El icono de esta aplicación está basado en un diseño de <a class="text-blue-600 hover:text-blue-800 underline" href="https://www.svgrepo.com/author/reynaindra/" target="_blank" rel="noopener noreferrer">reynaindra</a>, publicado en <a class="text-blue-600 hover:text-blue-800 underline" href="https://www.svgrepo.com/" target="_blank" rel="noopener noreferrer">SVG Repo</a>.</p>
+        <p>Licencia: <a class="text-blue-600 hover:text-blue-800 underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">Creative Commons Attribution (CC BY)</a>.</p>
+        <p>Modificaciones realizadas: conversión del archivo SVG original a formato ICO y adaptación de sus dimensiones para su utilización como icono de Windows.</p>
+        <p>El reconocimiento de autoría no implica que el autor original respalde esta aplicación.</p>
+        <p>URL: <a class="text-blue-600 hover:text-blue-800 underline break-all" href="https://www.svgrepo.com/svg/385141/blood-healthcare-laboratory-medical-science-test" target="_blank" rel="noopener noreferrer">https://www.svgrepo.com/svg/385141/blood-healthcare-laboratory-medical-science-test</a></p>
+      </div>
+    </div>
+  </dialog>
 
   <!-- MODAL DE SUBIDA Y REVISIÓN INTERACTIVA PRE-INGESTA (HUMAN-IN-THE-LOOP) -->
   <div id="uploadModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">

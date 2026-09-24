@@ -1,6 +1,11 @@
 import unittest
 from datetime import date
 from fastapi.testclient import TestClient
+
+from tests.test_support import initialize_test_environment
+
+initialize_test_environment()
+
 from app.main import app
 from app.services.clinical_trends import (
     calcular_variacion_reciente,

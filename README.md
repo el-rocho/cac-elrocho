@@ -1,4 +1,6 @@
-# cac-elrocho 🩺 `v0.9.1`
+# cac-elrocho 🩺 `v0.9.2`
+
+![Logotipo de Control de Analíticas Clínicas](assets/logo2.png)
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
@@ -10,15 +12,11 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.1`
-* 🔗 **Unificación de informes coincidentes**: Al detectar informes de la misma fecha se puede fusionar conservando analitos previos y actualizando los recibidos, o reemplazar el informe por completo.
-* 🔖 **Referencia de petición trazable**: Extracción, revisión y edición del número de referencia; visible en la auditoría de archivos y preservado en las copias/restauraciones.
-* 📈 **Variaciones clínicas refinadas**: Las variaciones solo se muestran frente a una determinación previa dentro de 24 meses y superando el umbral clínico aplicable.
-* ✅ **Pruebas aisladas**: La cobertura de unificación, fusión y respaldo se ejecuta contra SQLite temporal, sin afectar datos clínicos locales.
-* 📄 **Extracción Tabular Avanzada y Resiliencia Multimodal**: Reconstrucción espacial horizontal en informes PDF columnarios (`sort=True` / `layout`) y red determinista de rescate para analitos críticos (Filtrado Glomerular y Eje Tiroideo).
-* 🦋 **Eje Tiroideo Completo (T4 y T3 Total)**: Integración de T4 Total como métrica Principal y T3 Total como Secundario en tarjetas KPI, desambiguación semántica en el catálogo y ampliación del modal explicativo.
-* 🩸 **Calibración Leucocitaria y Basófilos**: Umbrales fisiológicos específicos para evitar multiplicaciones erróneas de escala (`40` vs `40000`), extracción robusta ante porcentajes/absolutos y armonización retrospectiva.
-* 📐 **Homogeneización Automática de Magnitudes y Rangos**: Detección dinámica de órdenes de magnitud (`ref_ratio`) para estandarizar en sincronía cifras e intervalos de referencia clínicos, depurando unidades redundantes.
+## ✨ Novedades de la Versión `v0.9.2`
+* ⚙️ **Configuración de IA más segura y sencilla**: Las preferencias se gestionan desde la aplicación y las claves se conservan en el almacén de credenciales del sistema operativo, sin incluirse en la base de datos ni en las copias de seguridad.
+* 🖥️ **Base para la aplicación de escritorio**: Incorporado el lanzador nativo, el empaquetado y la verificación automatizada para Windows, manteniendo los datos clínicos separados de la instalación.
+* 🎨 **Identidad visual renovada**: Nuevo logotipo integrado en la interfaz y en la documentación.
+* ✅ **Distribución verificada**: La integración continua comprueba las pruebas, los estilos generados y el empaquetado de escritorio antes de publicar.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
 
 ---
@@ -86,25 +84,19 @@ copy .env.example .env
 ```
 Edita el archivo `.env` con tu editor preferido (`nano .env`, Bloc de notas, VS Code, etc.) y define tus parámetros esenciales:
 ```ini
-# Configuración multi-modelo LLM (hasta 3 modelos configurables con alternancia por fallo)
-# Puedes configurar 1, 2 o los 3 modelos con sus respectivas claves de API
+# Raíz única de todos los datos persistentes. En desarrollo desde este
+# repositorio puede omitirse; en Docker debe ser /app.
+APP_DATA_DIR=/app
 
-# Slot 1: Extractor principal (Rápido y preciso)
+# Override administrativo opcional de Gemini. Si se define, tiene prioridad
+# sobre la preferencia local y no se puede editar desde la interfaz.
 LLM_PROVIDER1=gemini
 API_KEY1=tu_clave_de_gemini_api_aqui
 MODEL1=gemini-2.5-flash
-
-# Slot 2: Respaldo de alta disponibilidad (Ultraligero)
-LLM_PROVIDER2=gemini
-API_KEY2=tu_clave_de_gemini_api_aqui
-MODEL2=gemini-2.5-flash-lite
-
-# Slot 3: Razonamiento avanzado
-LLM_PROVIDER3=gemini
-API_KEY3=tu_clave_de_gemini_api_aqui
-MODEL3=gemini-2.5-pro
 ```
-*(Nota: Puedes configurar 1, 2 o los 3 modelos. Si dejas las claves vacías, los modelos fallan o no hay conexión a internet, la aplicación utilizará automáticamente el extractor local inteligente basado en expresiones regulares sin interrumpir el servicio).*
+*(Nota: si no se declara el override, configura Gemini desde la pantalla de Configuración. Si no existe una clave válida, los modelos fallan o no hay conexión a internet, la aplicación utiliza el extractor local basado en expresiones regulares sin interrumpir el servicio.)*
+
+Las preferencias de IA modificadas desde la pantalla **Configuración y Datos** se almacenan en `APP_DATA_DIR/config/config.json`. Las claves guardadas desde esa pantalla se mantienen en el almacén de credenciales del sistema operativo y nunca se copian a ese archivo, a SQLite ni a las respuestas de la API. En Docker, una clave debe proporcionarse como secreto o variable de entorno administrada.
 
 ### 3. Levantar los Contenedores
 Descarga la imagen precompilada en GitHub Actions y levanta el servicio sin consumir recursos de compilación en tu máquina:
@@ -200,6 +192,12 @@ pip install -r requirements.txt
 # 3. Iniciar servidor de desarrollo
 uvicorn app.main:app --reload --port 8000
 ```
+
+---
+
+## 🪟 Próximamente: aplicación de escritorio para Windows
+
+Además de la opción actual con Docker, la aplicación estará disponible próximamente como ejecutable nativo para Windows. La distribución y el canal de descarga se anunciarán más adelante.
 
 ---
 
