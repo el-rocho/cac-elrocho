@@ -1,6 +1,6 @@
 # cac-elrocho 🩺 `v0.9.2`
 
-![Logotipo de Control de Analíticas Clínicas](assets/logo2.png)
+<img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
 
@@ -14,7 +14,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ## ✨ Novedades de la Versión `v0.9.2`
 * ⚙️ **Configuración de IA más segura y sencilla**: Las preferencias se gestionan desde la aplicación y las claves se conservan en el almacén de credenciales del sistema operativo, sin incluirse en la base de datos ni en las copias de seguridad.
-* 🖥️ **Base para la aplicación de escritorio**: Incorporado el lanzador nativo, el empaquetado y la verificación automatizada para Windows, manteniendo los datos clínicos separados de la instalación.
+* 🖥️ **Base para la aplicación de escritorio**: Incorporados el lanzador nativo y el empaquetado para Windows. La aplicación se ejecutará en una ventana propia y conservará los datos clínicos en el perfil local del usuario, separados de los archivos del programa para protegerlos durante las actualizaciones o desinstalaciones. La compilación se verifica automáticamente en la integración continua.
 * 🎨 **Identidad visual renovada**: Nuevo logotipo integrado en la interfaz y en la documentación.
 * ✅ **Distribución verificada**: La integración continua comprueba las pruebas, los estilos generados y el empaquetado de escritorio antes de publicar.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
@@ -54,7 +54,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 ## 🛠️ Requisitos del Sistema
 
 * **Sistema Operativo**:
-  * **Windows**: Windows 10/11 con [Docker Desktop](https://www.docker.com/products/docker-desktop/) (backend WSL2 recomendado).
+  * **Windows**: Windows 10/11 con [Docker Desktop](https://www.docker.com/products/docker-desktop/) (backend WSL2 recomendado). Próximamente también habrá un ejecutable nativo para Windows; se anunciará su disponibilidad y forma de descarga más adelante.
   * **Linux**: Debian 13 (Trixie), Ubuntu 22.04+ o cualquier distribución Linux con Docker.
   * **macOS**: Docker Desktop para macOS.
 * **Recursos Mínimos**:
