@@ -164,5 +164,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp release-assets/cac-elrocho-v*.exe release-assets/cac-elrocho-windows.exe
-          gh release create "${{ github.ref_name }}" release-assets/*.exe --title "Release ${{ github.ref_name }}" --generate-notes
+          mv release-assets/cac-elrocho-v*.exe release-assets/cac-elrocho-windows.exe
+          gh release create "${{ github.ref_name }}" release-assets/cac-elrocho-windows.exe --title "Release ${{ github.ref_name }}" --generate-notes
