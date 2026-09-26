@@ -1,6 +1,18 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.3] - 2026-09-26
+
+### 🪟 Distribución de escritorio para Windows
+* **Instalador publicado con cada release**: el flujo de publicación compila y adjunta automáticamente `cac-elrocho-vX.Y.Z.exe` para Windows 10/11 de 64 bits, junto con la imagen de contenedor.
+* **Actualización segura**: el instalador detecta una instalación previa y solicita desinstalarla antes de continuar, conservando intactos los datos clínicos, PDFs, copias de seguridad y la configuración del usuario en `%LOCALAPPDATA%\AnaliticasClinicas`.
+* **Versión coherente en escritorio**: la barra superior de la ventana nativa y el pie de página toman el número de versión desde una única fuente y muestran `v0.9.3`.
+
+### ⚙️ Inteligencia artificial y privacidad
+* **Tres slots configurables de Gemini**: configuración de modelos principal, de respaldo y de razonamiento avanzado desde la interfaz, con conmutación automática `1 → 2 → 3` y alternativa de extracción local.
+* **Credenciales aisladas**: las claves de API no se guardan en SQLite, `.env` ni en copias de seguridad; se almacenan por separado mediante el mecanismo seguro disponible en cada plataforma.
+* **Guía integrada de Gemini**: nuevo acceso desde Configuración para explicar cómo obtener una clave API y las consideraciones de tratamiento de datos por parte de Google.
+
 ## [v0.9.2] - 2026-09-24
 
 ### ⚙️ Configuración segura y experiencia de escritorio

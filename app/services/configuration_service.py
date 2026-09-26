@@ -18,8 +18,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "ai": {
-        "provider": "gemini",
-        "model": "gemini-2.5-flash",
+        "slots": [
+            {"provider": "none", "model": "", "enabled": False},
+            {"provider": "none", "model": "", "enabled": False},
+            {"provider": "none", "model": "", "enabled": False},
+        ],
         "fallback_enabled": True,
         "local_endpoint": "",
         "local_model": "",
@@ -69,94 +72,127 @@ class ConfigurationService:
     def get_config(self) -> Dict[str, Any]:
         return self._merge(DEFAULT_CONFIG, self._read_file())
 
-    def _environment_slots(self) -> list[Dict[str, Any]]:
+    def _configured_slots(self) -> list[Dict[str, Any]]:
+        raw_ai = self._read_file().get("ai", {})
+        configured = self.get_config()["ai"].get("slots", [])
+        if not isinstance(configured, list):
+            configured = []
+        # Migración en lectura del único modelo de versiones anteriores. Las
+        # claves continúan en SecretStore y su migración a slot 1 es también
+        # transparente, por lo que no se escriben secretos en config.json.
+        if isinstance(raw_ai, dict) and not isinstance(raw_ai.get("slots"), list):
+            legacy_provider = raw_ai.get("provider")
+            legacy_model = str(raw_ai.get("model") or "").strip()
+            if legacy_provider in {"gemini", "none"}:
+                configured = [
+                    {
+                        "provider": legacy_provider,
+                        "model": legacy_model,
+                        "enabled": legacy_provider == "gemini" and bool(legacy_model),
+                    },
+                    *DEFAULT_CONFIG["ai"]["slots"][1:],
+                ]
         slots = []
-        for index in (1, 2, 3):
-            provider = getattr(settings, f"LLM_PROVIDER{index}", None)
-            api_key = getattr(settings, f"API_KEY{index}", None)
-            model = getattr(settings, f"MODEL{index}", None)
-            if provider or api_key or model:
-                cleaned_key = (api_key or "").strip()
-                if cleaned_key.startswith("tu_clave_de_"):
-                    cleaned_key = ""
-                slots.append({
-                    "slot": index,
-                    "provider": (provider or "gemini").strip().lower(),
-                    "api_key": cleaned_key,
-                    "model": (model or "").strip(),
-                })
-        if slots:
-            return slots
-        if settings.GEMINI_API_KEY:
-            return [{
-                "slot": 1,
-                "provider": settings.LLM_PROVIDER.lower(),
-                "api_key": settings.GEMINI_API_KEY,
-                "model": settings.GEMINI_MODEL,
-            }]
-        return []
-
-    def is_ai_managed_by_environment(self) -> bool:
-        return bool(self._environment_slots())
+        for index, default in enumerate(DEFAULT_CONFIG["ai"]["slots"], start=1):
+            candidate = configured[index - 1] if index <= len(configured) and isinstance(configured[index - 1], dict) else {}
+            slots.append({
+                "slot": index,
+                "provider": candidate.get("provider", default["provider"]),
+                "model": candidate.get("model", default["model"]),
+                "enabled": bool(candidate.get("enabled", default["enabled"])),
+            })
+        return slots
 
     def get_ai_config(self) -> Dict[str, Any]:
-        env_slots = self._environment_slots()
-        secret_status = secret_store.status("gemini_api_key")
-        if env_slots:
-            primary = env_slots[0]
-            environment_has_credential = any(bool(slot["api_key"]) for slot in env_slots)
-            return {
-                "provider": primary["provider"],
-                "model": primary["model"],
-                "fallback_enabled": True,
-                "local_endpoint": "",
-                "local_model": "",
-                "credential_configured": environment_has_credential or secret_status.configured,
-                "credential_source": "environment" if environment_has_credential else secret_status.source,
-                "managed_by_environment": True,
-                "credential_managed_by_environment": environment_has_credential,
-            }
         ai = self.get_config()["ai"]
+        slots = []
+        for slot in self._configured_slots():
+            status = secret_store.status(f"gemini_api_key_{slot['slot']}")
+            slots.append({
+                **slot,
+                "credential_configured": status.configured,
+                "credential_source": status.source,
+                "credential_managed_by_environment": status.managed_by_environment,
+            })
+        primary = slots[0]
         return {
             **ai,
-            "credential_configured": secret_status.configured,
-            "credential_source": secret_status.source,
-            "managed_by_environment": secret_status.managed_by_environment,
-            "credential_managed_by_environment": secret_status.managed_by_environment,
+            "slots": slots,
+            # Campos conservados para clientes de versiones previas.
+            "provider": primary["provider"],
+            "model": primary["model"],
+            "credential_configured": primary["credential_configured"],
+            "credential_source": primary["credential_source"],
+            "managed_by_environment": False,
+            "credential_managed_by_environment": primary["credential_managed_by_environment"],
         }
 
+    @staticmethod
+    def _empty_slot(index: int) -> Dict[str, Any]:
+        return {"slot": index, "provider": "none", "model": "", "enabled": False}
+
+    def _normalize_slots(self, slots: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+        """Normaliza las preferencias de los slots sin borrar su configuración.
+
+        La clave se guarda mediante una petición independiente. Por ello, al
+        guardar primero el modelo y después la clave no podemos convertir el
+        slot a ``none``: se perdería el modelo y ya no habría forma de asociar
+        la credencial recién guardada al slot. La ejecución real sigue
+        requiriendo clave en :meth:`get_configured_llm_slots`.
+        """
+        normalized = []
+        for index, slot in enumerate(slots, start=1):
+            provider = slot.get("provider")
+            model = str(slot.get("model") or "").strip()
+            if provider == "gemini" and model:
+                normalized.append({
+                    "slot": index,
+                    "provider": "gemini",
+                    "model": model,
+                    "enabled": bool(slot.get("enabled")),
+                })
+            else:
+                normalized.append(self._empty_slot(index))
+        return normalized
+
     def update_ai_config(self, changes: Dict[str, Any]) -> Dict[str, Any]:
-        if self.is_ai_managed_by_environment():
-            raise ValueError("La configuración de IA está administrada mediante variables de entorno.")
-        allowed = {"provider", "model", "fallback_enabled", "local_endpoint", "local_model"}
+        allowed = {"slots", "provider", "model", "fallback_enabled", "local_endpoint", "local_model"}
         invalid = set(changes) - allowed
         if invalid:
             raise ValueError("Se intentó modificar una preferencia no permitida.")
-        if "provider" in changes and changes["provider"] not in {"gemini", "none"}:
-            raise ValueError("El proveedor de IA no es válido.")
+        slots = changes.get("slots")
+        if slots is not None:
+            if len(slots) != 3:
+                raise ValueError("Deben configurarse exactamente tres slots de IA.")
+            for index, slot in enumerate(slots, start=1):
+                if slot.get("provider") not in {"gemini", "none"}:
+                    raise ValueError(f"El proveedor del slot {index} no es válido.")
+        # Compatibilidad con la API antigua: sus campos afectan exclusivamente
+        # al primer slot hasta que todos los clientes usen `slots`.
+        if "provider" in changes or "model" in changes:
+            slots = self._configured_slots()
+            slots[0].update({key: changes[key] for key in ("provider", "model") if key in changes})
+            slots[0]["enabled"] = slots[0]["provider"] == "gemini" and bool(str(slots[0]["model"]).strip())
+            changes["slots"] = slots
+            changes.pop("provider", None)
+            changes.pop("model", None)
+        if "slots" in changes:
+            changes["slots"] = self._normalize_slots(changes["slots"])
         config = self.get_config()
         config["ai"].update(changes)
+        if "slots" in changes:
+            # La configuración multi-slot reemplaza los campos heredados.
+            config["ai"].pop("provider", None)
+            config["ai"].pop("model", None)
         self._write_file(config)
         return self.get_ai_config()
 
     def get_configured_llm_slots(self) -> list[Dict[str, Any]]:
-        environment_slots = self._environment_slots()
-        if environment_slots:
-            stored_key = secret_store.get_secret("gemini_api_key") or ""
-            return [
-                {**slot, "api_key": slot["api_key"] or stored_key}
-                if slot["provider"] == "gemini" else slot
-                for slot in environment_slots
-            ]
-        ai = self.get_config()["ai"]
-        if ai["provider"] != "gemini":
-            return []
-        return [{
-            "slot": 1,
-            "provider": "gemini",
-            "api_key": secret_store.get_secret("gemini_api_key") or "",
-            "model": ai["model"],
-        }]
+        return [
+            {**slot, "api_key": secret_store.get_secret(f"gemini_api_key_{slot['slot']}") or ""}
+            for slot in self._configured_slots()
+            if slot["enabled"] and slot["provider"] == "gemini"
+        ]
 
 
 configuration_service = ConfigurationService()

@@ -18,10 +18,7 @@ class TestFrozenConfiguration(unittest.TestCase):
     def test_frozen_app_ignores_dotenv_in_its_working_directory(self):
         with tempfile.TemporaryDirectory() as temporary:
             temporary_path = Path(temporary)
-            (temporary_path / ".env").write_text(
-                "API_KEY1=development-secret\nLLM_PROVIDER1=gemini\n",
-                encoding="utf-8",
-            )
+            (temporary_path / ".env").write_text("API_KEY1=development-secret\n", encoding="utf-8")
             environment = os.environ.copy()
             environment.pop("API_KEY1", None)
             environment.pop("LLM_PROVIDER1", None)
@@ -32,8 +29,7 @@ class TestFrozenConfiguration(unittest.TestCase):
                 import sys
                 sys.frozen = True
                 from app.config import settings
-                assert settings.API_KEY1 is None
-                assert settings.LLM_PROVIDER1 is None
+                assert not hasattr(settings, "API_KEY1")
                 """
             )
             result = subprocess.run(

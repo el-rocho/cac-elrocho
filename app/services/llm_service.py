@@ -240,15 +240,22 @@ def sanitizar_facultativo_y_laboratorio(raw_fac: Optional[str], raw_lab: Optiona
 
     return fac, lab
 
-async def call_gemini_model(contents: Union[str, List[Any]], model_name: str, api_key: str) -> str:
+async def call_gemini_model(
+    contents: Union[str, List[Any]], model_name: str, api_key: str, request_timeout_ms: int = 90_000
+) -> str:
     """
     Invoca un modelo específico de Gemini con su clave API.
     Admite tanto cadenas de texto como listas de partes multimodales (PDFs, imágenes).
     Aplica reintentos transitorios (503, timeout) para el modelo seleccionado.
     Si se detecta cuota agotada o modelo no disponible, eleva excepción inmediatamente
-    para que el orquestador pruebe el siguiente slot configurado en .env.
+    para que el orquestador pruebe el siguiente slot configurado.
     """
-    client = genai.Client(api_key=api_key)
+    # El SDK necesita un timeout propio: cancelar la coroutine exterior no
+    # siempre interrumpe una conexión HTTP que se ha quedado esperando.
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=request_timeout_ms),
+    )
     max_retries = 2
     last_error = None
     for attempt in range(max_retries):
@@ -286,6 +293,30 @@ async def call_gemini_model(contents: Union[str, List[Any]], model_name: str, ap
                 raise e
 
     raise last_error
+
+
+def check_gemini_connection(model_name: str, api_key: str, request_timeout_ms: int = 15_000) -> None:
+    """Hace una comprobación mínima sin bloquear el bucle ASGI.
+
+    Se invoca desde ``asyncio.to_thread`` en el endpoint de configuración.
+    Algunos fallos de red dentro del SDK pueden tardar en atender una
+    cancelación de coroutine; en un hilo no dejan inoperativo el servidor.
+    """
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=request_timeout_ms),
+    )
+    response = client.models.generate_content(
+        model=model_name,
+        contents="Responde solo OK.",
+        config=types.GenerateContentConfig(
+            temperature=0,
+            response_mime_type="text/plain",
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
+    )
+    if not response or not response.text:
+        raise ValueError("Respuesta vacía de Gemini API")
 
 SYSTEM_PROMPT = """
 Eres un especialista médico y bioanalista experto en análisis clínicos de laboratorio en España (Megalab, Recoletas, Quirón, Centro Médico Magdala, etc.).
@@ -659,7 +690,7 @@ async def analyze_pdf_with_llm(
     sha256: Optional[str] = None
 ) -> AnaliticaPreviewResponse:
     """
-    Procesa un PDF clínico mediante los slots de LLM configurados por el usuario en .env.
+    Procesa un PDF clínico mediante los slots de LLM configurados por el usuario.
     Prueba sucesivamente cada slot (Slot 1 -> Slot 2 -> Slot 3) en caso de fallo o agotamiento de cuota.
     Si todos los modelos configurados fallan (o si solo se configuró extractor local/mock),
     conmuta de forma segura al extractor basado en expresiones regulares (mock).
@@ -701,7 +732,7 @@ async def analyze_pdf_with_llm(
         logger.warning("No hay ningún slot de LLM configurado con API key y modelo. Usando extractor RegEx (mock).")
         return generate_mock_extraction(
             text, temp_id,
-            error_note="No se han configurado modelos LLM activos en el archivo .env",
+            error_note="No se han configurado modelos LLM activos",
             paciente_db=paciente_db, db=db, sha256=sha256
         )
 
