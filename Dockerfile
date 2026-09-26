@@ -19,6 +19,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copiar el código de la aplicación
 COPY app/ /app/app/
+# Los recursos de marca se sirven desde /branding y no forman parte del paquete
+# Python; deben estar presentes también en la imagen Docker.
+COPY assets/ /app/assets/
 
 # Crear directorios persistentes de una instalación nueva
 RUN mkdir -p /app/data /app/inbox /app/backups /app/config /app/logs

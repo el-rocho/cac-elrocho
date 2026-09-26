@@ -1,9 +1,11 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [v0.9.4] - 2026-09-26
 
 * **Instalador en español**: las futuras compilaciones de Windows usan por defecto los mensajes y asistentes de Inno Setup en español.
+* **Migración SQLite automática**: al arrancar, la aplicación añade de forma idempotente las columnas introducidas en versiones posteriores, incluyendo `informes.referencia`, sin borrar ni reconstruir los datos existentes.
+* **Logo en Docker**: los recursos de marca se copian dentro de la imagen y vuelven a estar disponibles en la interfaz web.
 
 ## [v0.9.3] - 2026-09-26
 

@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.9.3`
+# cac-elrocho 🩺 `v0.9.4`
 
 <img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
@@ -23,7 +23,9 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.3`
+## ✨ Novedades de la Versión `v0.9.4`
+* 🩹 **Actualización Docker segura**: la aplicación migra automáticamente las columnas nuevas de las bases SQLite existentes, sin borrar ni recrear datos clínicos durante una actualización.
+* 🖼️ **Recursos de marca en Docker**: el logotipo y los demás recursos visuales se incluyen correctamente en la imagen de contenedor.
 * ⚙️ **Configuración de IA con tres niveles**: La aplicación permite definir desde su interfaz los slots principal, de respaldo y de razonamiento, con conmutación automática 1 → 2 → 3. Las claves no se incluyen en la base de datos ni en las copias de seguridad.
 * 🪟 **Instalador para Windows disponible**: cada release publica el archivo `cac-elrocho-vX.Y.Z.exe` listo para instalar en Windows 10/11 de 64 bits. La instalación no requiere Docker ni una cuenta y conserva los datos clínicos, PDFs, copias de seguridad y configuración en el perfil local del usuario, fuera de la carpeta del programa.
 * 🎨 **Identidad visual renovada**: Nuevo logotipo integrado en la interfaz y en la documentación.

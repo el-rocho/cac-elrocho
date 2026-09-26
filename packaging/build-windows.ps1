@@ -63,7 +63,7 @@ if (-not (Test-Path $InnoSetup)) {
 
 Invoke-Checked "La creación del instalador de Windows" { & $InnoSetup packaging\AnaliticasClinicas.iss }
 
-$Installer = Join-Path $ProjectRoot "dist-installer\cac-elrocho-v0.9.3.exe"
+$Installer = Join-Path $ProjectRoot "dist-installer\cac-elrocho-v0.9.4.exe"
 if (-not (Test-Path $Installer)) {
     throw "Inno Setup terminó sin crear el instalador: $Installer"
 }
