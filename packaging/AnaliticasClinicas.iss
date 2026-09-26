@@ -6,6 +6,11 @@
 #define MyAppName "Control Analíticas Clínicas"
 #define MyAppExeName "AnaliticasClinicas.exe"
 
+[Languages]
+; Al incluir únicamente español, Inno Setup lo selecciona por defecto y no
+; muestra un selector de idioma durante la instalación.
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+
 [Setup]
 ; No cambiar este identificador entre versiones: Inno Setup lo usa para
 ; reconocer una actualización y mantener un único registro de desinstalación.

@@ -1,6 +1,10 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+* **Instalador en español**: las futuras compilaciones de Windows usan por defecto los mensajes y asistentes de Inno Setup en español.
+
 ## [v0.9.3] - 2026-09-26
 
 ### 🪟 Distribución de escritorio para Windows
