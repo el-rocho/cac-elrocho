@@ -9,8 +9,8 @@ from app.paths import AppPaths, default_data_root
 
 # Un .env del repositorio es útil en desarrollo, pero un ejecutable puede
 # iniciarse desde cualquier directorio (incluido el repositorio original). En
-# modo congelado no debe heredar por accidente claves de desarrollo; las
-# credenciales del usuario se guardan mediante SecretStore en el sistema.
+# modo congelado no debe heredar por accidente valores de desarrollo; las
+# credenciales del usuario se gestionan mediante SecretStore.
 DOTENV_FILE = None if getattr(sys, "frozen", False) else ".env"
 
 class Settings(BaseSettings):
@@ -27,24 +27,6 @@ class Settings(BaseSettings):
     INBOX_DIR: Optional[Path] = None
     DATABASE_URL: Optional[str] = None
     
-    # Inteligencia Artificial (LLM) - Multi-modelo (hasta 3 slots configurables)
-    LLM_PROVIDER1: Optional[str] = None
-    API_KEY1: Optional[str] = None
-    MODEL1: Optional[str] = None
-
-    LLM_PROVIDER2: Optional[str] = None
-    API_KEY2: Optional[str] = None
-    MODEL2: Optional[str] = None
-
-    LLM_PROVIDER3: Optional[str] = None
-    API_KEY3: Optional[str] = None
-    MODEL3: Optional[str] = None
-
-    # Parámetros heredados (retrocompatibilidad)
-    LLM_PROVIDER: str = "gemini"
-    GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-flash-lite-latest"
-
     # Seguridad básica opcional
     AUTH_ENABLED: bool = False
     ADMIN_USERNAME: str = "admin"

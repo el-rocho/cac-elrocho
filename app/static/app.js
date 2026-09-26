@@ -167,7 +167,7 @@ async function loadSummary() {
       } else {
         badgeMotor.className = 'px-2.5 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-lg flex items-center gap-1 cursor-help';
         badgeMotor.innerHTML = `⚠️ Extractor RegEx`;
-        badgeMotor.title = 'No hay modelos LLM activos configurados en .env. La aplicación operará con el extractor basado en expresiones regulares.';
+        badgeMotor.title = 'No hay modelos LLM activos configurados. La aplicación operará con el extractor basado en expresiones regulares.';
       }
     }
 
@@ -2378,10 +2378,29 @@ function setAiStatus(message, tone = 'slate') {
   status.className = `text-xs font-semibold ${colors[tone] || colors.slate}`;
 }
 
-function setAiControlsDisabled(disabled) {
-  document.querySelectorAll('[data-ai-config-control]').forEach(el => { el.disabled = disabled; });
-  const save = document.getElementById('btn-save-ai-config');
-  if (save) save.disabled = disabled;
+function renderAiSlots(slots) {
+  const container = document.getElementById('cfg-ai-slots');
+  if (!container) return;
+  const labels = ['Principal', 'Respaldo', 'Emergencia'];
+  container.innerHTML = slots.map((slot, index) => {
+    const number = index + 1;
+    const managed = Boolean(slot.credential_managed_by_environment);
+    return `
+      <section class="cfg-ai-slot border border-violet-100 rounded-xl p-3 bg-violet-50/30" data-slot="${number}">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <h4 class="font-bold text-slate-800 text-sm">Slot ${number}: ${labels[index]}</h4>
+          <label class="flex items-center gap-2 text-xs text-slate-700 font-semibold"><input class="cfg-ai-enabled rounded border-slate-300 text-violet-600 focus:ring-violet-500" type="checkbox" ${slot.enabled ? 'checked' : ''}> Activar slot</label>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(8rem,0.75fr)_minmax(10rem,1fr)_minmax(12rem,1.6fr)_auto_auto_auto] gap-2.5 items-end text-xs">
+          <div><label class="block font-semibold text-slate-700 mb-1">Proveedor</label><select class="cfg-ai-provider w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-violet-500 focus:outline-none"><option value="gemini" ${slot.provider === 'gemini' ? 'selected' : ''}>Gemini</option><option value="none" ${slot.provider === 'none' ? 'selected' : ''}>Sin IA</option></select></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Modelo</label><input class="cfg-ai-model w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none" type="text" maxlength="200" value="${escapeHtml(slot.model || '')}" placeholder="gemini-2.5-flash"></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Token</label><input class="cfg-ai-key w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none" type="password" autocomplete="new-password" placeholder="Clave o token" ${managed ? 'disabled' : ''}></div>
+          <button onclick="saveAiCredential(${number})" ${managed ? 'disabled' : ''} class="px-3 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-bold rounded-xl text-xs whitespace-nowrap">Actualizar clave</button>
+          <button onclick="deleteAiCredential(${number})" ${managed || !slot.credential_configured ? 'disabled' : ''} class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold border border-slate-300 rounded-xl text-xs whitespace-nowrap">Eliminar</button>
+          <button onclick="testAiConnection(${number})" ${!slot.credential_configured || !slot.enabled || slot.provider !== 'gemini' ? 'disabled' : ''} class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-700 border border-blue-200 font-semibold rounded-xl text-xs whitespace-nowrap">Comprobar</button>
+        </div>
+      </section>`;
+  }).join('');
 }
 
 async function loadAiConfiguration() {
@@ -2389,26 +2408,12 @@ async function loadAiConfiguration() {
     const res = await fetch('/api/v1/settings/ai');
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo consultar la configuración IA'));
     const ai = await res.json();
-    const provider = document.getElementById('cfg-ai-provider');
-    const model = document.getElementById('cfg-ai-model');
     const fallback = document.getElementById('cfg-ai-fallback');
-    const notice = document.getElementById('cfg-ai-environment-notice');
-    const key = document.getElementById('cfg-ai-key');
-    const saveKey = document.getElementById('btn-save-ai-key');
-    const deleteKey = document.getElementById('btn-delete-ai-key');
-    const test = document.getElementById('btn-test-ai');
 
-    if (provider) provider.value = ai.provider || 'gemini';
-    if (model) model.value = ai.model || '';
+    renderAiSlots(ai.slots || []);
     if (fallback) fallback.checked = Boolean(ai.fallback_enabled);
-    if (notice) notice.classList.toggle('hidden', !ai.managed_by_environment);
-    setAiControlsDisabled(Boolean(ai.managed_by_environment));
-    const credentialManaged = Boolean(ai.credential_managed_by_environment);
-    if (key) key.disabled = credentialManaged;
-    if (saveKey) saveKey.disabled = credentialManaged;
-    if (deleteKey) deleteKey.disabled = credentialManaged || !ai.credential_configured;
-    if (test) test.disabled = !ai.credential_configured || ai.provider !== 'gemini';
-    setAiStatus(ai.credential_configured ? 'Gemini configurado' : 'Gemini sin configurar', ai.credential_configured ? 'success' : 'warning');
+    const active = (ai.slots || []).filter(slot => slot.enabled && slot.credential_configured).length;
+    setAiStatus(active ? `${active} slot(s) activo(s) con credencial` : 'No hay slots activos con credencial', active ? 'success' : 'warning');
   } catch (error) {
     setAiStatus(error.message, 'error');
   }
@@ -2417,8 +2422,11 @@ async function loadAiConfiguration() {
 async function saveAiConfiguration() {
   const btn = document.getElementById('btn-save-ai-config');
   const payload = {
-    provider: document.getElementById('cfg-ai-provider').value,
-    model: document.getElementById('cfg-ai-model').value.trim(),
+    slots: Array.from(document.querySelectorAll('.cfg-ai-slot')).map(slot => ({
+      provider: slot.querySelector('.cfg-ai-provider').value,
+      model: slot.querySelector('.cfg-ai-model').value.trim(),
+      enabled: slot.querySelector('.cfg-ai-enabled').checked
+    })),
     fallback_enabled: document.getElementById('cfg-ai-fallback').checked
   };
   try {
@@ -2427,7 +2435,16 @@ async function saveAiConfiguration() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudieron guardar las preferencias'));
-    setAiStatus('Configuración guardada', 'success');
+    const saved = await res.json();
+    const resetSlots = payload.slots
+      .map((slot, index) => slot.provider === 'gemini' && saved.slots?.[index]?.provider === 'none' ? index + 1 : null)
+      .filter(Boolean);
+    setAiStatus(
+      resetSlots.length
+        ? `Slot(s) ${resetSlots.join(', ')} guardado(s) como Sin IA: falta modelo o clave.`
+        : 'Configuración guardada',
+      resetSlots.length ? 'warning' : 'success'
+    );
     await loadAiConfiguration();
     await loadSummary();
   } catch (error) {
@@ -2437,49 +2454,57 @@ async function saveAiConfiguration() {
   }
 }
 
-async function saveAiCredential() {
-  const input = document.getElementById('cfg-ai-key');
+async function saveAiCredential(slot) {
+  const input = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"] .cfg-ai-key`);
   const value = input ? input.value.trim() : '';
   if (!value) {
     setAiStatus('Introduce una clave antes de guardarla.', 'warning');
     return;
   }
   try {
-    const res = await fetch('/api/v1/settings/ai/credentials', {
+    const res = await fetch(`/api/v1/settings/ai/credentials/${slot}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: value })
     });
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo guardar la clave'));
     input.value = '';
-    setAiStatus('Credencial guardada', 'success');
-    await loadAiConfiguration();
+    // No se recarga toda la configuración aquí: proveedor, modelo y activación
+    // pueden estar todavía sin guardar en el formulario. Recargar los borraría
+    // y haría que el usuario perdiese el slot justo después de guardar su clave.
+    setAiStatus(`Credencial del slot ${slot} guardada. Ahora guarda la configuración de los tres slots.`, 'success');
   } catch (error) {
     setAiStatus(error.message, 'error');
   }
 }
 
-async function deleteAiCredential() {
-  if (!confirm('¿Eliminar la credencial de Gemini de esta instalación?')) return;
+async function deleteAiCredential(slot) {
+  if (!confirm(`¿Eliminar la credencial de Gemini del slot ${slot}?`)) return;
   try {
-    const res = await fetch('/api/v1/settings/ai/credentials', { method: 'DELETE' });
+    const res = await fetch(`/api/v1/settings/ai/credentials/${slot}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo eliminar la clave'));
-    setAiStatus('Credencial eliminada', 'success');
+    setAiStatus(`Credencial del slot ${slot} eliminada`, 'success');
     await loadAiConfiguration();
   } catch (error) {
     setAiStatus(error.message, 'error');
   }
 }
 
-async function testAiConnection() {
-  const btn = document.getElementById('btn-test-ai');
+async function testAiConnection(slot) {
+  const btn = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"] button:last-child`);
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 25000);
   try {
     if (btn) btn.disabled = true;
     setAiStatus('Comprobando conexión…');
-    const res = await fetch('/api/v1/settings/ai/test', { method: 'POST' });
+    const res = await fetch(`/api/v1/settings/ai/test/${slot}`, { method: 'POST', signal: controller.signal });
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo comprobar Gemini'));
-    setAiStatus('Conexión con Gemini verificada', 'success');
+    setAiStatus(`Conexión del slot ${slot} verificada`, 'success');
   } catch (error) {
-    setAiStatus(error.message, 'error');
+    const message = error.name === 'AbortError'
+      ? 'La comprobación superó 25 segundos. Revisa la conectividad e inténtalo de nuevo.'
+      : error.message;
+    setAiStatus(message, 'error');
   } finally {
+    window.clearTimeout(timeout);
     if (btn) btn.disabled = false;
   }
 }
@@ -3014,6 +3039,18 @@ function closeCreditsModal() {
   if (modal && modal.open) modal.close();
 }
 
+function openGoogleApiKeyModal() {
+  const modal = document.getElementById('googleApiKeyModal');
+  if (!modal) return;
+  document.body.classList.add('overflow-hidden');
+  modal.showModal();
+}
+
+function closeGoogleApiKeyModal() {
+  const modal = document.getElementById('googleApiKeyModal');
+  if (modal && modal.open) modal.close();
+}
+
 function navigateKpiModal(offset) {
   if (!currentKpisData || currentKpisData.length === 0) return;
   let newIndex = activeKpiIndex + offset;
@@ -3028,6 +3065,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (creditsModal) {
     creditsModal.addEventListener('close', () => document.body.classList.remove('overflow-hidden'));
     creditsModal.addEventListener('cancel', () => document.body.classList.remove('overflow-hidden'));
+  }
+
+  const googleApiKeyModal = document.getElementById('googleApiKeyModal');
+  if (googleApiKeyModal) {
+    googleApiKeyModal.addEventListener('close', () => document.body.classList.remove('overflow-hidden'));
+    googleApiKeyModal.addEventListener('cancel', () => document.body.classList.remove('overflow-hidden'));
   }
 
   const modal = document.getElementById('evalClinicalModal');

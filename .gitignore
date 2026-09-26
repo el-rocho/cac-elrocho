@@ -2,6 +2,8 @@
 .env
 .env.local
 *.env
+config/llm-credentials.json
+config/config.json
 
 # Base de datos y volúmenes de datos
 data/

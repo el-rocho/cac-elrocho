@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata
 
 
 # ``SPECPATH`` depende de cómo se invoque PyInstaller. ``SPEC`` identifica el
@@ -16,6 +16,7 @@ PROJECT_ROOT = Path(SPEC).resolve().parent.parent
 datas = [(str(PROJECT_ROOT / "app" / "static"), "app/static")]
 datas += [(str(PROJECT_ROOT / "assets"), "assets")]
 datas += collect_data_files("webview")
+datas += copy_metadata("keyring")
 
 binaries = collect_dynamic_libs("fitz") + collect_dynamic_libs("webview")
 # Uvicorn resuelve por cadena sus formateadores, protocolos, bucles y ciclo de
@@ -25,6 +26,9 @@ hiddenimports = (
     ["app.main"]
     + collect_submodules("uvicorn")
     + collect_submodules("webview")
+    # SecretStore importa keyring de forma diferida. Incluir sus backends evita
+    # que la versión congelada caiga innecesariamente al respaldo local.
+    + collect_submodules("keyring")
 )
 
 a = Analysis(

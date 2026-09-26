@@ -89,6 +89,11 @@ jobs:
           $static = "dist\AnaliticasClinicas\_internal\app\static\index.html"
           if (-not (Test-Path $static)) { throw "No se empaquetó el frontend: $static" }
 
+      - name: Build Windows installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        with:
+          path: packaging/AnaliticasClinicas.iss
+
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
         with:
@@ -96,8 +101,15 @@ jobs:
           path: dist/AnaliticasClinicas
           if-no-files-found: error
 
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: cac-elrocho-windows-installer
+          path: dist-installer/cac-elrocho-v*.exe
+          if-no-files-found: error
+
   build-and-push:
-    needs: test
+    needs: [test, windows-desktop]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -140,8 +152,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Download Windows installer for release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v4
+        with:
+          name: cac-elrocho-windows-installer
+          path: release-assets
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --title "Release ${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ github.ref_name }}" release-assets/*.exe --title "Release ${{ github.ref_name }}" --generate-notes

@@ -56,4 +56,17 @@ if (-not (Test-Path "$ProjectRoot\dist\AnaliticasClinicas\AnaliticasClinicas.exe
     throw "PyInstaller terminó sin crear AnaliticasClinicas.exe. Revise la salida anterior."
 }
 
+$InnoSetup = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+if (-not (Test-Path $InnoSetup)) {
+    throw "No se encontró Inno Setup 6. Instálalo desde https://jrsoftware.org/isinfo.php para generar el instalador de Windows."
+}
+
+Invoke-Checked "La creación del instalador de Windows" { & $InnoSetup packaging\AnaliticasClinicas.iss }
+
+$Installer = Join-Path $ProjectRoot "dist-installer\cac-elrocho-v0.9.3.exe"
+if (-not (Test-Path $Installer)) {
+    throw "Inno Setup terminó sin crear el instalador: $Installer"
+}
+
 Write-Host "Ejecutable creado en: $ProjectRoot\dist\AnaliticasClinicas" -ForegroundColor Green
+Write-Host "Instalador creado en: $Installer" -ForegroundColor Green

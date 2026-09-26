@@ -1,8 +1,19 @@
-# cac-elrocho 🩺 `v0.9.2`
+# cac-elrocho 🩺 `v0.9.3`
 
 <img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
 > **Cuadro de gestión de analíticas clínicas autónomo y autoalojable con extracción automatizada por Inteligencia Artificial (LLM)**
+
+> **Tus datos clínicos, bajo tu control**
+>
+> Aplicación de escritorio gratuita y de código abierto que permite organizar, consultar y visualizar la evolución de tus analíticas.
+>
+> Opcionalmente, utiliza inteligencia artificial de Google Gemini para interpretar los documentos PDF y extraer automáticamente los parámetros analíticos.
+>
+> La información obtenida se almacena localmente en tu ordenador, sin necesidad de crear una cuenta ni utilizar un servicio de almacenamiento en la nube.
+
+> [!IMPORTANT]
+> Para utilizar las funciones de inteligencia artificial, únicamente necesitas configurar tu propia clave API de Google Gemini. Los documentos enviados a Gemini están sujetos a las condiciones de tratamiento de datos de Google, que pueden variar según se utilice la modalidad gratuita o de pago de su API.
 
 `cac-elrocho` es una aplicación web integral y soberana diseñada para la digitalización, seguimiento evolutivo y supervisión longitudinal de analíticas médicas y controles de laboratorio. 
 
@@ -12,9 +23,9 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.2`
-* ⚙️ **Configuración de IA más segura y sencilla**: Las preferencias se gestionan desde la aplicación y las claves se conservan en el almacén de credenciales del sistema operativo, sin incluirse en la base de datos ni en las copias de seguridad.
-* 🖥️ **Base para la aplicación de escritorio**: Incorporados el lanzador nativo y el empaquetado para Windows. La aplicación se ejecutará en una ventana propia y conservará los datos clínicos en el perfil local del usuario, separados de los archivos del programa para protegerlos durante las actualizaciones o desinstalaciones. La compilación se verifica automáticamente en la integración continua.
+## ✨ Novedades de la Versión `v0.9.3`
+* ⚙️ **Configuración de IA con tres niveles**: La aplicación permite definir desde su interfaz los slots principal, de respaldo y de razonamiento, con conmutación automática 1 → 2 → 3. Las claves no se incluyen en la base de datos ni en las copias de seguridad.
+* 🪟 **Instalador para Windows disponible**: cada release publica el archivo `cac-elrocho-vX.Y.Z.exe` listo para instalar en Windows 10/11 de 64 bits. La instalación no requiere Docker ni una cuenta y conserva los datos clínicos, PDFs, copias de seguridad y configuración en el perfil local del usuario, fuera de la carpeta del programa.
 * 🎨 **Identidad visual renovada**: Nuevo logotipo integrado en la interfaz y en la documentación.
 * ✅ **Distribución verificada**: La integración continua comprueba las pruebas, los estilos generados y el empaquetado de escritorio antes de publicar.
 * 📋 *Consulta el historial completo de cambios en [CHANGELOG.md](CHANGELOG.md).*
@@ -27,6 +38,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
   * Lee, extrae y normaliza de forma automática todos los datos directamente de los informes clínicos en PDF de cualquier laboratorio médico (público o privado).
   * Reduce a cero el trabajo manual de mecanografiado: captura analitos, valores numéricos, unidades, rangos de referencia, laboratorios y médicos solicitantes.
   * Modalidad híbrida y soberana: asistida opcionalmente por modelos LLM multimodales (**Google Gemini API**) o ejecutada de forma local e inmediata con el motor por patrones RegEx (sin necesidad de IA ni conexión externa).
+  * Cuando se configura Gemini, la aplicación aprovecha su lectura multimodal nativa de PDF para interpretar directamente la estructura, las tablas y el contenido de los informes clínicos.
   * Supervisión *Human-in-the-Loop*: ventana modal de previsualización para validar o ajustar datos en segundos antes de incorporarlos a la base de datos.
 * 📊 **Panel de Control Integral**: Tarjetas KPI, 8 gráficos evolutivos interactivos con Chart.js y tabla de resultados completa con promedio reciente a 18 meses.
 * 👤 **Ficha Personal del Paciente**:
@@ -54,7 +66,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 ## 🛠️ Requisitos del Sistema
 
 * **Sistema Operativo**:
-  * **Windows**: Windows 10/11 con [Docker Desktop](https://www.docker.com/products/docker-desktop/) (backend WSL2 recomendado). Próximamente también habrá un ejecutable nativo para Windows; se anunciará su disponibilidad y forma de descarga más adelante.
+  * **Windows**: Windows 10/11 de 64 bits. Se recomienda el instalador de la [última versión publicada](https://github.com/el-rocho/cac-elrocho/releases/latest); Docker Desktop sigue disponible como alternativa para ejecutar el servicio en contenedor.
   * **Linux**: Debian 13 (Trixie), Ubuntu 22.04+ o cualquier distribución Linux con Docker.
   * **macOS**: Docker Desktop para macOS.
 * **Recursos Mínimos**:
@@ -73,8 +85,8 @@ git clone https://github.com/el-rocho/cac-elrocho.git
 cd cac-elrocho
 ```
 
-### 2. Configurar Variables de Entorno
-Copia la plantilla de configuración:
+### 2. Preparar la configuración de despliegue
+Copia la plantilla de configuración. El archivo `.env` se conserva para los parámetros operativos de Docker y de la aplicación, pero **no contiene configuración ni claves de LLM**:
 ```bash
 # En Linux / macOS:
 cp .env.example .env
@@ -82,23 +94,33 @@ cp .env.example .env
 # En Windows (PowerShell / CMD):
 copy .env.example .env
 ```
-Edita el archivo `.env` con tu editor preferido (`nano .env`, Bloc de notas, VS Code, etc.) y define tus parámetros esenciales:
+Edita el archivo `.env` con tu editor preferido (`nano .env`, Bloc de notas, VS Code, etc.) solo si necesitas cambiar parámetros operativos. La configuración predeterminada ya establece la raíz de datos correcta para Docker:
 ```ini
 # Raíz única de todos los datos persistentes. En desarrollo desde este
 # repositorio puede omitirse; en Docker debe ser /app.
 APP_DATA_DIR=/app
-
-# Override administrativo opcional de Gemini. Si se define, tiene prioridad
-# sobre la preferencia local y no se puede editar desde la interfaz.
-LLM_PROVIDER1=gemini
-API_KEY1=tu_clave_de_gemini_api_aqui
-MODEL1=gemini-2.5-flash
 ```
-*(Nota: si no se declara el override, configura Gemini desde la pantalla de Configuración. Si no existe una clave válida, los modelos fallan o no hay conexión a internet, la aplicación utiliza el extractor local basado en expresiones regulares sin interrumpir el servicio.)*
 
-Las preferencias de IA modificadas desde la pantalla **Configuración y Datos** se almacenan en `APP_DATA_DIR/config/config.json`. Las claves guardadas desde esa pantalla se mantienen en el almacén de credenciales del sistema operativo y nunca se copian a ese archivo, a SQLite ni a las respuestas de la API. En Docker, una clave debe proporcionarse como secreto o variable de entorno administrada.
+### 3. Configurar los modelos LLM desde la aplicación
 
-### 3. Levantar los Contenedores
+Después de iniciar la aplicación, abre **⚙️ Configuración y Datos → Inteligencia Artificial**. En una instalación nueva, los tres slots aparecen desactivados y con **Sin IA** como proveedor: el usuario decide si configura alguno. La aplicación está preparada actualmente para modelos de **Google Gemini** y permite configurar hasta tres slots, en este orden:
+
+| Slot | Uso recomendado | Comportamiento |
+| --- | --- | --- |
+| 1. Principal | Modelo rápido y preciso | Se intenta primero. |
+| 2. Respaldo | Modelo alternativo con otra cuota o menor latencia | Se usa si falla el slot 1. |
+| 3. Razonamiento avanzado | Modelo de mayor capacidad | Se usa si fallan los anteriores. |
+
+En cada slot puedes activar o desactivar Gemini, indicar el identificador de modelo, actualizar su clave y comprobar la conexión. La conmutación ocurre automáticamente en el orden **1 → 2 → 3**. Si no existe una clave válida, los modelos fallan o no hay conexión a internet, la aplicación utiliza el extractor local basado en expresiones regulares sin interrumpir el servicio.
+
+Los modelos, su orden y su estado se guardan en `APP_DATA_DIR/config/config.json`. Las claves se guardan por separado para cada slot:
+
+* En Windows, en el almacén de credenciales del sistema operativo.
+* En Docker, en `APP_DATA_DIR/config/llm-credentials.json`, con permisos `0600` dentro del volumen persistente `./config`.
+
+Las claves nunca se copian a SQLite, `.env`, las respuestas de la API ni las copias de seguridad de la aplicación. Si el sistema local no dispone de un almacén de credenciales operativo, la aplicación usa el mismo fichero de credenciales separado como respaldo. Si una instalación anterior tenía claves LLM en `.env`, introdúcelas desde la interfaz y elimínalas manualmente de ese archivo.
+
+### 4. Levantar los Contenedores
 Descarga la imagen precompilada en GitHub Actions y levanta el servicio sin consumir recursos de compilación en tu máquina:
 ```bash
 docker compose pull
@@ -195,9 +217,9 @@ uvicorn app.main:app --reload --port 8000
 
 ---
 
-## 🪟 Próximamente: aplicación de escritorio para Windows
+## 🪟 Aplicación de escritorio para Windows
 
-Además de la opción actual con Docker, la aplicación estará disponible próximamente como ejecutable nativo para Windows. La distribución y el canal de descarga se anunciarán más adelante.
+Descarga `cac-elrocho-vX.Y.Z.exe` desde la [última versión publicada](https://github.com/el-rocho/cac-elrocho/releases/latest) y ejecútalo en Windows 10/11 de 64 bits. No requiere Docker ni cuenta de usuario. El instalador crea los accesos directos opcionales y no elimina tus datos clínicos al desinstalar; estos se mantienen en `%LOCALAPPDATA%\AnaliticasClinicas`. Como precaución habitual, crea una copia de seguridad desde la aplicación antes de actualizar o desinstalar.
 
 ---
 

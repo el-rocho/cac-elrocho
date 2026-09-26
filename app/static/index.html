@@ -20,7 +20,8 @@
     /* Estilos para modales de valoración clínica y detalle KPI */
     dialog#evalClinicalModal::backdrop,
     dialog#kpiDetailModal::backdrop,
-    dialog#creditsModal::backdrop {
+    dialog#creditsModal::backdrop,
+    dialog#googleApiKeyModal::backdrop {
       background-color: rgba(15, 23, 42, 0.65);
       backdrop-filter: blur(4px);
     }
@@ -169,19 +170,19 @@
     <!-- TABS NAVIGATION -->
     <div class="border-b border-slate-200 flex flex-wrap gap-2 font-semibold">
       <button onclick="setTab('eval')" id="tab-btn-eval" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-active transition-colors">
-        📋 1. Información clínica
+        📋 1. Información
       </button>
       <button onclick="setTab('table')" id="tab-btn-table" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors">
-        📊 2. Historial de resultados
+        📊 2. Historial
       </button>
       <button onclick="setTab('charts')" id="tab-btn-charts" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors">
-        📈 3. Gráficos evolutivos
+        📈 3. Gráficos
       </button>
       <button onclick="setTab('audit')" id="tab-btn-audit" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors">
-        🔍 4. Gestión y edición de analíticas
+        🔍 4. Gestión de analíticas
       </button>
       <button onclick="setTab('config')" id="tab-btn-config" class="px-5 py-3 text-base rounded-t-lg border-b-2 tab-inactive transition-colors flex items-center gap-1.5 text-blue-700">
-        <span>⚙️</span> 5. Configuración y datos
+        <span>⚙️</span> 5. Configuración
       </button>
     </div>
 
@@ -1441,43 +1442,26 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-violet-100 pb-3">
           <div class="flex items-center gap-3">
             <div class="p-2.5 bg-violet-100 text-violet-800 rounded-xl font-bold text-lg">✨</div>
-            <h3 class="text-base font-bold text-slate-900">Inteligencia Artificial</h3>
+            <div class="flex items-center gap-3 flex-wrap">
+              <h3 class="text-base font-bold text-slate-900">Inteligencia Artificial</h3>
+              <button type="button" onclick="openGoogleApiKeyModal()" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2" aria-haspopup="dialog" aria-controls="googleApiKeyModal">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2" /><path stroke-linecap="round" stroke-width="2" d="M12 10v6m0-9h.01" /></svg>
+                Cómo obtener clave API
+              </button>
+            </div>
           </div>
           <span id="cfg-ai-status" class="text-xs font-semibold text-slate-600"></span>
         </div>
 
-        <div id="cfg-ai-environment-notice" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-          Esta configuración está administrada por variables de entorno y no puede modificarse desde la aplicación.
-        </div>
+        <div id="cfg-ai-slots" class="space-y-3"></div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_auto_auto] gap-3 items-end text-xs">
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1" for="cfg-ai-provider">Proveedor</label>
-            <select id="cfg-ai-provider" data-ai-config-control class="w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-violet-500 focus:outline-none">
-              <option value="gemini">Gemini</option>
-              <option value="none">Sin IA (extractor local)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1" for="cfg-ai-model">Modelo</label>
-            <input id="cfg-ai-model" data-ai-config-control type="text" maxlength="200" placeholder="gemini-2.5-flash" class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none">
-          </div>
-          <button id="btn-save-ai-config" onclick="saveAiConfiguration()" class="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors whitespace-nowrap">Guardar preferencias IA</button>
-          <button id="btn-test-ai" onclick="testAiConnection()" class="px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold rounded-xl text-xs transition-colors whitespace-nowrap">Comprobar conexión</button>
-        </div>
+        <button id="btn-save-ai-config" onclick="saveAiConfiguration()" class="w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors whitespace-nowrap">Guardar configuración de los tres slots</button>
 
         <label class="flex items-center gap-2 text-xs text-slate-700">
           <input id="cfg-ai-fallback" data-ai-config-control type="checkbox" class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
           Mantener el extractor local por expresiones regulares como alternativa.
         </label>
 
-        <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-end border-t border-slate-100 pt-3">
-          <div>
-            <input id="cfg-ai-key" type="password" autocomplete="new-password" placeholder="Clave o token del proveedor o modelo" class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none">
-          </div>
-          <button id="btn-save-ai-key" onclick="saveAiCredential()" class="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors whitespace-nowrap">Actualizar clave</button>
-          <button id="btn-delete-ai-key" onclick="deleteAiCredential()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold border border-slate-300 rounded-xl text-xs transition-colors">Eliminar clave</button>
-        </div>
       </div>
 
       <!-- Fila 1: Auditoría IA y Cambios de Rango -->
@@ -1575,8 +1559,9 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho <span id="footer-app-version">v0.9.2</span> • Control de Analíticas Clínicas personal y privado •
-      <button type="button" onclick="openCreditsModal()" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Créditos gráficos</button>
+      cac-elrocho <span id="footer-app-version">v0.9.3</span> • Control de Analíticas Clínicas personal y privado •
+      <button type="button" onclick="openCreditsModal()" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Diseño del icono</button> •
+      <a href="https://github.com/el-rocho/cac-elrocho" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Repositorio GitHub</a>
     </footer>
 
   </div>
@@ -1599,6 +1584,54 @@
         <p>Modificaciones realizadas: conversión del archivo SVG original a formato ICO y adaptación de sus dimensiones para su utilización como icono de Windows.</p>
         <p>El reconocimiento de autoría no implica que el autor original respalde esta aplicación.</p>
         <p>URL: <a class="text-blue-600 hover:text-blue-800 underline break-all" href="https://www.svgrepo.com/svg/385141/blood-healthcare-laboratory-medical-science-test" target="_blank" rel="noopener noreferrer">https://www.svgrepo.com/svg/385141/blood-healthcare-laboratory-medical-science-test</a></p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- GUÍA PARA OBTENER UNA CLAVE API DE GOOGLE GEMINI -->
+  <dialog id="googleApiKeyModal" closedby="any" aria-labelledby="googleApiKeyModalTitle" class="fixed inset-0 m-auto max-w-2xl w-[92vw] max-h-[88vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+    <div class="flex flex-col max-h-[88vh]">
+      <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-violet-100 bg-violet-50">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-lg" aria-hidden="true">✨</div>
+          <div>
+            <p class="text-[11px] font-bold uppercase tracking-wide text-violet-700">Google AI Studio</p>
+            <h2 id="googleApiKeyModalTitle" class="text-lg font-bold text-slate-900">Cómo obtener una Clave API gratuita de Google Gemini</h2>
+          </div>
+        </div>
+        <button type="button" onclick="closeGoogleApiKeyModal()" class="text-slate-400 hover:text-slate-700 hover:bg-white p-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500" aria-label="Cerrar guía para obtener la clave API">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-5 text-sm leading-relaxed text-slate-700">
+        <p>Esta aplicación utiliza inteligencia artificial de Google para procesar e interpretar tus analíticas clínicas.</p>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p>En concreto, emplea modelos <strong class="text-slate-800">Gemini</strong> para aprovechar su capacidad de lectura multimodal nativa de documentos PDF, lo que ayuda a interpretar directamente tablas, estructura y contenido de tus analíticas.</p>
+        </div>
+        <p>Puedes obtener gratuitamente una clave personal de acceso siguiendo estos pasos:</p>
+
+        <ol class="space-y-3">
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">1</span><span>Accede a <strong>Google AI Studio</strong> con tu cuenta de Google.</span></li>
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">2</span><span>Abre el apartado <strong>API Keys</strong> (Claves de API).</span></li>
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">3</span><span>Pulsa <strong>Create API Key</strong> (Crear clave de API).</span></li>
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">4</span><span>Selecciona un proyecto existente o crea uno nuevo.</span></li>
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">5</span><span>Copia la clave generada y pégala en el apartado de configuración de esta aplicación.</span></li>
+        </ol>
+
+        <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 3h7v7m0-7L10 14" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></svg>
+          Obtener mi API Key
+        </a>
+
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h3 class="mb-2 flex items-center gap-2 text-sm font-bold text-amber-900"><span aria-hidden="true">ℹ️</span> Consideraciones</h3>
+          <ul class="space-y-2 text-xs leading-relaxed text-amber-900">
+            <li>Google permite utilizar determinados modelos Gemini gratuitamente, con límites de solicitudes y tokens que dependen del modelo elegido.</li>
+            <li>No es necesario contratar Google AI Pro ni activar la facturación para utilizar estos modelos.</li>
+            <li>Los modelos disponibles gratuitamente (Free Tier) cambiarán según avanza el desarrollo.</li>
+            <li>Al utilizar el servicio, los datos enviados a la IA se procesan en los servidores de Google.</li>
+          </ul>
+        </div>
       </div>
     </div>
   </dialog>

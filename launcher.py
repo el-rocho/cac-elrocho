@@ -18,10 +18,15 @@ from urllib.request import urlopen
 
 import uvicorn
 
+from app import __version__
 
 LOGGER = logging.getLogger("analiticas.desktop")
 LOOPBACK_HOST = "127.0.0.1"
 STARTUP_TIMEOUT_SECONDS = 20
+WINDOW_INITIAL_WIDTH = 1280
+WINDOW_INITIAL_HEIGHT = 840
+WINDOW_MINIMUM_SIZE = (960, 640)
+WINDOW_TITLE = f"CAC El Rocho v{__version__}"
 
 
 class ServerStartupError(RuntimeError):
@@ -100,11 +105,12 @@ def run_desktop() -> None:
         import webview
 
         window = webview.create_window(
-            "Analíticas Clínicas",
-            local_server.url,
-            width=1280,
-            height=840,
-            min_size=(960, 640),
+            title=WINDOW_TITLE,
+            url=local_server.url,
+            width=WINDOW_INITIAL_WIDTH,
+            height=WINDOW_INITIAL_HEIGHT,
+            min_size=WINDOW_MINIMUM_SIZE,
+            resizable=True,
         )
         window.events.closed += local_server.stop
         webview.start()
