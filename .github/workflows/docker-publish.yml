@@ -163,6 +163,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          mv release-assets/cac-elrocho-v*.exe release-assets/cac-elrocho-windows.exe
-          gh release create "${{ github.ref_name }}" release-assets/cac-elrocho-windows.exe --title "Release ${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ github.ref_name }}" release-assets/cac-elrocho-v*.exe --title "Release ${{ github.ref_name }}" --generate-notes

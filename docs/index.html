@@ -49,7 +49,7 @@
         </div>
       </section>
       <section aria-labelledby="descargas"><h2 id="descargas">Descargas</h2><div class="downloads">
-        <article class="download"><h3>Windows 10 y 11</h3><p>Descarga directamente el instalador de la última versión publicada. No requiere Docker y conserva tus datos clínicos fuera de la carpeta de la aplicación.</p><a class="button" href="https://github.com/el-rocho/cac-elrocho/releases/latest/download/cac-elrocho-windows.exe">Descargar para Windows</a></article>
+        <article class="download"><h3>Windows 10 y 11</h3><p>Descarga directamente el instalador de la última versión publicada. No requiere Docker y conserva tus datos clínicos fuera de la carpeta de la aplicación.</p><a class="button" data-windows-download href="https://github.com/el-rocho/cac-elrocho/releases/latest">Descargar para Windows</a><p class="caption" data-windows-version>Buscando la última versión…</p></article>
         <article class="download"><h3>Docker</h3><p>La imagen más reciente está disponible en GitHub Container Registry. Puedes ejecutarla con <code>docker pull ghcr.io/el-rocho/cac-elrocho:latest</code> o consultar sus versiones publicadas.</p><a class="button" href="https://github.com/el-rocho/cac-elrocho/pkgs/container/cac-elrocho">Ver imagen Docker</a></article>
       </div></section>
     </div></main>
@@ -62,6 +62,18 @@
           gallery.scrollBy({ left: direction * gallery.clientWidth, behavior: 'smooth' });
         });
       });
+      const windowsDownload = document.querySelector('[data-windows-download]');
+      const windowsVersion = document.querySelector('[data-windows-version]');
+      fetch('https://api.github.com/repos/el-rocho/cac-elrocho/releases/latest')
+        .then((response) => response.ok ? response.json() : Promise.reject(response))
+        .then((release) => {
+          const installer = release.assets.find((asset) => /^cac-elrocho-v.+\.exe$/i.test(asset.name));
+          if (!installer) throw new Error('No se encontró el instalador de Windows.');
+          windowsDownload.href = installer.browser_download_url;
+          windowsDownload.textContent = `Descargar para Windows (${release.tag_name})`;
+          windowsVersion.textContent = `Archivo: ${installer.name}`;
+        })
+        .catch(() => { windowsVersion.textContent = 'Consulta la última versión publicada.'; });
     </script>
   </body>
 </html>
