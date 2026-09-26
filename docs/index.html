@@ -19,6 +19,7 @@
       .feature, .download { background: #fff; border: 1px solid #dce5f2; border-radius: 16px; padding: 1.4rem; box-shadow: 0 8px 25px rgba(32, 59, 103, .05); }
       .feature h3, .download h3 { font-size: 1.05rem; margin: 0 0 .55rem; }.feature p, .download p { color: #53627a; line-height: 1.55; margin: 0; }
       .screenshot { margin: 0 0 4.5rem; }.screenshot img { border: 1px solid #dce5f2; border-radius: 16px; box-shadow: 0 18px 45px rgba(32, 59, 103, .12); display: block; height: auto; width: 100%; }.caption { color: #66758b; font-size: .9rem; margin: .85rem 0 0; text-align: center; }
+      .gallery { display: grid; gap: 2.5rem; margin: 2rem 0 4.5rem; }.gallery figure { margin: 0; }.gallery img { border: 1px solid #dce5f2; border-radius: 16px; box-shadow: 0 12px 30px rgba(32, 59, 103, .09); display: block; height: auto; width: 100%; }.gallery figcaption { color: #53627a; line-height: 1.55; margin: .75rem .2rem 0; }.gallery strong { color: #10213d; }
       .downloads { display: grid; gap: 1.25rem; grid-template-columns: repeat(2, 1fr); }.download { display: flex; flex-direction: column; min-height: 230px; }.download p { flex: 1; }
       .button { align-self: flex-start; background: #2864dc; border-radius: 9px; color: #fff; font-weight: 700; margin-top: 1.5rem; padding: .75rem 1rem; text-decoration: none; }.button:hover { background: #194dac; }
       code { background: #edf2fa; border-radius: 5px; color: #203a66; font-size: .9em; padding: .12rem .32rem; } footer { border-top: 1px solid #dce5f2; color: #66758b; font-size: .9rem; padding: 1.5rem; text-align: center; }
@@ -36,6 +37,15 @@
         </div>
       </section>
       <section class="screenshot" aria-labelledby="vista"><h2 id="vista">Una vista clara de tu información</h2><img src="assets/panel-analiticas.png" alt="Panel principal de Control de Analíticas Clínicas con indicadores y módulos de resultados"><p class="caption">Panel principal de la aplicación.</p></section>
+      <section aria-labelledby="pestanas"><h2 id="pestanas">Cinco pestañas para explorar tus analíticas</h2><p class="intro">Accede de forma ordenada a la información clínica, el histórico de resultados, las gráficas y la gestión de tus informes.</p>
+        <div class="gallery">
+          <figure><img src="assets/pestana-informacion.png" alt="Pestaña Información con los grupos de parámetros analíticos"><figcaption><strong>1. Información.</strong> Consulta los principales grupos de parámetros y su significado clínico.</figcaption></figure>
+          <figure><img src="assets/pestana-historial.png" alt="Pestaña Historial con resultados de analíticas organizados por fecha"><figcaption><strong>2. Historial.</strong> Compara los valores de cada analítica y sus referencias a lo largo del tiempo.</figcaption></figure>
+          <figure><img src="assets/pestana-graficos.png" alt="Pestaña Gráficos con la evolución de los parámetros analíticos"><figcaption><strong>3. Gráficos.</strong> Visualiza tendencias y evolución mediante gráficos interactivos.</figcaption></figure>
+          <figure><img src="assets/pestana-gestion.png" alt="Pestaña Gestión de analíticas con la lista de informes PDF"><figcaption><strong>4. Gestión de analíticas.</strong> Revisa, edita y organiza los informes analíticos importados.</figcaption></figure>
+          <figure><img src="assets/pestana-configuracion.png" alt="Pestaña Configuración con datos personales y opciones de inteligencia artificial"><figcaption><strong>5. Configuración.</strong> Gestiona los datos del paciente y, opcionalmente, la conexión con servicios de inteligencia artificial.</figcaption></figure>
+        </div>
+      </section>
       <section aria-labelledby="descargas"><h2 id="descargas">Descargas</h2><div class="downloads">
         <article class="download"><h3>Windows 10 y 11</h3><p>Descarga el instalador de la última versión publicada. No requiere Docker y conserva tus datos clínicos fuera de la carpeta de la aplicación.</p><a class="button" href="https://github.com/el-rocho/cac-elrocho/releases/latest">Descargar para Windows</a></article>
         <article class="download"><h3>Docker</h3><p>La imagen más reciente está disponible en GitHub Container Registry. Puedes ejecutarla con <code>docker pull ghcr.io/el-rocho/cac-elrocho:latest</code> o consultar sus versiones publicadas.</p><a class="button" href="https://github.com/el-rocho/cac-elrocho/pkgs/container/cac-elrocho">Ver imagen Docker</a></article>
