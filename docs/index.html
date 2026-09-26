@@ -10,6 +10,7 @@
       * { box-sizing: border-box; } body { margin: 0; } a { color: inherit; }
       .hero { background: linear-gradient(135deg, #eff6ff, #f7f4ff); border-bottom: 1px solid #dce5f2; padding: 5.5rem 1.5rem 4.5rem; }
       .wrap { margin: 0 auto; max-width: 1080px; }
+      .hero-content { align-items: center; display: flex; gap: 2rem; }.hero-logo { flex: 0 0 auto; height: auto; width: 135px; }
       .eyebrow { color: #2557c8; font-size: .82rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
       h1 { font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.055em; line-height: 1.04; margin: .45rem 0 1.2rem; max-width: 800px; }
       .lead { color: #42536e; font-size: clamp(1.08rem, 2vw, 1.3rem); line-height: 1.65; margin: 0; max-width: 760px; }
@@ -25,11 +26,11 @@
       .version-list { list-style: none; margin: 1.25rem 0 0; padding: 0; }.version-list li { align-items: center; border-top: 1px solid #e4ebf5; display: flex; gap: .75rem; justify-content: space-between; padding-top: 1rem; }.version-list a { color: #194dac; font-weight: 700; text-decoration: none; }.version-list a:hover { text-decoration: underline; }
       .button { align-self: flex-start; background: #2864dc; border-radius: 9px; color: #fff; font-weight: 700; margin-top: 1.5rem; padding: .75rem 1rem; text-decoration: none; }.button:hover { background: #194dac; }
       code { background: #edf2fa; border-radius: 5px; color: #203a66; font-size: .9em; padding: .12rem .32rem; } footer { border-top: 1px solid #dce5f2; color: #66758b; font-size: .9rem; padding: 1.5rem; text-align: center; }
-      @media (max-width: 700px) { .hero { padding: 4rem 1.25rem 3.5rem; } main { padding: 3.5rem 1.25rem; } .features, .downloads { grid-template-columns: 1fr; } }
+      @media (max-width: 700px) { .hero { padding: 4rem 1.25rem 3.5rem; } .hero-content { align-items: flex-start; gap: 1rem; } .hero-logo { width: 78px; } main { padding: 3.5rem 1.25rem; } .features, .downloads { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
-    <header class="hero"><div class="wrap"><div class="eyebrow">Control de Analíticas Clínicas</div><h1>Tu historial de analíticas, claro y bajo tu control.</h1><p class="lead">Una aplicación gratuita y de código abierto para organizar informes de laboratorio, seguir su evolución y consultar los resultados desde tu propio equipo.</p></div></header>
+    <header class="hero"><div class="wrap hero-content"><img class="hero-logo" src="assets/logo.svg" alt="Logotipo de Control de Analíticas Clínicas"><div><div class="eyebrow">Control de Analíticas Clínicas</div><h1>Tu historial de analíticas, claro y bajo tu control.</h1><p class="lead">Una aplicación gratuita y de código abierto para organizar informes de laboratorio, seguir su evolución y consultar los resultados desde tu propio equipo.</p></div></div></header>
     <main><div class="wrap">
       <section aria-labelledby="que-es"><h2 id="que-es">Todo lo importante, en un solo lugar</h2><p class="intro">Control de Analíticas Clínicas digitaliza los informes en PDF, guarda el historial localmente y presenta los parámetros relevantes de forma comprensible. Puede extraer datos con un motor local o, de forma opcional, con Google Gemini usando tu propia clave API.</p>
         <div class="features">
