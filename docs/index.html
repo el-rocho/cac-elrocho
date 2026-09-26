@@ -19,7 +19,8 @@
       .feature, .download { background: #fff; border: 1px solid #dce5f2; border-radius: 16px; padding: 1.4rem; box-shadow: 0 8px 25px rgba(32, 59, 103, .05); }
       .feature h3, .download h3 { font-size: 1.05rem; margin: 0 0 .55rem; }.feature p, .download p { color: #53627a; line-height: 1.55; margin: 0; }
       .screenshot { margin: 0 0 4.5rem; }.screenshot img { border: 1px solid #dce5f2; border-radius: 16px; box-shadow: 0 18px 45px rgba(32, 59, 103, .12); display: block; height: auto; width: 100%; }.caption { color: #66758b; font-size: .9rem; margin: .85rem 0 0; text-align: center; }
-      .gallery { display: grid; gap: 2.5rem; margin: 2rem 0 4.5rem; }.gallery figure { margin: 0; }.gallery img { border: 1px solid #dce5f2; border-radius: 16px; box-shadow: 0 12px 30px rgba(32, 59, 103, .09); display: block; height: auto; width: 100%; }.gallery figcaption { color: #53627a; line-height: 1.55; margin: .75rem .2rem 0; }.gallery strong { color: #10213d; }
+      .gallery-controls { display: flex; gap: .65rem; justify-content: flex-end; margin: 1rem 0; }.gallery-control { background: #fff; border: 1px solid #b9c9e3; border-radius: 8px; color: #194dac; cursor: pointer; font: inherit; font-weight: 700; padding: .55rem .85rem; }.gallery-control:hover, .gallery-control:focus-visible { background: #edf4ff; outline: 2px solid #2864dc; outline-offset: 2px; }
+      .gallery { display: flex; gap: 1.25rem; margin: 0 0 4.5rem; overflow-x: auto; padding: .25rem .15rem 1.25rem; scroll-behavior: smooth; scroll-snap-type: x mandatory; scrollbar-color: #8ba3c8 #edf2fa; scrollbar-width: thin; }.gallery figure { flex: 0 0 100%; margin: 0; scroll-snap-align: start; }.gallery img { border: 1px solid #dce5f2; border-radius: 16px; box-shadow: 0 12px 30px rgba(32, 59, 103, .09); display: block; height: auto; width: 100%; }.gallery figcaption { color: #53627a; line-height: 1.55; margin: .75rem .2rem 0; }.gallery strong { color: #10213d; }
       .downloads { display: grid; gap: 1.25rem; grid-template-columns: repeat(2, 1fr); }.download { display: flex; flex-direction: column; min-height: 230px; }.download p { flex: 1; }
       .button { align-self: flex-start; background: #2864dc; border-radius: 9px; color: #fff; font-weight: 700; margin-top: 1.5rem; padding: .75rem 1rem; text-decoration: none; }.button:hover { background: #194dac; }
       code { background: #edf2fa; border-radius: 5px; color: #203a66; font-size: .9em; padding: .12rem .32rem; } footer { border-top: 1px solid #dce5f2; color: #66758b; font-size: .9rem; padding: 1.5rem; text-align: center; }
@@ -38,7 +39,8 @@
       </section>
       <section class="screenshot" aria-labelledby="vista"><h2 id="vista">Una vista clara de tu información</h2><img src="assets/panel-analiticas.png" alt="Panel principal de Control de Analíticas Clínicas con indicadores y módulos de resultados"><p class="caption">Panel principal de la aplicación.</p></section>
       <section aria-labelledby="pestanas"><h2 id="pestanas">Cinco pestañas para explorar tus analíticas</h2><p class="intro">Accede de forma ordenada a la información clínica, el histórico de resultados, las gráficas y la gestión de tus informes.</p>
-        <div class="gallery">
+        <div class="gallery-controls" aria-label="Controles de las capturas"><button class="gallery-control" type="button" data-gallery-direction="previous">← Anterior</button><button class="gallery-control" type="button" data-gallery-direction="next">Siguiente →</button></div>
+        <div class="gallery" tabindex="0" aria-label="Capturas de las pestañas de la aplicación">
           <figure><img src="assets/pestana-informacion.png" alt="Pestaña Información con los grupos de parámetros analíticos"><figcaption><strong>1. Información.</strong> Consulta los principales grupos de parámetros y su significado clínico.</figcaption></figure>
           <figure><img src="assets/pestana-historial.png" alt="Pestaña Historial con resultados de analíticas organizados por fecha"><figcaption><strong>2. Historial.</strong> Compara los valores de cada analítica y sus referencias a lo largo del tiempo.</figcaption></figure>
           <figure><img src="assets/pestana-graficos.png" alt="Pestaña Gráficos con la evolución de los parámetros analíticos"><figcaption><strong>3. Gráficos.</strong> Visualiza tendencias y evolución mediante gráficos interactivos.</figcaption></figure>
@@ -52,5 +54,14 @@
       </div></section>
     </div></main>
     <footer>Control de Analíticas Clínicas no sustituye la valoración de un profesional sanitario.</footer>
+    <script>
+      const gallery = document.querySelector('.gallery');
+      document.querySelectorAll('[data-gallery-direction]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const direction = button.dataset.galleryDirection === 'next' ? 1 : -1;
+          gallery.scrollBy({ left: direction * gallery.clientWidth, behavior: 'smooth' });
+        });
+      });
+    </script>
   </body>
 </html>
