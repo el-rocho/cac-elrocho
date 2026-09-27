@@ -1210,22 +1210,37 @@ def generate_mock_extraction(
     analitos_conocidos = [
         # Bioquímica y metabolismo
         ("Glucosa Basal", r"Glucosa[^\d]*(\d+[\.,]?\d*)", "mg/dL", "60 - 100"),
-        ("HbA1c", r"HbA1c[^\d]*(\d+[\.,]?\d*)", "%", "4.0 - 5.6"),
+        ("HbA1c", r"(?:HbA1c|Hemoglobina\s+A1c(?:\s*\(\s*NGSP\s*\))?)[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*%", "%", "4.0 - 5.6"),
         ("Creatinina", r"Creatinina[^\d]*(\d+[\.,]?\d*)", "mg/dL", "0.70 - 1.20"),
         ("Urea", r"Urea[^\d]*(\d+[\.,]?\d*)", "mg/dL", "17 - 49.2"),
-        ("Ácido Úrico", r"Úrico[^\d]*(\d+[\.,]?\d*)", "mg/dL", "3.4 - 7.0"),
+        # El OCR de algunos informes reemplaza las tildes por \ufffd; acotamos al valor
+        # de la fila para no confundir el límite inferior del intervalo con el resultado.
+        ("Ácido Úrico", r"(?:[AÁÀÂ\ufffd]cido)\s+(?:[UÚÙÜ\ufffd]rico)[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*mg", "mg/dL", "3.4 - 7.0"),
         ("Filtrado Glomerular (CKD-EPI)", r"Filtrado\s+glomerular(?:\s+CKD-EPI)?[^\d\n\r]*(\d+[\.,]?\d*)", "mL/min/1.73m²", "> 60"),
-        ("Colesterol Total", r"Colesterol\s+Total[^\d]*(\d+[\.,]?\d*)", "mg/dL", "100 - 200"),
+        # Solo al inicio de fila para no tomar HDL/LDL-Colesterol ni las notas
+        # de riesgo cardiovascular como colesterol total.
+        ("Colesterol Total", r"(?im)^\s*Colesterol(?:\s+total)?[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*mg", "mg/dL", "100 - 200"),
+        ("BUN (Nitrógeno Ureico)", r"\bBUN\s*\([^\)\n\r]{0,50}\)[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*mg", "mg/dL", "7 - 21"),
+        ("CEA", r"(?:\bCEA\b|CEA\s*-\s*Ant[ií]geno\s+Carcinoembrionario)[^\d\n\r]{0,100}<?\s*(\d+[\.,]?\d*)\s*ng", "ng/mL", "< 5"),
+        # El límite "< 34" no es un resultado. No atravesar '<' conserva los
+        # valores explícitos y rechaza filas donde el OCR perdió la cifra.
+        ("CA 19-9", r"\bCA\s*19\s*-?\s*9\b[^\d<\n\r]{0,100}(\d+[\.,]?\d*)\s*U(?:I)?", "UI/mL", "< 37"),
         ("Triglicéridos", r"Triglic[^\d]*(\d+[\.,]?\d*)", "mg/dL", "0 - 150"),
-        ("HDL-Colesterol", r"HDL[^\d]*(\d+[\.,]?\d*)", "mg/dL", "40 - 100"),
+        # La etiqueta sola seguida de "> 40" puede ser una determinación no
+        # realizada. Exigir una fila de resultado evita capturar su referencia.
+        ("HDL-Colesterol", r"(?im)^\s*HDL[-\s]*Colesterol[^\d<>\n\r]{0,100}(\d+[\.,]?\d*)\s*mg", "mg/dL", "40 - 100"),
         ("LDL-Colesterol", r"LDL[^\d]*(\d+[\.,]?\d*)", "mg/dL", "< 116 (SEA 2023)"),
         ("Hierro", r"Hierro[^\d]*(\d+[\.,]?\d*)", "µg/dL", "59 - 160"),
         ("Ferritina", r"Ferritina[^\d]*(\d+[\.,]?\d*)", "ng/mL", "27 - 300"),
-        ("Bilirrubina Total", r"Bilirrubina\s+Total[^\d]*(\d+[\.,]?\d*)", "mg/dL", "< 1.2"),
+        # No atravesar ':' ni '<': en textos OCR degradados suelen preceder al
+        # rango de referencia y no al valor hallado.
+        ("Bilirrubina Total", r"Bilirrubina\s+Total[^\d<:\n\r]{0,100}(\d+[\.,]?\d*)\s*mg", "mg/dL", "< 1.2"),
         ("GOT / AST", r"(?:GOT|AST)[^\d]*(\d+[\.,]?\d*)", "U/L", "< 45"),
         ("GPT / ALT", r"(?:GPT|ALT)[^\d]*(\d+[\.,]?\d*)", "U/L", "7 - 55"),
-        ("GGT", r"GGT[^\d]*(\d+[\.,]?\d*)", "U/L", "8 - 78"),
-        ("PSA Total", r"(?:PSA\s+Total|PSA-Antígeno Prostático)[^\d]*(\d+[\.,]?\d*)", "ng/mL", "< 4.0"),
+        ("GGT", r"(?:\bGGT\b|Gamma\s*-?\s*GT)[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*(?:U|UN)", "U/L", "8 - 78"),
+        # Anclado a la fila: evita tomar el porcentaje PSA libre/total o el
+        # intervalo (< 4) como si fueran el PSA total.
+        ("PSA Total", r"(?im)^\s*PSA(?:\s+Total)?\s+(?!Libre\b)(\d+[\.,]?\d*)\s*ng", "ng/mL", "< 4.0"),
         ("PSA Libre", r"(?:PSA[^\n\r]*Libre|PSA-Fracción Libre)[^\d]*(\d+[\.,]?\d*)", "ng/mL", "-"),
         ("Ratio PSA Libre / Total", r"(?:Ratio\s+PSA(?:-Libre\/PSA-total|\s+Libre\s*\/\s*Total)?|Cociente\s+PSA)[^\d]*(\d+[\.,]?\d*)", "ratio", "> 0.14"),
         ("TSH", r"(?:^|\b)TSH[^\d\n\r]*(\d+[\.,]?\d*)", "µUI/mL", "0.27 - 4.29"),
@@ -1233,21 +1248,30 @@ def generate_mock_extraction(
         ("T3 Total", r"(?:^|\b)T3\s+total[^\d\n\r]*(\d+[\.,]?\d*)", "ng/mL", "0.80 - 2.00"),
         ("T4 Libre", r"(?:^|\b)(?:T4\s+libre|FT4)[^\d\n\r]*(\d+[\.,]?\d*)", "ng/dL", "0.71 - 1.85"),
         ("T3 Libre", r"(?:^|\b)(?:T3\s+libre|FT3)[^\d\n\r]*(\d+[\.,]?\d*)", "pg/mL", "2.0 - 4.4"),
-        ("Vitamina D (25-OH)", r"Vitamina\s+D[^\d]*(\d+[\.,]?\d*)", "ng/mL", "30 - 80"),
+        # Consumir primero el "25-OH" que forma parte del nombre del analito.
+        ("Vitamina D (25-OH)", r"(?:Vitamina\s+D(?:\s*\(\s*25\s*[-–]?\s*OH\s*\))?|Vitamina\s+D\s+25\s*-?\s*Hidroxi)[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*ng", "ng/mL", "30 - 80"),
+        ("Proteína C Reactiva", r"(?:Prote[ií]na\s+C\s+reactiva|\bPCR\b)[^\d\n\r]{0,100}(\d+[\.,]?\d*)\s*mg", "mg/dL", "< 0.5"),
+        ("Sodio", r"\bSodio\b[^\d\n\r]{0,100}(\d{2,3}(?:[\.,]\d+)?)\s*m(?:mol|Eq)", "mmol/L", "135 - 145"),
+        ("Potasio", r"\bPotasio\b[^\d\n\r]{0,100}(\d{1,2}(?:[\.,]\d+)?)\s*m(?:mol|Eq)", "mmol/L", "3.5 - 5.1"),
+        ("Cloro", r"\bCloro\b[^\d\n\r]{0,100}(\d{2,3}(?:[\.,]\d+)?)\s*m(?:mol|Eq)", "mmol/L", "98 - 107"),
         ("Calcio Total", r"Calcio\s+Total[^\d]*(\d+[\.,]?\d*)", "mg/dL", "8.2 - 10.6"),
         ("Calcio Corregido", r"Calcio\s+corregido[^\d]*(\d+[\.,]?\d*)", "mg/dL", "8.8 - 10.2"),
-        ("Albúmina", r"(?:^|\n)\s*Alb[úu]mina[^\d]*(\d+[\.,]?\d*)", "g/dL", "3.5 - 5.2"),
+        # Evitar "Albúmina-prot." del sistemático de orina y requerir una
+        # concentración sérica fisiológicamente plausible en g/dL.
+        ("Albúmina", r"(?im)^\s*Alb[úu\ufffd]mina(?!\s*-\s*prot)[^\d\n\r]{0,100}((?:[2-9]|10)(?:[\.,]\d{1,2})?)\s*g/dl", "g/dL", "3.5 - 5.2"),
 
         # Hemograma completo y serie roja
         ("Hematíes", r"Hemat[ií]es[^\d]*(\d+[\.,]?\d*)", "x10^6/µL", "4.60 - 6.20"),
         ("Hemoglobina", r"Hemoglobina[^\d]*(\d+[\.,]?\d*)", "g/dL", "13.5 - 18.0"),
         ("Hematocrito", r"Hematocrito[^\d]*(\d+[\.,]?\d*)", "%", "42.0 - 52.0"),
-        ("VCM", r"(?:VCM|Volumen\s+Corpuscular\s+Medio)[^\d\n\r]*(\d+[\.,]?\d*)", "fL", "80.0 - 101.0"),
+        # Un VCM válido está en el rango de dos/tres cifras. Rechazar cadenas
+        # OCR como "9149" o "920" evita convertir artefactos en resultados.
+        ("VCM", r"(?:VCM|Volumen\s+Corpuscular\s+Medio)[^\d\n\r]{0,100}((?:[5-9]\d|1[0-4]\d)(?:[\.,]\d{1,2})?)(?!\d)", "fL", "80.0 - 101.0"),
         ("HCM", r"(?:HCM|Hemoglobina\s+Corpuscular\s+Media)[^\d\n\r]*(\d+[\.,]?\d*)", "pg", "27.0 - 34.0"),
         ("CHCM", r"(?:CHCM|CMHC)[^\d\n\r]*(\d+[\.,]?\d*)", "g/dL", "31.5 - 36.0"),
         ("RDW", r"(?:RDW|IDH|IDE|ADE)[:\s]*\n?\s*(\d+[\.,]?\d*)\s*%", "%", "11.0 - 18.0"),
         ("Plaquetas", r"Plaquetas[^\d\n\r]*(\d+[\.,]?\d*)", "x10^3/µL", "130 - 450"),
-        ("VPM", r"(?:VPM|MPV)[:\s]*\n?\s*(\d+[\.,]?\d*)\s*(?:fL|fl|fi)?", "fL", "5.9 - 13.0"),
+        ("VPM", r"(?:VPM|MPV)[:\s]*\n?\s*((?:[5-9]|1\d)(?:[\.,]\d{1,2})?)(?!\d)\s*(?:fL|fl|fi)?", "fL", "5.9 - 13.0"),
         ("Leucocitos", r"Leucocitos[^\d]*(\d+[\.,]?\d*)", "x10^3/µL", "4.00 - 11.00"),
 
         # Fórmula leucocitaria absoluta
@@ -1267,12 +1291,16 @@ def generate_mock_extraction(
         # Sistemático de orina
         ("Densidad (Orina)", r"Densidad[^\d]*(\d+[\.,]?\d*)", "", "1.005 - 1.030"),
         ("pH (Orina)", r"pH[^\d]*(\d+[\.,]?\d*)", "", "4.5 - 8.0"),
+        ("Glucosa (Orina)", r"\bGlucosa\b[^\d\n\r]{0,100}\b(NEGATIVO|POSITIVO|TRAZAS)\b", "Cualitativo", "Negativo"),
+        ("Proteínas (Orina)", r"\bProte(?:[íi]|\ufffd)nas?\b[^\d\n\r]{0,100}\b(NEGATIVO|POSITIVO|TRAZAS)\b", "Cualitativo", "Negativo"),
+        ("VSG 1ª Hora", r"(?:VSG\s*(?:1[ªa]|1\s*h(?:ora)?)|Velocidad\s+de\s+Sedimentaci[oó]n[\s\S]{0,180}?A\s+la\s+hora)[^\d\n\r]{0,80}(\d+[\.,]?\d*)\s*mm", "mm", "< 10"),
+        ("VSG 2ª Hora", r"(?:VSG\s*(?:2[ªa]|2\s*h(?:ora)?)|Velocidad\s+de\s+Sedimentaci[oó]n[\s\S]{0,260}?A\s+las\s+dos\s+horas)[^\d\n\r]{0,80}(\d+[\.,]?\d*)\s*mm", "mm", "< 30"),
 
         # Inmunología, proteínas séricas y alergias
         ("Inmunoglobulina IgG", r"(?:Inmunoglobulina|Inmumoglobulina)\s+IgG[^\d]*(\d+[\.,]?\d*)", "mg/dL", "540 - 1822"),
         ("Inmunoglobulina IgA", r"(?:Inmunoglobulina|Inmumoglobulina)\s+IgA[^\d]*(\d+[\.,]?\d*)", "mg/dL", "70 - 400"),
         ("Inmunoglobulina IgM", r"(?:Inmunoglobulina|Inmumoglobulina)\s+IgM[^\d]*(\d+[\.,]?\d*)", "mg/dL", "40 - 230"),
-        ("Proteínas Totales", r"(?:Prote[íi]nas\s+S[ée]ricas|Prote[íi]nas\s+Totales)[^\d]*(\d+[\.,]?\d*)", "g/dL", "6.0 - 8.3"),
+        ("Proteínas Totales", r"(?:Prote[íi]nas\s+S[ée]ricas|Prote[íi]nas\s+Totales)[^\d\n\r]{0,100}((?:[4-9]|10)(?:[\.,]\d{1,2})?)\s*g", "g/dL", "6.0 - 8.3"),
         ("Beta-2 Microglobulina", r"Beta-?2\s+Microglobulina[^\d]*(\d+[\.,]?\d*)", "mcg/mL", "< 3.0"),
         ("IgE Cynodon dactylon (Grama mayor)", r"Cynodon\s+dactylon[^\d]*(\d+[\.,]?\d*)", "kU/L", "< 0.35"),
         ("IgE Lolium perenne (Ballico)", r"Lolium\s+perenne[^\d]*(\d+[\.,]?\d*)", "kU/L", "< 0.35"),

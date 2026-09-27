@@ -1,6 +1,19 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.5] - 2026-09-27
+
+### 📊 Seguimiento clínico y visualización
+* **Gráficos evolutivos por área clínica**: la vista de gráficos dispone de filtros para metabolismo glucídico, perfil lipídico, función renal y hepática, hemograma/hierro, tiroides y otros marcadores, con posibilidad de ampliar cada serie para su consulta detallada.
+* **Nuevas series longitudinales**: se incorporan gráficos para insulina/HOMA-IR, ApoB y colesterol no-HDL, albuminuria, metabolitos renales, enzimas y síntesis hepática, series roja y blanca, hierro, perfil tiroideo completo, metabolismo óseo, inflamación, reumatología y vitaminas.
+* **Colesterol no-HDL**: se normaliza cuando llega explícitamente desde el laboratorio y se deriva de colesterol total − HDL cuando falta, manteniendo la información disponible en el panel, histórico y gráficos de controles anteriores.
+* **Perfil lipídico contextualizado**: ApoB y no-HDL se integran como marcadores complementarios y las alertas cardiovasculares tienen en cuenta el umbral de no-HDL elevado.
+
+### 📄 Extracción local y calidad de datos
+* **Motor RegEx reforzado**: mejora la detección de informes con columnas, OCR imperfecto y secciones especializadas; añade cobertura para electrolitos, BUN, CEA, CA 19-9, proteína C reactiva, vitamina D, VSG y resultados cualitativos de orina.
+* **Menos falsos positivos**: las expresiones de extracción distinguen resultados de intervalos de referencia, ratios, determinaciones no realizadas y artefactos OCR en HDL, bilirrubina, PSA, albúmina, VCM, VPM y proteínas totales.
+* **Pruebas de regresión**: se añaden pruebas automatizadas para el no-HDL y la extracción local de escenarios clínicos representativos.
+
 ## [v0.9.4] - 2026-09-26
 
 * **Instalador en español**: las futuras compilaciones de Windows usan por defecto los mensajes y asistentes de Inno Setup en español.

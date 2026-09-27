@@ -3,6 +3,9 @@
 let currentPreviewData = null;
 let chartsRendered = false;
 let chartInstances = {};
+let chartConfigs = {};
+let chartRenderOptions = {};
+let expandedChartInstance = null;
 let currentKpisData = [];
 let activeKpiIndex = 0;
 
@@ -43,6 +46,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAiConfiguration();
   setupDragAndDrop();
   setupBioTableScrollSync();
+  setupChartCategoryFilters();
+  setupExpandedChartModal();
 });
 
 // 1. Gestión de Pestañas y Scroll Horizontal Sincronizado
@@ -128,6 +133,7 @@ function setTab(tabId) {
   });
 
   if (tabId === 'charts') {
+    clearChartCategoryFilters();
     setTimeout(() => {
       loadCharts();
     }, 60);
@@ -700,7 +706,157 @@ async function loadTables() {
   }
 }
 
-// 5. Cargar Gráficos Evolutivos
+// 5. Filtros y gráficos evolutivos
+function chartConfigHasValues(config) {
+  return Boolean(config && config.datasets && config.datasets.some(dataset =>
+    Array.isArray(dataset.data) && dataset.data.some(value => value !== null && value !== undefined)
+  ));
+}
+
+function buildChartOptions(extraOptions = {}) {
+  const legendOptions = {
+    labels: {
+      generateLabels(chart) {
+        return Chart.defaults.plugins.legend.labels.generateLabels(chart).map(label => {
+          const dataset = chart.data.datasets[label.datasetIndex] || {};
+          return Object.assign(label, {
+            // El recuadro de la leyenda replica el color de la línea, no un gris genérico.
+            fillStyle: dataset.borderColor || label.fillStyle,
+            strokeStyle: dataset.borderColor || label.strokeStyle
+          });
+        });
+      }
+    }
+  };
+  const options = Object.assign({
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
+    spanGaps: true,
+    elements: {
+      line: { tension: 0.2, spanGaps: true },
+      point: { radius: 4, hoverRadius: 6 }
+    }
+  }, extraOptions);
+  options.plugins = Object.assign({}, { legend: legendOptions }, extraOptions.plugins || {});
+  options.plugins.legend = Object.assign({}, legendOptions, extraOptions.plugins?.legend || {});
+  options.plugins.legend.labels = Object.assign({}, legendOptions.labels, extraOptions.plugins?.legend?.labels || {});
+  return options;
+}
+
+function refreshChartCategoryFilters() {
+  document.querySelectorAll('.chart-category-filter').forEach(button => {
+    const selected = button.getAttribute('aria-pressed') === 'true';
+    button.classList.toggle('bg-blue-600', selected);
+    button.classList.toggle('text-white', selected);
+    button.classList.toggle('border-blue-600', selected);
+    button.classList.toggle('bg-white', !selected);
+    button.classList.toggle('text-slate-700', !selected);
+    button.classList.toggle('border-slate-300', !selected);
+  });
+}
+
+function updateChartVisibility(chartData) {
+  const selectedCategories = new Set(
+    Array.from(document.querySelectorAll('.chart-category-filter[aria-pressed="true"]'))
+      .map(button => button.dataset.chartCategory)
+  );
+  document.querySelectorAll('[data-chart-card]').forEach(card => {
+    const key = card.dataset.chartCard;
+    const isSelected = selectedCategories.has(card.dataset.chartCategory);
+    const config = chartData && chartData[key];
+    const hasData = key === 'insulina_homa'
+      ? Boolean(config && config.datasets && config.datasets.every(dataset =>
+          Array.isArray(dataset.data) && dataset.data.some(value => value !== null && value !== undefined)
+        ))
+      : chartConfigHasValues(config);
+    card.classList.toggle('hidden', !isSelected || !hasData);
+  });
+  requestAnimationFrame(() => Object.values(chartInstances).forEach(chart => {
+    if (chart && typeof chart.resize === 'function') chart.resize();
+  }));
+}
+
+function setupChartCategoryFilters() {
+  const filters = document.getElementById('chart-category-filters');
+  const clearButton = document.getElementById('clear-chart-category-filters');
+  if (!filters) return;
+  refreshChartCategoryFilters();
+  filters.addEventListener('click', event => {
+    const button = event.target.closest('.chart-category-filter');
+    if (!button) return;
+    button.setAttribute('aria-pressed', button.getAttribute('aria-pressed') !== 'true' ? 'true' : 'false');
+    refreshChartCategoryFilters();
+    updateChartVisibility(window.lastChartsData);
+  });
+  if (clearButton) {
+    clearButton.addEventListener('click', clearChartCategoryFilters);
+  }
+}
+
+function clearChartCategoryFilters() {
+  document.querySelectorAll('.chart-category-filter').forEach(button => {
+    button.setAttribute('aria-pressed', 'false');
+  });
+  refreshChartCategoryFilters();
+  updateChartVisibility(window.lastChartsData);
+}
+
+function setupExpandedChartModal() {
+  const modal = document.getElementById('expandedChartModal');
+  const closeButton = document.getElementById('closeExpandedChart');
+  if (!modal) return;
+  closeButton?.addEventListener('click', () => modal.close());
+  modal.addEventListener('close', () => {
+    if (expandedChartInstance) {
+      expandedChartInstance.destroy();
+      expandedChartInstance = null;
+    }
+  });
+}
+
+function openExpandedChart(key) {
+  const modal = document.getElementById('expandedChartModal');
+  const canvas = document.getElementById('expandedChartCanvas');
+  const wrapper = document.getElementById('expandedChartCanvasWrap');
+  const scrollContainer = document.getElementById('expandedChartScroll');
+  const card = document.querySelector(`[data-chart-card="${key}"]`);
+  const config = chartConfigs[key];
+  if (!modal || !canvas || !wrapper || !scrollContainer || !config || !config.labels?.length) return;
+
+  if (expandedChartInstance) {
+    expandedChartInstance.destroy();
+    expandedChartInstance = null;
+  }
+  document.getElementById('expandedChartTitle').textContent = card?.querySelector('h3')?.textContent?.trim() || 'Gráfico evolutivo';
+  modal.showModal();
+
+  // Se reserva espacio por cada fecha para que el eje temporal siga siendo legible.
+  const minWidth = Math.max(scrollContainer.clientWidth - 40, config.labels.length * 112);
+  wrapper.style.width = `${minWidth}px`;
+  const expandedConfig = JSON.parse(JSON.stringify(config));
+  const expandedOptions = buildChartOptions(JSON.parse(JSON.stringify(chartRenderOptions[key] || {})));
+  expandedOptions.responsive = true;
+  expandedOptions.maintainAspectRatio = false;
+  expandedOptions.animation = false;
+  expandedOptions.scales = Object.assign({}, expandedOptions.scales, {
+    x: Object.assign({}, expandedOptions.scales?.x, {
+      type: 'category',
+      offset: true,
+      ticks: { autoSkip: false, maxRotation: 0, minRotation: 0 }
+    })
+  });
+  expandedChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: expandedConfig,
+    options: expandedOptions
+  });
+  requestAnimationFrame(() => {
+    expandedChartInstance?.resize();
+    scrollContainer.scrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+  });
+}
+
 async function loadCharts() {
   if (typeof Chart === 'undefined') {
     console.error('Chart.js no está cargado todavía.');
@@ -711,6 +867,7 @@ async function loadCharts() {
     const res = await fetch('/api/v1/analiticas/charts');
     if (!res.ok) throw new Error('Error al cargar datos de gráficos: ' + res.statusText);
     const cData = await res.json();
+    window.lastChartsData = cData;
     chartsRendered = true;
 
     // Destruir instancias previas de forma segura
@@ -720,11 +877,14 @@ async function loadCharts() {
       }
     });
     chartInstances = {};
-
+    chartConfigs = {};
+    chartRenderOptions = {};
     const renderChart = (key, canvasId, config, extraOptions = {}) => {
       const el = document.getElementById(canvasId);
       if (!el || !config || !config.labels || config.labels.length === 0) return;
       try {
+        chartConfigs[key] = JSON.parse(JSON.stringify(config));
+        chartRenderOptions[key] = JSON.parse(JSON.stringify(extraOptions));
         if (config.datasets) {
           config.datasets.forEach(ds => {
             ds.spanGaps = true;
@@ -736,26 +896,28 @@ async function loadCharts() {
         chartInstances[key] = new Chart(el, {
           type: 'line',
           data: config,
-          options: Object.assign({
-            responsive: true,
-            maintainAspectRatio: false,
-            animation: { duration: 350 },
-            spanGaps: true,
-            elements: {
-              line: { tension: 0.2, spanGaps: true },
-              point: { radius: 4, hoverRadius: 6 }
-            }
-          }, extraOptions)
+          options: buildChartOptions(extraOptions)
         });
+        el.ondblclick = () => openExpandedChart(key);
+        el.style.cursor = 'zoom-in';
+        el.title = 'Doble clic para ampliar';
       } catch (e) {
         console.error(`Error al crear gráfico ${key} (${canvasId}):`, e);
       }
     };
 
-    // 1. Glucosa
+    // 1. Metabolismo glucídico
     renderChart('glucosa', 'chartGlucosa', cData.glucosa, {
-      plugins: { legend: { display: false } },
-      scales: { y: { suggestedMin: 70, suggestedMax: 125 } }
+      scales: {
+        y: { suggestedMin: 70, suggestedMax: 125, title: { display: true, text: 'Glucosa (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', suggestedMin: 4, suggestedMax: 8, grid: { drawOnChartArea: false }, title: { display: true, text: 'HbA1c (%)' } }
+      }
+    });
+    renderChart('insulina_homa', 'chartInsulinaHoma', cData.insulina_homa, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Insulina (µUI/mL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'HOMA-IR' } }
+      }
     });
 
     // 2. Lípidos
@@ -772,33 +934,114 @@ async function loadCharts() {
     renderChart('ratios', 'chartRatiosLipidos', cData.ratios_tg, {
       scales: { y: { suggestedMin: 0.5, suggestedMax: 3.5 } }
     });
+    renderChart('apob_non_hdl', 'chartApoB', cData.apob_non_hdl, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'ApoB (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'No-HDL (mg/dL)' } }
+      }
+    });
 
-    // 5. Renal
+    // 5. Función renal
     renderChart('renal', 'chartRenal', cData.renal, {
       scales: {
-        y: { type: 'linear', position: 'left', suggestedMin: 20, suggestedMax: 60, title: { display: true, text: 'Urea (mg/dL)' } },
-        y1: { type: 'linear', position: 'right', suggestedMin: 0.6, suggestedMax: 1.3, grid: { drawOnChartArea: false }, title: { display: true, text: 'Creatinina (mg/dL)' } }
+        y: { type: 'linear', position: 'left', suggestedMin: 0.6, suggestedMax: 1.3, title: { display: true, text: 'Creatinina (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', suggestedMin: 45, suggestedMax: 120, grid: { drawOnChartArea: false }, title: { display: true, text: 'eGFR (mL/min/1.73 m²)' } }
+      }
+    });
+    renderChart('renal_metabolites', 'chartRenalMetabolites', cData.renal_metabolites, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Urea (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Ácido úrico (mg/dL)' } }
+      }
+    });
+    renderChart('albuminuria', 'chartAlbuminuria', cData.albuminuria, {
+      plugins: { legend: { display: false } },
+      scales: { y: { title: { display: true, text: 'ACR (mg/g)' } } }
+    });
+
+    // 6. Función hepática
+    renderChart('hepatic_enzymes', 'chartHepaticEnzymes', cData.hepatic_enzymes, {
+      scales: { y: { title: { display: true, text: 'Enzimas (U/L)' } } }
+    });
+    renderChart('hepatic_synthesis', 'chartHepaticSynthesis', cData.hepatic_synthesis, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Bilirrubina (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Albúmina (g/dL)' } },
+        y2: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, weight: 2, title: { display: true, text: 'INR' } }
       }
     });
 
-    // 6. Ácido Úrico
-    renderChart('urico', 'chartUrico', cData.urico, {
-      plugins: { legend: { display: false } },
-      scales: { y: { suggestedMin: 3.5, suggestedMax: 8.0 } }
+    // 7. Hemograma e hierro
+    renderChart('red_series', 'chartRedSeries', cData.red_series, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Hemoglobina (g/dL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Hematocrito (%)' } },
+        y2: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, weight: 2, title: { display: true, text: 'VCM (fL)' } }
+      }
+    });
+    renderChart('white_platelets', 'chartWhitePlatelets', cData.white_platelets, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Leucocitos (×10³/µL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Plaquetas (×10³/µL)' } }
+      }
+    });
+    renderChart('iron_metabolism', 'chartIronMetabolism', cData.iron_metabolism, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Ferritina (ng/mL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Hierro sérico (µg/dL)' } }
+      }
     });
 
-    // 7. PSA
+    // 8. Otros marcadores: próstata
     renderChart('psa', 'chartPSA', cData.psa, {
       scales: {
-        y: { suggestedMin: 0.2, suggestedMax: 4.0, title: { display: true, text: 'PSA Total (ng/mL)' } },
-        y1: { suggestedMin: 10, suggestedMax: 70, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Ratio (%)' } }
+        y: { suggestedMin: 0.2, suggestedMax: 4.0, title: { display: true, text: 'PSA total y libre (ng/mL)' } },
+        y1: { suggestedMin: 10, suggestedMax: 70, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Ratio PSA L/T (%)' } }
       }
     });
 
-    // 8. TSH
-    renderChart('tsh', 'chartTSH', cData.tsh, {
-      scales: { y: { suggestedMin: 0.2, suggestedMax: 4.5 } }
+    renderChart('bone_metabolism', 'chartBoneMetabolism', cData.bone_metabolism, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Vitamina D (ng/mL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Calcio (mg/dL)' } },
+        y2: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, weight: 2, title: { display: true, text: 'PTH (pg/mL)' } }
+      }
     });
+    renderChart('inflammation', 'chartInflammation', cData.inflammation, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'PCR (mg/dL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'VSG 1ª hora (mm)' } }
+      }
+    });
+    renderChart('rheumatology', 'chartRheumatology', cData.rheumatology, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Factor reumatoide (UI/mL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Anti-CCP (UI/mL)' } }
+      }
+    });
+    renderChart('vitamins', 'chartVitamins', cData.vitamins, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'Vitamina B12 (pg/mL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Ácido fólico (ng/mL)' } }
+      }
+    });
+
+    // 9. Función tiroidea: se usan exclusivamente códigos T4/T3 libres o totales.
+    renderChart('thyroid_profile', 'chartThyroidProfile', cData.thyroid_profile, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'TSH (µUI/mL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'T4 libre (ng/dL)' } },
+        y2: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, weight: 2, title: { display: true, text: 'T3 libre (pg/mL)' } }
+      }
+    });
+    renderChart('thyroid_totals', 'chartThyroidTotals', cData.thyroid_totals, {
+      scales: {
+        y: { type: 'linear', position: 'left', title: { display: true, text: 'T4 total (µg/dL)' } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'T3 total (ng/mL)' } }
+      }
+    });
+
+    updateChartVisibility(cData);
 
     // Trigger de redimensionado tras terminar la animación de pestaña
     setTimeout(() => {

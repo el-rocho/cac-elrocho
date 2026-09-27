@@ -63,7 +63,8 @@ run_dev.ps1
 *.ps1
 !run_dev.ps1.example
 !packaging/*.ps1
-scripts/
+scripts/*
+!scripts/comparar_extraccion_regex.py
 
 # Dependencias de compilación del frontend; el CSS generado sí se versiona.
 node_modules/

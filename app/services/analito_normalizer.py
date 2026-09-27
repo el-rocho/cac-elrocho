@@ -53,6 +53,14 @@ CANONICAL_CATALOG = {
         "ref": "> 40 mg/dL",
         "orden": 20
     },
+    "NON_HDL": {
+        "nombre": "Colesterol no-HDL",
+        "categoria": "bioquimica",
+        "grupo": "🧬 Metabolismo Lipídico y Riesgo Cardiovascular",
+        "unidad": "mg/dL",
+        "ref": "< 130 mg/dL",
+        "orden": 25
+    },
     "LDL": {
         "nombre": "LDL-Colesterol",
         "categoria": "bioquimica",
@@ -1325,6 +1333,8 @@ def normalize_analito(
             return "APOB", "Apolipoproteína B (ApoB)", "bioquimica", unidad or "mg/dL"
         if "lp(a)" in nom_lower or "lpa" in nom_lower or "lipoproteina a" in nom_lower or "lipoproteína a" in nom_lower:
             return "LPA", "Lipoproteína (a) [Lp(a)]", "bioquimica", unidad or "mg/dL"
+        if any(k in nom_lower for k in ["no-hdl", "no hdl", "non-hdl", "non hdl"]):
+            return "NON_HDL", "Colesterol no-HDL", "bioquimica", unidad or "mg/dL"
         if "hdl" in nom_lower:
             return "HDL", "HDL-Colesterol", "bioquimica", unidad or "mg/dL"
         if "ldl" in nom_lower:
@@ -1468,6 +1478,11 @@ def normalize_analito(
         return "FIBRINOGENO", "Fibrinógeno", "coagulacion", unidad or "mg/dL"
     if "dímero d" in nom_lower or "dimero d" in nom_lower or "dimerod" in nom_lower:
         return "DIMERO_D", "Dímero D", "coagulacion", unidad or "ng/mL"
+
+    if "vsg" in nom_lower or "velocidad de sedimentacion" in nom_lower or "velocidad de sedimentación" in nom_lower:
+        if re.search(r"(?:2\s*(?:h|hora)|2[ªa])", nom_lower):
+            return "VSG_2H", "VSG 2ª Hora", "hemograma", unidad or "mm"
+        return "VSG_1H", "VSG 1ª Hora", "hemograma", unidad or "mm"
 
     # Fallback genérico limpio
     clean_code = re.sub(r"[^A-Z0-9_]", "", nom.upper().replace(" ", "_"))[:30]

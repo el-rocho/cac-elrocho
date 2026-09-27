@@ -308,9 +308,10 @@ def confirm_analitica(req: ConfirmacionRequest, db: Session = Depends(get_db)):
             if num_val is not None:
                 mediciones_dict[code_key] = num_val
 
-        # 6. Calcular ratios automáticos y guardarlos si no venían en el informe
+        # 6. Calcular marcadores derivados y guardarlos si no venían en el informe
         ratios_calc = calculate_ratios(mediciones_dict)
         ratio_names = {
+            "NON_HDL": ("Colesterol no-HDL", "mg/dL", "< 130 mg/dL"),
             "RATIO_COL_HDL": ("Colesterol Total / HDL (Castelli I)", "ratio", "< 5.0"),
             "RATIO_LDL_HDL": ("LDL / HDL (Castelli II)", "ratio", "< 4.3"),
             "RATIO_TG_HDL": ("Triglicéridos / HDL", "ratio", "< 2.0"),

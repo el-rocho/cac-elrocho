@@ -15,6 +15,11 @@ def calculate_ratios(mediciones_dict: Dict[str, float]) -> Dict[str, float]:
     # Castelli I (Col Total / HDL) - solo si ambos son concentraciones séricas plausibles
     if col_total and hdl and hdl > 10 and col_total > 50:
         ratios["RATIO_COL_HDL"] = round(col_total / hdl, 2)
+        # Colesterol no-HDL: colesterol total menos la fracción protectora HDL.
+        # Se conserva en mg/dL y no depende de triglicéridos ni de ayuno.
+        non_hdl = round(col_total - hdl, 1)
+        if non_hdl >= 0:
+            ratios["NON_HDL"] = non_hdl
 
     # Castelli II (LDL / HDL)
     if ldl and hdl and hdl > 10 and ldl > 20:

@@ -251,9 +251,17 @@
                 <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
                 <span><strong>Colesterol HDL:</strong> transporte reverso; niveles bajos elevan el riesgo.</span>
               </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Triglicéridos:</strong> se interpretan junto con el resto del perfil lipídico.</span>
+              </li>
+              <li class="flex items-start gap-1.5">
+                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
+                <span><strong>Colesterol no-HDL:</strong> colesterol total − HDL; objetivo secundario junto con ApoB.</span>
+              </li>
             </ul>
             <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
-              + 3 determinaciones
+              + 5 determinaciones
             </div>
           </div>
 
@@ -590,11 +598,19 @@
           </li>
           <li class="flex items-start gap-2">
             <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Colesterol no-HDL:</strong> Colesterol total − HDL. Es un objetivo secundario, junto con ApoB, según las guías ESC/EAS.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
             <span><strong>Ratios Colesterol total/HDL y LDL/HDL:</strong> Aportan información complementaria.</span>
           </li>
           <li class="flex items-start gap-2">
             <span class="text-blue-600 font-bold leading-none mt-1">•</span>
             <span><strong>Ratio Triglicéridos/HDL:</strong> Ayuda a identificar alteraciones como resistencia a la insulina y mayor riesgo cardiovascular.</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-blue-600 font-bold leading-none mt-1">•</span>
+            <span><strong>Apolipoproteína B (ApoB):</strong> Cada lipoproteína potencialmente dañina (LDL, VLDL e IDL) contiene exactamente una molécula de ApoB. Medir la ApoB valora el riesgo cardiovascular de forma más precisa que el colesterol LDL tradicional.</span>
           </li>
         </ul>
 
@@ -1295,54 +1311,125 @@
 
     <!-- TAB 3: GRÁFICOS EVOLUTIVOS -->
     <div id="tab-charts" class="space-y-6 hidden">
+      <section class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm" aria-label="Filtro de gráficos por área clínica">
+        <div class="flex items-center gap-3">
+          <div id="chart-category-filters" class="flex flex-1 flex-wrap gap-2" role="group" aria-label="Seleccionar áreas clínicas">
+            <button type="button" data-chart-category="metabolismo_glucidico" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Metabolismo glucídico</button>
+            <button type="button" data-chart-category="perfil_lipidico" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Perfil lipídico</button>
+            <button type="button" data-chart-category="funcion_renal" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Función renal</button>
+            <button type="button" data-chart-category="funcion_hepatica" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Función hepática</button>
+            <button type="button" data-chart-category="hemograma_hierro" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Hemograma / hierro</button>
+            <button type="button" data-chart-category="perfil_tiroideo" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Función tiroidea</button>
+            <button type="button" data-chart-category="otros_marcadores" aria-pressed="false" class="chart-category-filter px-3 py-2 rounded-xl border text-xs font-semibold transition-colors">Otros marcadores</button>
+          </div>
+          <button id="clear-chart-category-filters" type="button" class="shrink-0 px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors">Limpiar</button>
+        </div>
+      </section>
       <div class="grid md:grid-cols-2 gap-6">
         
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución Glucemia Basal (mg/dL)</h3>
-          <p class="text-xs text-slate-500 mb-4">Valores a lo largo del historial analítico</p>
+        <div data-chart-card="glucosa" data-chart-category="metabolismo_glucidico" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución del metabolismo glucídico</h3>
           <div class="relative h-64 w-full"><canvas id="chartGlucosa"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Perfil Lipídico Completo (mg/dL)</h3>
-          <p class="text-xs text-slate-500 mb-4">Colesterol Total, HDL, LDL y Triglicéridos</p>
+        <div data-chart-card="insulina_homa" data-chart-category="metabolismo_glucidico" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Insulina y resistencia a la insulina</h3>
+          <div class="relative h-64 w-full"><canvas id="chartInsulinaHoma"></canvas></div>
+        </div>
+
+        <div data-chart-card="lipidos" data-chart-category="perfil_lipidico" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución del perfil lipídico</h3>
           <div class="relative h-64 w-full"><canvas id="chartLipidos"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Cocientes Aterogénicos (Castelli I y II)</h3>
-          <p class="text-xs text-slate-500 mb-4">Col.T / HDL (&lt; 5.0) y LDL / HDL (&lt; 4.3)</p>
+        <div data-chart-card="castelli" data-chart-category="perfil_lipidico" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Índices aterogénicos</h3>
           <div class="relative h-64 w-full"><canvas id="chartCastelli"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+        <div data-chart-card="ratios" data-chart-category="perfil_lipidico" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
           <h3 class="text-sm font-bold text-slate-900 mb-1">Cociente Triglicéridos / HDL</h3>
-          <p class="text-xs text-slate-500 mb-4">Ratio TG / HDL (&lt; 2.0) - Resistencia insulínica y riesgo vascular</p>
           <div class="relative h-64 w-full"><canvas id="chartRatiosLipidos"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Función Renal: Creatinina y Urea</h3>
-          <p class="text-xs text-slate-500 mb-4">Creatinina (mg/dL) y Urea sérica (mg/dL)</p>
+        <div data-chart-card="apob_non_hdl" data-chart-category="perfil_lipidico" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Apolipoproteína B</h3>
+          <div class="relative h-64 w-full"><canvas id="chartApoB"></canvas></div>
+        </div>
+
+        <div data-chart-card="renal" data-chart-category="funcion_renal" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución de la función renal</h3>
           <div class="relative h-64 w-full"><canvas id="chartRenal"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Ácido Úrico (mg/dL)</h3>
-          <p class="text-xs text-slate-500 mb-4">Rango de referencia: 3.5 - 7.0 mg/dL</p>
-          <div class="relative h-64 w-full"><canvas id="chartUrico"></canvas></div>
+        <div data-chart-card="renal_metabolites" data-chart-category="funcion_renal" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Metabolitos renales</h3>
+          <div class="relative h-64 w-full"><canvas id="chartRenalMetabolites"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Marcador Prostático: PSA Total y Ratio</h3>
-          <p class="text-xs text-slate-500 mb-4">PSA Total (ng/mL) y Ratio PSA Libre/Total (%)</p>
+        <div data-chart-card="albuminuria" data-chart-category="funcion_renal" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Albuminuria</h3>
+          <div class="relative h-64 w-full"><canvas id="chartAlbuminuria"></canvas></div>
+        </div>
+
+        <div data-chart-card="hepatic_enzymes" data-chart-category="funcion_hepatica" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución de las enzimas hepáticas</h3>
+          <div class="relative h-64 w-full"><canvas id="chartHepaticEnzymes"></canvas></div>
+        </div>
+
+        <div data-chart-card="hepatic_synthesis" data-chart-category="funcion_hepatica" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Bilirrubina y función de síntesis hepática</h3>
+          <div class="relative h-64 w-full"><canvas id="chartHepaticSynthesis"></canvas></div>
+        </div>
+
+        <div data-chart-card="red_series" data-chart-category="hemograma_hierro" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Serie roja</h3>
+          <div class="relative h-64 w-full"><canvas id="chartRedSeries"></canvas></div>
+        </div>
+
+        <div data-chart-card="white_platelets" data-chart-category="hemograma_hierro" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Serie blanca y plaquetas</h3>
+          <div class="relative h-64 w-full"><canvas id="chartWhitePlatelets"></canvas></div>
+        </div>
+
+        <div data-chart-card="iron_metabolism" data-chart-category="hemograma_hierro" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Metabolismo del hierro</h3>
+          <div class="relative h-64 w-full"><canvas id="chartIronMetabolism"></canvas></div>
+        </div>
+
+        <div data-chart-card="psa" data-chart-category="otros_marcadores" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución de marcadores prostáticos</h3>
           <div class="relative h-64 w-full"><canvas id="chartPSA"></canvas></div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <h3 class="text-sm font-bold text-slate-900 mb-1">Perfil Tiroideo: TSH (µUI/mL)</h3>
-          <p class="text-xs text-slate-500 mb-4">Rango eutiroideo: 0.27 - 4.29 µUI/mL</p>
-          <div class="relative h-64 w-full"><canvas id="chartTSH"></canvas></div>
+        <div data-chart-card="bone_metabolism" data-chart-category="otros_marcadores" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Vitamina D y metabolismo óseo</h3>
+          <div class="relative h-64 w-full"><canvas id="chartBoneMetabolism"></canvas></div>
+        </div>
+
+        <div data-chart-card="inflammation" data-chart-category="otros_marcadores" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Marcadores inflamatorios</h3>
+          <div class="relative h-64 w-full"><canvas id="chartInflammation"></canvas></div>
+        </div>
+
+        <div data-chart-card="rheumatology" data-chart-category="otros_marcadores" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Autoinmunidad reumatológica</h3>
+          <div class="relative h-64 w-full"><canvas id="chartRheumatology"></canvas></div>
+        </div>
+
+        <div data-chart-card="vitamins" data-chart-category="otros_marcadores" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Vitaminas y micronutrientes</h3>
+          <div class="relative h-64 w-full"><canvas id="chartVitamins"></canvas></div>
+        </div>
+
+        <div data-chart-card="thyroid_profile" data-chart-category="perfil_tiroideo" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">Evolución del perfil tiroideo</h3>
+          <div class="relative h-64 w-full"><canvas id="chartThyroidProfile"></canvas></div>
+        </div>
+
+        <div data-chart-card="thyroid_totals" data-chart-category="perfil_tiroideo" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-900 mb-1">T4 y T3 totales</h3>
+          <div class="relative h-64 w-full"><canvas id="chartThyroidTotals"></canvas></div>
         </div>
 
       </div>
@@ -1559,7 +1646,7 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho <span id="footer-app-version">v0.9.4</span> • Control de Analíticas Clínicas personal y privado •
+      cac-elrocho <span id="footer-app-version">v0.9.5</span> • Control de Analíticas Clínicas personal y privado •
       <button type="button" onclick="openCreditsModal()" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Diseño del icono</button> •
       <a href="https://github.com/el-rocho/cac-elrocho" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Repositorio GitHub</a>
     </footer>
@@ -1877,6 +1964,20 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=4.0"></script>
+  <dialog id="expandedChartModal" closedby="any" aria-labelledby="expandedChartTitle" class="fixed inset-0 m-auto w-[96vw] max-w-[1400px] h-[88vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+    <div class="h-full flex flex-col">
+      <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-slate-200">
+        <h2 id="expandedChartTitle" class="text-base font-bold text-slate-900"></h2>
+        <button id="closeExpandedChart" type="button" aria-label="Cerrar gráfico ampliado" class="shrink-0 w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 text-xl leading-none">&times;</button>
+      </div>
+      <div id="expandedChartScroll" class="flex-1 overflow-x-auto overflow-y-hidden p-5">
+        <div id="expandedChartCanvasWrap" class="relative h-full min-h-[440px]">
+          <canvas id="expandedChartCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/static/app.js?v=4.1"></script>
 </body>
 </html>

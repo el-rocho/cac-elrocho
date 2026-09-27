@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.9.4`
+# cac-elrocho 🩺 `v0.9.5`
 
 <img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
@@ -23,7 +23,11 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.4`
+## ✨ Novedades de la Versión `v0.9.5`
+* 📈 **Gráficos clínicos ampliados y filtrables**: la pestaña de gráficos incorpora áreas clínicas seleccionables y nuevas series de metabolismo glucídico, perfil lipídico, función renal y hepática, hemograma/hierro, tiroides, inflamación, vitaminas y otros marcadores; cada gráfico se puede ampliar para facilitar su lectura.
+* ❤️ **Colesterol no-HDL con histórico completo**: se reconoce cuando viene expresamente en el informe y, si no existe, se calcula como colesterol total − HDL para mostrarlo de forma coherente en el panel, el histórico y las tendencias cardiovasculares.
+* 📄 **Extracción local RegEx más fiable**: se mejora el reconocimiento de analitos y resultados de informes con maquetación compleja u OCR, incluyendo electrolitos, marcadores tumorales, inflamación, orina y VSG, y se evitan falsos positivos procedentes de intervalos de referencia.
+* ✅ **Cobertura de regresión**: nuevas pruebas verifican el cálculo de no-HDL y los casos críticos de extracción local.
 * 🩹 **Actualización Docker segura**: la aplicación migra automáticamente las columnas nuevas de las bases SQLite existentes, sin borrar ni recrear datos clínicos durante una actualización.
 * 🖼️ **Recursos de marca en Docker**: el logotipo y los demás recursos visuales se incluyen correctamente en la imagen de contenedor.
 * ⚙️ **Configuración de IA con tres niveles**: La aplicación permite definir desde su interfaz los slots principal, de respaldo y de razonamiento, con conmutación automática 1 → 2 → 3. Las claves no se incluyen en la base de datos ni en las copias de seguridad.

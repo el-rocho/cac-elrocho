@@ -267,6 +267,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             if "RATIO_COL_HDL" not in hist_series:
                 hist_series["RATIO_COL_HDL"] = []
             hist_series["RATIO_COL_HDL"].append((inf_d, round(m_loc["CHOLESTEROL_TOTAL"] / m_loc["HDL"], 2)))
+            if "NON_HDL" not in m_loc:
+                hist_series.setdefault("NON_HDL", []).append((inf_d, round(m_loc["CHOLESTEROL_TOTAL"] - m_loc["HDL"], 1)))
 
         # Friedewald para LDL cuando no esté medido directamente
         if "LDL" not in m_loc and "CHOLESTEROL_TOTAL" in m_loc and "HDL" in m_loc and "TRIGLYCERIDES" in m_loc:
@@ -510,6 +512,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     col_t, col_t_date, col_t_hist = get_analyte_meta("CHOLESTEROL_TOTAL", "-")
     ldl, ldl_date, ldl_hist = get_analyte_meta("LDL", "-")
     hdl, hdl_date, hdl_hist = get_analyte_meta("HDL", "-")
+    non_hdl, non_hdl_date, non_hdl_hist = get_analyte_meta("NON_HDL", "-")
     tg, tg_date, tg_hist = get_analyte_meta("TRIGLYCERIDES", "-")
     apob, apob_date, apob_hist = get_analyte_meta("APOB", "-")
     lpa, lpa_date, lpa_hist = get_analyte_meta("LPA", "-")
@@ -523,6 +526,14 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 ldl = str(ldl_calc)
                 ldl_date = col_t_date
                 ldl_hist = col_t_hist
+
+    # El no-HDL se calcula siempre que colesterol total y HDL pertenezcan al mismo informe.
+    if col_t != "-" and hdl != "-" and col_t_date == hdl_date:
+        c_f = parse_num(col_t); h_f = parse_num(hdl)
+        if c_f is not None and h_f is not None and c_f >= h_f:
+            non_hdl = str(round(c_f - h_f, 1))
+            non_hdl_date = col_t_date
+            non_hdl_hist = col_t_hist
 
     # Ratio Col/HDL (Castelli I)
     ratio_col_hdl = "-"
@@ -577,6 +588,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     ldl_num = parse_num(ldl)
     col_num = parse_num(col_t)
     hdl_num = parse_num(hdl)
+    non_hdl_num = parse_num(non_hdl)
     tg_num = parse_num(tg)
     r_col_hdl_num = parse_num(ratio_col_hdl)
     r_ldl_hdl_num = parse_num(ratio_ldl_hdl)
@@ -586,14 +598,15 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     col_alt = check_is_altered("CHOLESTEROL_TOTAL", col_t, fallback_ref="< 200")
     ldl_alt = check_is_altered("LDL", ldl, fallback_ref="< 116")
     hdl_alt = check_is_altered("HDL", hdl, fallback_ref="> 40")
+    non_hdl_alt = check_is_altered("NON_HDL", non_hdl, fallback_ref="< 130")
     tg_alt = check_is_altered("TRIGLYCERIDES", tg, fallback_ref="< 150")
     r_col_hdl_alt = check_is_altered("RATIO_COL_HDL", ratio_col_hdl, fallback_ref="< 5.0")
     r_ldl_hdl_alt = check_is_altered("RATIO_LDL_HDL", ratio_ldl_hdl, fallback_ref="< 3.0")
     apob_alt = check_is_altered("APOB", apob, fallback_ref="< 100")
     lpa_alt = check_is_altered("LPA", lpa, fallback_ref="< 50")
 
-    lipid_atencion = bool((ldl_num and ldl_num >= 160.0) or (col_num and col_num >= 240.0) or (tg_num and tg_num >= 300.0))
-    lipid_seguimiento = bool(col_alt or ldl_alt or hdl_alt or tg_alt or r_col_hdl_alt or r_ldl_hdl_alt or tg_hdl_alt or apob_alt or lpa_alt)
+    lipid_atencion = bool((ldl_num and ldl_num >= 160.0) or (non_hdl_num and non_hdl_num >= 190.0) or (col_num and col_num >= 240.0) or (tg_num and tg_num >= 300.0))
+    lipid_seguimiento = bool(col_alt or ldl_alt or hdl_alt or non_hdl_alt or tg_alt or r_col_hdl_alt or r_ldl_hdl_alt or tg_hdl_alt or apob_alt or lpa_alt)
     lipid_badge, lipid_badge_cls, lipid_tag, lipid_tag_cls = get_clean_badge(lipid_atencion, lipid_seguimiento)
 
     col_v_sym, col_v_delta, col_tr_sym, col_clin_tr = get_analyte_trend_info("CHOLESTEROL_TOTAL", col_t)
@@ -610,6 +623,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
     f, l, c_tr = build_fila("TRIGLYCERIDES", "TG", tg, "mg/dL", tg_alt, 0, es_historico=tg_hist, fecha_origen=tg_date, es_principal=False, tipo_parametro="secundario")
     lip_filas.append(f); lip_subtitles.append(l); lip_evals["TRIGLYCERIDES"] = c_tr
+    f, l, c_tr = build_fila("NON_HDL", "Colesterol no-HDL", non_hdl, "mg/dL", non_hdl_alt, 0, es_historico=non_hdl_hist, fecha_origen=non_hdl_date, es_principal=False, tipo_parametro="secundario")
+    lip_filas.append(f); lip_subtitles.append(l); lip_evals["NON_HDL"] = c_tr
 
     f, l, c_tr = build_fila("RATIO_COL_HDL", "Col/HDL", ratio_col_hdl, "", r_col_hdl_alt, 2, es_historico=ratio_col_hdl_hist, fecha_origen=ratio_col_hdl_date, es_principal=True, tipo_parametro="principal")
     lip_filas.append(f); lip_subtitles.append(l); lip_evals["RATIO_COL_HDL"] = c_tr
@@ -620,9 +635,8 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     f, l, c_tr = build_fila("RATIO_TG_HDL", "TG/HDL", ratio_tg_hdl, "", tg_hdl_alt, 2, es_historico=ratio_tg_hdl_hist, fecha_origen=ratio_tg_hdl_date, es_principal=False, tipo_parametro="secundario")
     lip_filas.append(f); lip_subtitles.append(l); lip_evals["RATIO_TG_HDL"] = c_tr
 
-    if apob != "-":
-        f, l, c_tr = build_fila("APOB", "ApoB", apob, "mg/dL", apob_alt, 0, es_historico=apob_hist, fecha_origen=apob_date, es_principal=True, tipo_parametro="principal")
-        lip_filas.append(f); lip_subtitles.append(l); lip_evals["APOB"] = c_tr
+    f, l, c_tr = build_fila("APOB", "ApoB", apob, "mg/dL", apob_alt, 0, es_historico=apob_hist, fecha_origen=apob_date, es_principal=False, tipo_parametro="secundario")
+    lip_filas.append(f); lip_subtitles.append(l); lip_evals["APOB"] = c_tr
     if lpa != "-":
         f, l, c_tr = build_fila("LPA", "Lp(a)", lpa, "mg/dL", lpa_alt, 0, es_historico=lpa_hist, fecha_origen=lpa_date, es_principal=False, tipo_parametro="secundario")
         lip_filas.append(f); lip_subtitles.append(l); lip_evals["LPA"] = c_tr
@@ -1386,6 +1400,9 @@ def get_tables(db: Session = Depends(get_db)):
     
     bio_rows = []
     for a in analitos:
+        # Se añade más abajo para combinar el dato guardado con el histórico derivado.
+        if a.codigo == "NON_HDL":
+            continue
         meds = db.query(Medicion).filter_by(analito_id=a.id).all()
         if not meds:
             continue
@@ -1432,6 +1449,54 @@ def get_tables(db: Session = Depends(get_db)):
             avg=avg_recent,
             group=get_analito_group(a.codigo)
         ))
+
+    # Mostrar no-HDL también para controles históricos previos a su incorporación
+    # en la base de datos: se deriva de colesterol total y HDL del mismo informe.
+    def _values_for_code(code: str) -> Dict[int, float]:
+        analyte = next((a for a in analitos if a.codigo == code), None)
+        if not analyte:
+            return {}
+        return {
+            m.informe_id: float(m.valor_numerico)
+            for m in db.query(Medicion).filter_by(analito_id=analyte.id).all()
+            if m.valor_numerico is not None
+        }
+
+    total_by_inf = _values_for_code("CHOLESTEROL_TOTAL")
+    hdl_by_inf = _values_for_code("HDL")
+    saved_non_hdl_by_inf = _values_for_code("NON_HDL")
+    non_hdl_vals = []
+    non_hdl_cells = []
+    for inf_id in informe_ids:
+        total, hdl_value = total_by_inf.get(inf_id), hdl_by_inf.get(inf_id)
+        value = saved_non_hdl_by_inf.get(inf_id)
+        if value is None and total is not None and hdl_value is not None and total >= hdl_value:
+            value = round(total - hdl_value, 1)
+        if value is not None:
+            is_alt = value > 130.0
+            non_hdl_vals.append(value)
+            non_hdl_cells.append(TableCell(val=value, ref="< 130 mg/dL", status="Alto" if is_alt else "Normal", is_altered=is_alt))
+        else:
+            non_hdl_vals.append(None)
+            non_hdl_cells.append(TableCell(val=None, ref="", status="Normal", is_altered=False))
+    recent_non_hdl = [non_hdl_vals[i] for i in recent_indices if non_hdl_vals[i] is not None]
+    if any(value is not None for value in non_hdl_vals):
+        non_hdl_row = TableRow(
+            name="Colesterol no-HDL",
+            unit="mg/dL",
+            ref="< 130 mg/dL",
+            vals=non_hdl_vals,
+            cells=non_hdl_cells,
+            recentAvg=f"{sum(recent_non_hdl) / len(recent_non_hdl):.1f}" if recent_non_hdl else "-",
+            avg=f"{sum(recent_non_hdl) / len(recent_non_hdl):.1f}" if recent_non_hdl else "-",
+            group=get_analito_group("NON_HDL")
+        )
+        # Mantener el marcador derivado junto a sus componentes, tras los TG.
+        tg_idx = next((idx for idx, row in enumerate(bio_rows) if row.name == "Triglicéridos"), None)
+        if tg_idx is None:
+            bio_rows.append(non_hdl_row)
+        else:
+            bio_rows.insert(tg_idx + 1, non_hdl_row)
 
     # Si eGFR no vino explícito del laboratorio en ninguna analítica, generar la fila calculada
     if not any(r.name in ["Filtrado Glomerular (eGFR)", "eGFR"] for r in bio_rows):
@@ -1524,7 +1589,7 @@ def get_tables(db: Session = Depends(get_db)):
 @router.get("/charts", response_model=ChartsResponse)
 def get_charts_data(db: Session = Depends(get_db)):
     """
-    Devuelve los datasets para Chart.js configurados para los 8 gráficos visuales.
+    Devuelve los datasets para Chart.js configurados para los gráficos evolutivos.
     """
     informes = db.query(Informe).order_by(Informe.fecha.asc()).all()
     dates = [inf.etiqueta_corta for inf in informes]
@@ -1542,17 +1607,76 @@ def get_charts_data(db: Session = Depends(get_db)):
                 med_map[m.informe_id] = m.valor_numerico
         return [med_map.get(i_id, None) for i_id in informe_ids]
 
+    def get_series_with_units(*codigos: str):
+        """Valores y unidades por informe, para cálculos que dependen de ellas."""
+        analitos = db.query(Analito).filter(Analito.codigo.in_(codigos)).all()
+        if not analitos:
+            return [(None, None)] * len(informe_ids)
+        a_ids = [a.id for a in analitos]
+        meds = db.query(Medicion).filter(Medicion.analito_id.in_(a_ids)).all()
+        med_map = {}
+        for m in meds:
+            if m.valor_numerico is not None:
+                med_map[m.informe_id] = (m.valor_numerico, m.unidad)
+        return [med_map.get(i_id, (None, None)) for i_id in informe_ids]
+
+    def normalized_unit(unit: Optional[str]) -> str:
+        return (unit or "").lower().replace(" ", "").replace("µ", "u")
     glucosa_vals = get_series("GLUCOSE", "GLUCOSA")
+    glucosa_with_units = get_series_with_units("GLUCOSE", "GLUCOSA")
+    hba1c_vals = get_series("HBA1C")
+    insulina_vals = get_series("INSULINA", "INSULIN")
+    insulina_with_units = get_series_with_units("INSULINA", "INSULIN")
     col_t_vals = get_series("CHOLESTEROL_TOTAL", "COLESTEROL_TOTAL", "COLESTEROL")
     hdl_vals = get_series("HDL", "HDL_COLESTEROL")
+    raw_non_hdl = get_series("NON_HDL")
+    non_hdl_vals = [
+        raw_non_hdl[idx] if raw_non_hdl[idx] is not None else (
+            round(col_t_vals[idx] - hdl_vals[idx], 1)
+            if col_t_vals[idx] is not None and hdl_vals[idx] is not None and col_t_vals[idx] >= hdl_vals[idx]
+            else None
+        )
+        for idx in range(len(informe_ids))
+    ]
     ldl_vals = get_series("LDL", "LDL_COLESTEROL")
     tg_vals = get_series("TRIGLYCERIDES", "TRIGLICERIDOS")
+    apob_vals = get_series("APOB", "APO_B")
     urea_vals = get_series("UREA")
     creat_vals = get_series("CREATININE", "CREATININA")
+    raw_egfr_vals = get_series("EGFR", "EGFR_CKD_EPI")
     urico_vals = get_series("URIC_ACID", "ACIDO_URICO")
+    uacr_vals = get_series("UACR", "ACR", "ALBUMINURIA")
+    alt_vals = get_series("GPT_ALT", "GPT", "ALT")
+    ast_vals = get_series("GOT_AST", "GOT", "AST")
+    ggt_vals = get_series("GGT")
+    alkaline_phosphatase_vals = get_series("FOSFATASA_ALCALINA", "FA")
+    bilirubin_vals = get_series("BILIRRUBINA_TOTAL")
+    albumin_vals = get_series("ALBUMINA", "ALBUMINA_SERICA")
+    inr_vals = get_series("INR")
+    hemoglobin_vals = get_series("HEMOGLOBINA")
+    hematocrit_vals = get_series("HEMATOCRITO")
+    mcv_vals = get_series("VCM")
+    leukocytes_vals = get_series("LEUCOCITOS")
+    platelets_vals = get_series("PLAQUETAS")
+    ferritin_vals = get_series("FERRITINA")
+    iron_vals = get_series("HIERRO")
     psa_t_vals = get_series("PSA_TOTAL", "PSA")
     psa_free_vals = get_series("PSA_FREE", "PSA_LIBRE")
     tsh_vals = get_series("TSH")
+    # Códigos explícitos: nunca se mezclan las hormonas totales con las fracciones libres.
+    t4_free_vals = get_series("T4_LIBRE")
+    t3_free_vals = get_series("T3_LIBRE")
+    t4_total_vals = get_series("T4_TOTAL")
+    t3_total_vals = get_series("T3_TOTAL")
+    vitamin_d_vals = get_series("VITAMIN_D")
+    calcium_vals = get_series("CALCIO_TOTAL")
+    pth_vals = get_series("PTH_INTACTA")
+    pcr_vals = get_series("PROTEINA_C_REACTIVA")
+    vsg_vals = get_series("VSG_1H")
+    rheumatoid_factor_vals = get_series("FACTOR_REUMATOIDE")
+    anti_ccp_vals = get_series("ANTI_CCP")
+    vitamin_b12_vals = get_series("VITAMINA_B12")
+    folate_vals = get_series("ACIDO_FOLICO")
 
     # Ratios con fallback calculado dinámicamente si no estaban guardados en BD
     raw_castelli1 = get_series("RATIO_COL_HDL", "COCIENTE_COL_HDL")
@@ -1571,13 +1695,46 @@ def get_charts_data(db: Session = Depends(get_db)):
             val = round(ldl_vals[idx] / hdl_vals[idx], 2)
         castelli2_vals.append(val)
 
+    tg_with_units = get_series_with_units("TRIGLYCERIDES", "TRIGLICERIDOS")
+    hdl_with_units = get_series_with_units("HDL", "HDL_COLESTEROL")
     raw_tg_hdl = get_series("RATIO_TG_HDL", "COCIENTE_TG_HDL")
     tg_hdl_vals = []
     for idx, i_id in enumerate(informe_ids):
-        val = raw_tg_hdl[idx]
-        if val is None and tg_vals[idx] is not None and hdl_vals[idx] and hdl_vals[idx] > 0:
-            val = round(tg_vals[idx] / hdl_vals[idx], 2)
+        tg_value, tg_unit = tg_with_units[idx]
+        hdl_value, hdl_unit = hdl_with_units[idx]
+        # El cociente solo es interpretable si ambas determinaciones comparten unidad.
+        same_unit = bool(tg_unit and hdl_unit and normalized_unit(tg_unit) == normalized_unit(hdl_unit))
+        val = raw_tg_hdl[idx] if same_unit else None
+        if val is None and same_unit and tg_value is not None and hdl_value and hdl_value > 0:
+            val = round(tg_value / hdl_value, 2)
         tg_hdl_vals.append(val)
+
+    homa_vals = []
+    for idx in range(len(informe_ids)):
+        # HOMA-IR = glucosa (mg/dL) × insulina (µUI/mL) / 405.
+        glucose_value, glucose_unit = glucosa_with_units[idx]
+        insulin_value, insulin_unit = insulina_with_units[idx]
+        valid_glucose = normalized_unit(glucose_unit) == "mg/dl"
+        valid_insulin = normalized_unit(insulin_unit) in {"uui/ml", "mui/l", "uiu/ml"}
+        val = None
+        if glucose_value is not None and insulin_value is not None and valid_glucose and valid_insulin:
+            val = round((glucose_value * insulin_value) / 405, 2)
+        homa_vals.append(val)
+
+    # eGFR informado por el laboratorio o calculado con CKD-EPI 2021 desde creatinina.
+    paciente = db.query(Paciente).first()
+    birth_date = parse_date_safe(paciente.fecha_nacimiento) if paciente and paciente.fecha_nacimiento else None
+    sex = paciente.sexo if paciente else "Masculino"
+    egfr_vals = []
+    for idx, informe in enumerate(informes):
+        value = raw_egfr_vals[idx]
+        if value is None and creat_vals[idx] is not None:
+            report_date = parse_date_safe(informe.fecha)
+            age = None
+            if birth_date and report_date:
+                age = report_date.year - birth_date.year - ((report_date.month, report_date.day) < (birth_date.month, birth_date.day))
+            value = calcular_egfr(creat_vals[idx], age, sex)
+        egfr_vals.append(value)
 
     raw_psa_ratio = get_series("RATIO_PSA_L_T", "RATIO_PSA")
     psa_ratio_vals = []
@@ -1604,23 +1761,39 @@ def get_charts_data(db: Session = Depends(get_db)):
                     borderWidth=2.5,
                     fill=True,
                     yAxisID="y"
+                ),
+                ChartDataset(
+                    label="HbA1c (%)",
+                    data=hba1c_vals,
+                    borderColor="#db2777",
+                    backgroundColor="rgba(219, 39, 119, 0.1)",
+                    borderWidth=2.5,
+                    yAxisID="y1"
                 )
+            ]
+        ),
+        insulina_homa=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Insulina basal (µUI/mL)", data=insulina_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Índice HOMA-IR", data=homa_vals, borderColor="#ea580c", borderWidth=2.5, yAxisID="y1")
             ]
         ),
         lipidos=ChartConfig(
             labels=dates,
             datasets=[
                 ChartDataset(label="Colesterol Total", data=col_t_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y"),
-                ChartDataset(label="LDL-Colesterol", data=ldl_vals, borderColor="#f59e0b", borderWidth=2.5, yAxisID="y"),
-                ChartDataset(label="HDL-Colesterol", data=hdl_vals, borderColor="#10b981", borderWidth=2.0, yAxisID="y"),
+                ChartDataset(label="LDL", data=ldl_vals, borderColor="#f59e0b", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="No HDL", data=non_hdl_vals, borderColor="#ef4444", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="HDL", data=hdl_vals, borderColor="#10b981", borderWidth=2.0, yAxisID="y"),
                 ChartDataset(label="Triglicéridos", data=tg_vals, borderColor="#8b5cf6", borderWidth=1.5, yAxisID="y")
             ]
         ),
         castelli=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Castelli I: Col.T / HDL (Ref < 5.0)", data=castelli1_vals, borderColor="#8b5cf6", backgroundColor="rgba(139, 92, 246, 0.1)", borderWidth=2.5, yAxisID="y"),
-                ChartDataset(label="Castelli II: LDL / HDL (Ref < 4.3)", data=castelli2_vals, borderColor="#ec4899", backgroundColor="rgba(236, 72, 153, 0.1)", borderWidth=2.5, yAxisID="y")
+                ChartDataset(label="Colesterol Total / HDL", data=castelli1_vals, borderColor="#8b5cf6", backgroundColor="rgba(139, 92, 246, 0.1)", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="LDL / HDL", data=castelli2_vals, borderColor="#ec4899", backgroundColor="rgba(236, 72, 153, 0.1)", borderWidth=2.5, yAxisID="y")
             ]
         ),
         ratios_tg=ChartConfig(
@@ -1637,11 +1810,114 @@ def get_charts_data(db: Session = Depends(get_db)):
                 )
             ]
         ),
+        apob_non_hdl=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Apolipoproteína B (mg/dL)", data=apob_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Colesterol no-HDL (mg/dL)", data=non_hdl_vals, borderColor="#ef4444", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
         renal=ChartConfig(
             labels=dates,
             datasets=[
-                ChartDataset(label="Urea (mg/dL)", data=urea_vals, borderColor="#3b82f6", borderWidth=2.0, yAxisID="y"),
-                ChartDataset(label="Creatinina (mg/dL)", data=creat_vals, borderColor="#8b5cf6", borderWidth=2.0, yAxisID="y1")
+                ChartDataset(label="Creatinina sérica (mg/dL)", data=creat_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Filtrado glomerular estimado (mL/min/1.73 m²)", data=egfr_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        renal_metabolites=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Urea (mg/dL)", data=urea_vals, borderColor="#3b82f6", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Ácido úrico (mg/dL)", data=urico_vals, borderColor="#059669", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        albuminuria=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="ACR (mg/g)", data=uacr_vals, borderColor="#0f766e", backgroundColor="rgba(15, 118, 110, 0.1)", borderWidth=2.5, fill=True, yAxisID="y")
+            ]
+        ),
+        hepatic_enzymes=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="GPT / ALT (U/L)", data=alt_vals, borderColor="#ea580c", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="GOT / AST (U/L)", data=ast_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="GGT (U/L)", data=ggt_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Fosfatasa alcalina (U/L)", data=alkaline_phosphatase_vals, borderColor="#059669", borderWidth=2.5, yAxisID="y")
+            ]
+        ),
+        hepatic_synthesis=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Bilirrubina total (mg/dL)", data=bilirubin_vals, borderColor="#d97706", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Albúmina (g/dL)", data=albumin_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y1"),
+                ChartDataset(label="INR", data=inr_vals, borderColor="#9333ea", borderWidth=2.5, yAxisID="y2")
+            ]
+        ),
+        red_series=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Hemoglobina (g/dL)", data=hemoglobin_vals, borderColor="#dc2626", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Hematocrito (%)", data=hematocrit_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y1"),
+                ChartDataset(label="VCM (fL)", data=mcv_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y2")
+            ]
+        ),
+        white_platelets=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Leucocitos (×10³/µL)", data=leukocytes_vals, borderColor="#0891b2", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Plaquetas (×10³/µL)", data=platelets_vals, borderColor="#ea580c", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        iron_metabolism=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Ferritina (ng/mL)", data=ferritin_vals, borderColor="#b45309", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Hierro sérico (µg/dL)", data=iron_vals, borderColor="#475569", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        thyroid_profile=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="TSH (µUI/mL)", data=tsh_vals, borderColor="#0284c7", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="T4 libre (ng/dL)", data=t4_free_vals, borderColor="#db2777", borderWidth=2.5, yAxisID="y1"),
+                ChartDataset(label="T3 libre (pg/mL)", data=t3_free_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y2")
+            ]
+        ),
+        thyroid_totals=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="T4 total (µg/dL)", data=t4_total_vals, borderColor="#ea580c", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="T3 total (ng/mL)", data=t3_total_vals, borderColor="#059669", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        bone_metabolism=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="25-OH Vitamina D (ng/mL)", data=vitamin_d_vals, borderColor="#d97706", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Calcio total (mg/dL)", data=calcium_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y1"),
+                ChartDataset(label="PTH intacta (pg/mL)", data=pth_vals, borderColor="#7c3aed", borderWidth=2.5, yAxisID="y2")
+            ]
+        ),
+        inflammation=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Proteína C reactiva (mg/dL)", data=pcr_vals, borderColor="#2563eb", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="VSG 1ª hora (mm)", data=vsg_vals, borderColor="#ea580c", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        rheumatology=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Factor reumatoide (UI/mL)", data=rheumatoid_factor_vals, borderColor="#0891b2", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Anti-CCP (UI/mL)", data=anti_ccp_vals, borderColor="#9333ea", borderWidth=2.5, yAxisID="y1")
+            ]
+        ),
+        vitamins=ChartConfig(
+            labels=dates,
+            datasets=[
+                ChartDataset(label="Vitamina B12 (pg/mL)", data=vitamin_b12_vals, borderColor="#be123c", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Ácido fólico (ng/mL)", data=folate_vals, borderColor="#16a34a", borderWidth=2.5, yAxisID="y1")
             ]
         ),
         urico=ChartConfig(
@@ -1654,7 +1930,8 @@ def get_charts_data(db: Session = Depends(get_db)):
             labels=dates,
             datasets=[
                 ChartDataset(label="PSA Total (ng/mL)", data=psa_t_vals, borderColor="#8b5cf6", borderWidth=2.5, yAxisID="y"),
-                ChartDataset(label="Ratio PSA L/T (%)", data=psa_ratio_vals, borderColor="#10b981", borderWidth=2.0, yAxisID="y1")
+                ChartDataset(label="PSA Libre (ng/mL)", data=psa_free_vals, borderColor="#0284c7", borderWidth=2.5, yAxisID="y"),
+                ChartDataset(label="Ratio PSA L/T (%)", data=psa_ratio_vals, borderColor="#10b981", borderWidth=2.5, yAxisID="y1")
             ]
         ),
         tsh=ChartConfig(
@@ -1746,7 +2023,7 @@ def get_informe_detail(informe_id: int, db: Session = Depends(get_db)):
     )
 
     ratio_codes = {
-        "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL",
+        "NON_HDL", "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL",
         "RATIO_LDL_COL", "RATIO_HDL_COL", "RATIO_TG_COL", "RATIO_PSA_L_T"
     }
 
@@ -1810,7 +2087,7 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
     analitos_procesados = {}
 
     ratio_codes = {
-        "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL",
+        "NON_HDL", "RATIO_COL_HDL", "RATIO_LDL_HDL", "RATIO_TG_HDL",
         "RATIO_LDL_COL", "RATIO_HDL_COL", "RATIO_TG_COL", "RATIO_PSA_L_T"
     }
 
@@ -1880,6 +2157,7 @@ def update_informe(informe_id: int, req: InformeUpdateRequest, db: Session = Dep
     # 4. Recalcular ratios automáticos derivados y guardarlos
     ratios_calc = calculate_ratios(mediciones_dict)
     ratio_names = {
+        "NON_HDL": ("Colesterol no-HDL", "mg/dL", "< 130 mg/dL"),
         "RATIO_COL_HDL": ("Colesterol Total / HDL (Castelli I)", "ratio", "< 5.0"),
         "RATIO_LDL_HDL": ("LDL / HDL (Castelli II)", "ratio", "< 4.3"),
         "RATIO_TG_HDL": ("Triglicéridos / HDL", "ratio", "< 2.0"),

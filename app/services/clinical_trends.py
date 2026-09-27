@@ -94,6 +94,15 @@ ANALITO_CONFIG: Dict[str, Dict[str, Any]] = {
         "unit": "mg/dL",
         "decimals": 0
     },
+    "NON_HDL": {
+        "var_threshold": 8.0,
+        "slope_threshold": 6.0,
+        "direction": DIR_LOWER_IS_BETTER,
+        "opt_min": 50.0,
+        "opt_max": 130.0,
+        "unit": "mg/dL",
+        "decimals": 0
+    },
     "TRIGLYCERIDES": {
         "var_threshold": 15.0,
         "slope_threshold": 12.0,
@@ -570,8 +579,8 @@ CARD_CONFIG: Dict[str, Dict[str, List[str]]] = {
         "secondary": ["RATIO_TG_HDL", "INSULINA", "HOMA_IR"]
     },
     "perfil_lipidico": {
-        "primary": ["CHOLESTEROL_TOTAL", "LDL", "APOB", "RATIO_COL_HDL"],
-        "secondary": ["HDL", "TRIGLYCERIDES", "RATIO_LDL_HDL", "RATIO_TG_HDL", "LPA"]
+        "primary": ["CHOLESTEROL_TOTAL", "LDL", "RATIO_COL_HDL"],
+        "secondary": ["NON_HDL", "APOB", "HDL", "TRIGLYCERIDES", "RATIO_LDL_HDL", "RATIO_TG_HDL", "LPA"]
     },
     "funcion_renal": {
         "primary": ["CREATININE", "EGFR"],

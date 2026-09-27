@@ -119,10 +119,25 @@ class ChartConfig(BaseModel):
 
 class ChartsResponse(BaseModel):
     glucosa: ChartConfig
+    insulina_homa: ChartConfig
     lipidos: ChartConfig
     castelli: ChartConfig
     ratios_tg: ChartConfig
+    apob_non_hdl: ChartConfig
     renal: ChartConfig
+    renal_metabolites: ChartConfig
+    albuminuria: ChartConfig
+    hepatic_enzymes: ChartConfig
+    hepatic_synthesis: ChartConfig
+    red_series: ChartConfig
+    white_platelets: ChartConfig
+    iron_metabolism: ChartConfig
+    thyroid_profile: ChartConfig
+    thyroid_totals: ChartConfig
+    bone_metabolism: ChartConfig
+    inflammation: ChartConfig
+    rheumatology: ChartConfig
+    vitamins: ChartConfig
     urico: ChartConfig
     psa: ChartConfig
     tsh: ChartConfig
