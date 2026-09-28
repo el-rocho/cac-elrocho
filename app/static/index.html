@@ -132,9 +132,14 @@
             </span>
           </div>
         </div>
-        <button onclick="openUploadModal()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all flex items-center gap-1.5 shrink-0">
-          <span>➕</span> Subir nueva analítica PDF
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="openCsvUploadModal()" class="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all flex items-center gap-1.5">
+            <span>📊</span> Subir archivo CSV
+          </button>
+          <button onclick="openUploadModal()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-xs font-bold shadow-sm hover:shadow transition-all flex items-center gap-1.5">
+            <span>➕</span> Subir Analítica PDF
+          </button>
+        </div>
       </div>
 
       <!-- FILA 2: Nombre del Usuario -->
@@ -1646,7 +1651,7 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho <span id="footer-app-version">v0.9.5</span> • Control de Analíticas Clínicas personal y privado •
+      cac-elrocho <span id="footer-app-version">v0.9.6</span> • Control de Analíticas Clínicas personal y privado •
       <button type="button" onclick="openCreditsModal()" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Diseño del icono</button> •
       <a href="https://github.com/el-rocho/cac-elrocho" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Repositorio GitHub</a>
     </footer>
@@ -1722,6 +1727,377 @@
       </div>
     </div>
   </dialog>
+
+  <!-- IMPORTACIÓN DEL HISTORIAL EN FORMATO TABULAR CSV -->
+  <div id="csvUploadModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-100 space-y-5">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-4"><div><h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2"><span>📊</span> Importar historial desde CSV</h2><p class="text-xs text-slate-500 mt-1">Para adaptar su archivo(s) de hoja de datos al formato requerido, utilice <button id="copyCsvPromptButton" type="button" onclick="copyCsvTransformationPrompt()" class="font-bold text-emerald-700 underline decoration-emerald-400 underline-offset-2 hover:text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded" title="Copiar el prompt al portapapeles">este prompt</button> en cualquier IA.</p></div><button onclick="closeCsvUploadModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">&times;</button></div>
+      <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 space-y-2"><p class="font-bold">Formato requerido (separado por <code>;</code> o <code>,</code>):</p><p>Una columna por analítica; las filas son los parámetros del historial.</p><code class="block overflow-x-auto rounded-lg bg-white/80 p-2 text-[11px]">Parámetro;Unidad;Referencia;2025-01-10;2026-02-15<br>Glucosa;mg/dL;70 - 100;91;104<br>Colesterol Total;mg/dL;&lt; 200;180;205</code><p>Las fechas pueden ser <strong>AAAA-MM-DD</strong>, <strong>DD/MM/AAAA</strong> o <strong>DD/MM/AA</strong>. Las celdas vacías no se importan.</p></div>
+      <textarea id="csvTransformationPrompt" class="hidden" aria-hidden="true">Tu tarea es extraer y consolidar la información de uno o varios archivos adjuntos que contienen resultados de analíticas clínicas y convertirla en un único archivo CSV compatible con la aplicación **“Control de Analíticas Clínicas”**.
+
+Los documentos de entrada pueden proceder de distintos laboratorios y estar en formatos de hoja de datos diferentes: .xlxs, .xls, .odf, etc.
+
+## SALIDA OBLIGATORIA
+
+Devuelve un único archivo CSV para descargar
+
+Si no tienes la funcionalidad de generar un archivo para descarga devuelve **exclusivamente el contenido del CSV**.
+
+No incluyas:
+
+- explicaciones;
+- comentarios;
+- introducciones;
+- conclusiones;
+- Markdown;
+- bloques de código;
+- texto antes o después del CSV.
+
+El archivo debe utilizar:
+
+- **Codificación:** UTF-8.
+- **Separador de columnas:** punto y coma (`;`).
+- **Una línea por parámetro analítico.**
+- **Una columna por fecha de analítica.**
+
+La primera línea debe tener exactamente esta estructura:
+
+Parámetro;Unidad;Referencia;AAAA-MM-DD;AAAA-MM-DD;...
+
+Las tres primeras columnas deben llamarse exactamente:
+
+Parámetro;Unidad;Referencia
+
+Cada columna posterior debe corresponder a una analítica y utilizar como encabezado la **fecha de extracción o realización de la analítica**, expresada obligatoriamente como:
+
+AAAA-MM-DD
+
+Ejemplo:
+
+Parámetro;Unidad;Referencia;2025-01-10;2026-02-15
+
+## IDENTIFICACIÓN DE LAS ANALÍTICAS
+
+Considera como una analítica única el conjunto de resultados pertenecientes a la misma extracción, aunque:
+
+- ocupe varias páginas;
+- esté dividido en distintas secciones;
+- contenga hematología, bioquímica, hormonas, orina u otros apartados;
+- la fecha se repita en cada página.
+
+Utiliza como fecha de la analítica la **fecha de extracción, toma de muestra o realización del análisis**, según figure en el documento.
+
+No utilices como fecha de la analítica la fecha de:
+
+- emisión del informe;
+- impresión;
+- validación;
+- firma;
+- descarga;
+- recepción del documento,
+
+salvo que sea claramente la única fecha que identifica la realización de la analítica.
+
+Si existen varias analíticas con fechas diferentes, crea una columna para cada fecha.
+
+Ordena las columnas de fechas **cronológicamente, de la más antigua a la más reciente**.
+
+Si varios archivos corresponden a la misma fecha y forman parte de la misma analítica, consolida sus resultados en una sola columna.
+
+## EXTRACCIÓN DE PARÁMETROS
+
+Extrae todos los parámetros que representen resultados clínicos reales.
+
+Para cada determinación identifica, cuando estén disponibles:
+
+1. Nombre del parámetro.
+2. Resultado.
+3. Unidad.
+4. Intervalo, límite o criterio de referencia.
+
+Cada parámetro debe aparecer una sola vez en el CSV, salvo que realmente represente determinaciones diferentes.
+
+Por ejemplo, deben mantenerse separadas determinaciones como:
+
+- Hemoglobina A1c (NGSP)
+- Hemoglobina A1c (IFCC)
+
+o:
+
+- Linfocitos %
+- Linfocitos absolutos
+
+si el informe proporciona ambos resultados como magnitudes diferentes.
+
+No confundas encabezados, secciones, métodos analíticos o comentarios con parámetros clínicos.
+
+No crees filas para textos como:
+
+- HEMATOLOGÍA
+- BIOQUÍMICA
+- PERFIL LIPÍDICO
+- Validado por
+- Método
+- Observaciones
+- Página 1 de 4
+
+salvo que contengan por sí mismos un resultado analítico.
+
+## CONSOLIDACIÓN ENTRE ANALÍTICAS
+
+Cuando el mismo parámetro aparezca en varias analíticas, utiliza **una única fila** y coloca cada resultado en la columna correspondiente a su fecha.
+
+Ejemplo:
+
+Parámetro;Unidad;Referencia;2025-01-10;2026-02-15
+Glucosa;mg/dL;70 - 100;91;104
+
+Si un parámetro no aparece en una determinada analítica, deja esa celda vacía.
+
+Ejemplo:
+
+Vitamina D;ng/mL;30 - 100;;34
+
+No escribas:
+
+- N/A
+- ND
+- No disponible
+- 0
+
+para representar datos ausentes.
+
+La ausencia de un resultado debe representarse exclusivamente mediante una **celda vacía**.
+
+## NOMBRES DE LOS PARÁMETROS
+
+Conserva, siempre que sea posible, el nombre utilizado por el laboratorio.
+
+Puedes corregir únicamente errores evidentes producidos por OCR o extracción de texto, por ejemplo caracteres rotos o símbolos mal reconocidos.
+
+No cambies deliberadamente nombres por equivalentes clínicos ni sustituyas la terminología del laboratorio por otra diferente.
+
+Sin embargo, al consolidar varias analíticas, considera equivalentes pequeñas variaciones puramente tipográficas del mismo parámetro, por ejemplo:
+
+- Colesterol total
+- Colesterol Total
+
+No combines parámetros si existe una duda razonable de que representen determinaciones diferentes.
+
+## RESULTADOS
+
+Conserva el resultado analítico sin reinterpretarlo.
+
+Mantén resultados:
+
+- numéricos;
+- textuales;
+- cualitativos;
+- semicuantitativos;
+- precedidos por operadores matemáticos.
+
+Ejemplos válidos:
+
+91
+5.7
+<0.05
+> 200
+Negativo
+Positivo
+Trazas
+No reactivo
+
+No conviertas un resultado como `<0.05` en `0.05`.
+
+No conviertas “Negativo” en `0`.
+
+No calcules resultados que no aparezcan explícitamente en el informe.
+
+No calcules, por ejemplo:
+
+- LDL mediante fórmulas;
+- filtrado glomerular;
+- colesterol no-HDL;
+- cocientes;
+- índices;
+- valores medios.
+
+Solo incluye esos parámetros si el propio informe proporciona el resultado.
+
+## UNIDADES
+
+Conserva la unidad indicada por el laboratorio.
+
+Ejemplos:
+
+mg/dL
+g/dL
+mmol/L
+µg/dL
+ng/mL
+mEq/L
+%
+10³/µL
+mL/min/1,73 m²
+
+Corrige únicamente errores inequívocos de OCR que afecten a la representación de la unidad.
+
+No conviertas automáticamente unas unidades en otras.
+
+Si un mismo parámetro aparece en diferentes analíticas utilizando **unidades distintas**, no mezcles los valores como si fueran directamente equivalentes.
+
+En ese caso crea filas independientes que permitan conservar correctamente cada unidad.
+
+## VALORES DE REFERENCIA
+
+Incluye en la columna `Referencia` el intervalo, límite o criterio de referencia proporcionado por el laboratorio.
+
+Ejemplos:
+
+70 - 100
+< 200
+> 40
+> 0.70 - 1.20
+> Negativo
+> 30 - 80
+
+No inventes rangos de referencia basándote en conocimiento médico externo.
+
+Si el informe no proporciona referencia para un parámetro, deja la celda `Referencia` vacía.
+
+Cuando exista un intervalo sencillo, conserva ese intervalo.
+
+Cuando existan varios criterios de referencia clínicos asociados a un mismo parámetro, conserva la información relevante de forma compacta siempre que pueda expresarse dentro de una sola celda.
+
+Si el mismo parámetro y unidad tienen rangos de referencia diferentes entre distintas analíticas, utiliza como referencia preferente la correspondiente a la **analítica más reciente**, ya que el formato CSV solo dispone de una columna `Referencia`.
+
+No modifiques por ello los resultados históricos.
+
+## NÚMEROS Y DECIMALES
+
+No alteres el valor clínico del resultado.
+
+Mantén todos los decimales significativos proporcionados por el laboratorio.
+
+No redondees.
+
+No añadas decimales inexistentes.
+
+Cuando sea necesario normalizar el separador decimal para mantener un CSV homogéneo, utiliza **punto decimal (`.`)**.
+
+Ejemplos:
+
+5.7
+96.7
+0.88
+<0.05
+
+Nunca utilices separadores de miles.
+
+## CARACTERES ESPECIALES Y CSV
+
+El separador entre columnas debe ser siempre `;`.
+
+Si el contenido de una celda contiene un punto y coma, una comilla doble o un salto de línea, aplica las reglas estándar de CSV:
+
+- encierra la celda entre comillas dobles;
+- representa una comilla doble interna mediante dos comillas dobles consecutivas.
+
+Evita saltos de línea dentro de las celdas siempre que sea posible.
+
+Cada parámetro debe ocupar exactamente una línea del CSV.
+
+## DATOS QUE DEBEN EXCLUIRSE
+
+No incluyas ningún dato personal o administrativo.
+
+Excluye siempre:
+
+- nombre y apellidos;
+- DNI, NIE o pasaporte;
+- número de historia clínica;
+- número de análisis;
+- fecha de nacimiento;
+- edad;
+- sexo cuando aparezca únicamente como dato identificativo;
+- dirección;
+- teléfono;
+- correo electrónico;
+- aseguradora;
+- médico;
+- centro sanitario;
+- laboratorio;
+- número de colegiado;
+- firmas;
+- códigos de barras;
+- identificadores internos;
+- información de facturación.
+
+Tampoco incluyas:
+
+- comentarios administrativos;
+- textos legales;
+- notas de privacidad;
+- números de página;
+- encabezados y pies de página;
+- títulos de secciones;
+- observaciones generales que no sean resultados analíticos.
+
+## INFORMACIÓN DUDOSA O ILEGIBLE
+
+La exactitud es prioritaria.
+
+Nunca inventes, completes ni deduzcas un valor que no pueda leerse con suficiente certeza.
+
+Si un parámetro puede identificarse pero su resultado no puede determinarse con seguridad, deja vacía la celda correspondiente.
+
+Si no puedes determinar con seguridad:
+
+- el valor;
+- la unidad;
+- el rango de referencia;
+
+deja vacío únicamente el campo dudoso y conserva los demás datos que sí puedan identificarse correctamente.
+
+No reconstruyas cifras parcialmente ilegibles utilizando rangos normales, resultados anteriores ni conocimiento médico.
+
+No sustituyas información ausente por valores clínicamente plausibles.
+
+## CONTROL DE COHERENCIA
+
+Antes de generar el CSV final, comprueba internamente que:
+
+- todas las columnas tienen el mismo número de campos;
+- las tres primeras columnas son exactamente `Parámetro`, `Unidad` y `Referencia`;
+- las fechas están en formato `AAAA-MM-DD`;
+- las fechas están ordenadas cronológicamente;
+- no existen columnas duplicadas para una misma analítica;
+- no existen filas duplicadas innecesariamente;
+- cada resultado está asociado a la fecha correcta;
+- los valores no se han desplazado accidentalmente entre parámetros;
+- los valores no se han desplazado entre fechas;
+- unidades y referencias corresponden al parámetro adecuado;
+- no se han incluido datos personales;
+- no se han inventado resultados;
+- no se han omitido parámetros clínicos legibles.
+
+## EJEMPLO DE SALIDA
+
+Parámetro;Unidad;Referencia;2025-01-10;2026-02-15
+Glucosa;mg/dL;70 - 100;91;104
+Colesterol Total;mg/dL;< 200;180;205
+HDL-Colesterol;mg/dL;> 40;52;49
+Vitamina D;ng/mL;30 - 100;;34
+
+Recuerda: tu respuesta final debe contener **únicamente el CSV resultante**, comenzando directamente por la línea:
+
+Parámetro;Unidad;Referencia;...
+
+No añadas ninguna otra información.</textarea>
+      <input type="file" id="csvInput" accept=".csv,text/csv" class="block w-full text-xs text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-emerald-100 file:px-4 file:py-2 file:text-xs file:font-bold file:text-emerald-900 hover:file:bg-emerald-200" onchange="handleCsvFileSelected(event)">
+      <div class="flex justify-end gap-2"><button onclick="closeCsvUploadModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50">Cancelar</button><button id="btnCsvUpload" onclick="uploadCsvFile()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm">Importar CSV</button></div>
+    </div>
+  </div>
 
   <!-- MODAL DE SUBIDA Y REVISIÓN INTERACTIVA PRE-INGESTA (HUMAN-IN-THE-LOOP) -->
   <div id="uploadModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">

@@ -643,6 +643,46 @@ CANONICAL_CATALOG = {
         "ref": "< 200 /µL",
         "orden": 940
     },
+    "MONOCITOS_PCT": {
+        "nombre": "Monocitos (%)",
+        "categoria": "hemograma",
+        "grupo": "🩸 Hemograma y Serie Hematológica",
+        "unidad": "%",
+        "ref": "1 - 10 %",
+        "orden": 921
+    },
+    "LINFOCITOS_PCT": {
+        "nombre": "Linfocitos (%)",
+        "categoria": "hemograma",
+        "grupo": "🩸 Hemograma y Serie Hematológica",
+        "unidad": "%",
+        "ref": "20 - 40 %",
+        "orden": 911
+    },
+    "NEUTROFILOS_PCT": {
+        "nombre": "Neutrófilos segmentados (%)",
+        "categoria": "hemograma",
+        "grupo": "🩸 Hemograma y Serie Hematológica",
+        "unidad": "%",
+        "ref": "45 - 70 %",
+        "orden": 901
+    },
+    "EOSINOFILOS_PCT": {
+        "nombre": "Eosinófilos (%)",
+        "categoria": "hemograma",
+        "grupo": "🩸 Hemograma y Serie Hematológica",
+        "unidad": "%",
+        "ref": "0 - 5 %",
+        "orden": 931
+    },
+    "BASOFILOS_PCT": {
+        "nombre": "Basófilos (%)",
+        "categoria": "hemograma",
+        "grupo": "🩸 Hemograma y Serie Hematológica",
+        "unidad": "%",
+        "ref": "0 - 4 %",
+        "orden": 941
+    },
     "VSG_1H": {
         "nombre": "VSG 1ª Hora",
         "categoria": "hemograma",
@@ -1456,6 +1496,17 @@ def normalize_analito(
         return "NEUTROFILOS_ABS", "Neutrófilos Absolutos", "hemograma", "/µL"
     if any(k in nom_lower for k in ["linfocito"]) and not any(k in nom_lower for k in ["%", "relativ"]):
         return "LINFOCITOS_ABS", "Linfocitos Absolutos", "hemograma", "/µL"
+    es_formula_relativa = "%" in uni or any(k in nom_lower for k in ["%", "relativ"])
+    if any(k in nom_lower for k in ["linfocito"]) and es_formula_relativa:
+        return "LINFOCITOS_PCT", "Linfocitos (%)", "hemograma", "%"
+    if any(k in nom_lower for k in ["segmentado", "neutrófilo", "neutrofilo"]) and es_formula_relativa:
+        return "NEUTROFILOS_PCT", "Neutrófilos segmentados (%)", "hemograma", "%"
+    if any(k in nom_lower for k in ["monocito"]) and es_formula_relativa:
+        return "MONOCITOS_PCT", "Monocitos (%)", "hemograma", "%"
+    if any(k in nom_lower for k in ["eosinófilo", "eosinofilo"]) and es_formula_relativa:
+        return "EOSINOFILOS_PCT", "Eosinófilos (%)", "hemograma", "%"
+    if any(k in nom_lower for k in ["basófilo", "basofilo"]) and es_formula_relativa:
+        return "BASOFILOS_PCT", "Basófilos (%)", "hemograma", "%"
     if any(k in nom_lower for k in ["monocito"]) and not any(k in nom_lower for k in ["%", "relativ"]):
         return "MONOCITOS_ABS", "Monocitos Absolutos", "hemograma", "/µL"
     if any(k in nom_lower for k in ["eosinófilo", "eosinofilo"]) and not any(k in nom_lower for k in ["%", "relativ"]):
@@ -1582,6 +1633,13 @@ def standardize_medicion(
         return None, val_raw, canonical_unit, ref_in
 
     u_lower = (unidad or "").lower()
+    # En una importación tabular la unidad es un dato explícito del usuario. No
+    # debemos reinterpretar valores pequeños como miles si ya declara /µL.
+    # Sí se conservan las conversiones cuando el origen indica 10^3/µL o la
+    # unidad/rango no permite determinar la escala.
+    unidad_explicitamente_por_microlitro = bool(re.search(r"/(?:µ|u)l", u_lower)) and not bool(
+        re.search(r"(?:x?10\s*(?:\^|\*|³)?\s*3|10³|mil)", u_lower)
+    )
 
     # Comparación de magnitudes de los rangos de referencia (informe vs canónico)
     # Permite detectar y homogeneizar automáticamente unidades diferenciadas en un factor 1000, 10 o 1000000
@@ -1614,9 +1672,14 @@ def standardize_medicion(
 
         # A. Rango del laboratorio viene en miles (x10^3/µL, ej: 0.0 - 0.2 vs < 200)
         if ref_ratio is not None and ref_ratio >= 400.0:
-            ref_final = scale_ref_range(ref_in, 1000.0, "/µL")
-            if num_val < th_scale:
-                num_val = round(num_val * 1000.0, 1)
+            if unidad_explicitamente_por_microlitro:
+                # Una cabecera CSV con /µL es inequívoca, incluso si el rango
+                # usa una escala poco habitual. Preservar dato y referencia.
+                ref_final = ref_in or default_ref
+            else:
+                ref_final = scale_ref_range(ref_in, 1000.0, "/µL")
+                if num_val < th_scale:
+                    num_val = round(num_val * 1000.0, 1)
         # B. Rango del laboratorio viene en escala 1000 veces mayor (ej: /L con rango 0 - 200000)
         elif ref_ratio is not None and ref_ratio <= 0.0025:
             ref_final = scale_ref_range(ref_in, 0.001, "/µL")
@@ -1628,14 +1691,14 @@ def standardize_medicion(
             if num_val >= th_artifact:
                 # Artefacto evidente (ej: valor 40000 con rango 0 - 200)
                 num_val = round(num_val / 1000.0, 1)
-            elif 0 < num_val < th_scale:
+            elif 0 < num_val < th_scale and not unidad_explicitamente_por_microlitro:
                 num_val = round(num_val * 1000.0, 1)
         # D. Fallback cuando no hay rango de referencia numérico claro
         else:
             if num_val >= th_artifact:
                 num_val = round(num_val / 1000.0, 1)
                 ref_final = ref_in or default_ref
-            elif 0 < num_val < th_scale:
+            elif 0 < num_val < th_scale and not unidad_explicitamente_por_microlitro:
                 num_val = round(num_val * 1000.0, 1)
                 ref_final = scale_ref_range(ref_in, 1000.0, "/µL", lambda nums: all(n < th_scale for n in nums)) if ref_in else default_ref
             elif any(k in u_lower for k in ["10^3", "10*3", "103", "10%", "mil", "k/", "10^9", "g/l"]) and num_val < th_artifact and num_val < 50.0:

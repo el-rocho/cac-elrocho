@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.9.5`
+# cac-elrocho 🩺 `v0.9.6`
 
 <img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
@@ -23,7 +23,12 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.5`
+## ✨ Novedades de la Versión `v0.9.6`
+* 📊 **Importación de historiales CSV**: incorpora analíticas completas desde una tabla con parámetros en filas y fechas en columnas; admite archivos UTF-8/Latin-1, separadores `;` o `,` y fechas ISO o españolas.
+* 🔄 **Actualización segura de fechas existentes**: antes de complementar una fecha ya presente, la aplicación pide confirmación y conserva los parámetros que no estén incluidos en el CSV.
+* 🧬 **Fórmula leucocitaria precisa**: diferencia porcentajes y recuentos absolutos de linfocitos, neutrófilos, monocitos, eosinófilos y basófilos, incluso cuando la unidad no figura en la tabla de origen.
+* 🤖 **Asistente de conversión a CSV**: la ventana de importación incluye un prompt copiable para transformar hojas de cálculo o informes en el formato requerido, sin incluir datos administrativos.
+* 🩺 **Resumen clínico responsable tras importar**: se actualiza el dictamen solo si hay un modelo LLM activo; si no lo hay, la interfaz informa de ello sin presentar una interpretación generada.
 * 📈 **Gráficos clínicos ampliados y filtrables**: la pestaña de gráficos incorpora áreas clínicas seleccionables y nuevas series de metabolismo glucídico, perfil lipídico, función renal y hepática, hemograma/hierro, tiroides, inflamación, vitaminas y otros marcadores; cada gráfico se puede ampliar para facilitar su lectura.
 * ❤️ **Colesterol no-HDL con histórico completo**: se reconoce cuando viene expresamente en el informe y, si no existe, se calcula como colesterol total − HDL para mostrarlo de forma coherente en el panel, el histórico y las tendencias cardiovasculares.
 * 📄 **Extracción local RegEx más fiable**: se mejora el reconocimiento de analitos y resultados de informes con maquetación compleja u OCR, incluyendo electrolitos, marcadores tumorales, inflamación, orina y VSG, y se evitan falsos positivos procedentes de intervalos de referencia.

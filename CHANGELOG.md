@@ -1,6 +1,18 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.6] - 2026-09-28
+
+### 📥 Importación de historiales tabulares
+* **Nuevo formato CSV de historial**: se pueden importar analíticas con los parámetros en filas y una columna por fecha. El importador acepta UTF-8 o Latin-1, los separadores `;` y `,`, y fechas en formato `AAAA-MM-DD`, `DD/MM/AAAA` o `DD/MM/AA`.
+* **Protección frente a coincidencias**: si un CSV contiene fechas ya presentes en el historial, se requiere confirmación expresa antes de actualizar o completar sus resultados; los parámetros ausentes en el archivo se conservan.
+* **Guía de transformación integrada**: el diálogo de carga ofrece un prompt copiable para convertir hojas de cálculo e informes a CSV de forma consistente y sin datos personales o administrativos.
+
+### 🧬 Normalización y experiencia clínica
+* **Fórmula leucocitaria relativa**: se añaden los analitos porcentuales de linfocitos, neutrófilos segmentados, monocitos, eosinófilos y basófilos, diferenciándolos de sus recuentos absolutos incluso cuando el CSV no declara la unidad.
+* **Unidades explícitas respetadas**: las importaciones CSV conservan los valores expresados directamente en `/µL` y evitan conversiones automáticas incorrectas de magnitudes pequeñas.
+* **Dictamen posterior a la importación**: el resumen se genera únicamente cuando un LLM configurado responde correctamente; en otro caso se comunica que debe activarse la funcionalidad, sin simular una valoración clínica.
+
 ## [v0.9.5] - 2026-09-27
 
 ### 📊 Seguimiento clínico y visualización

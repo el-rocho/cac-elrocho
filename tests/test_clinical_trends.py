@@ -622,6 +622,17 @@ class TestClinicalTrends(unittest.TestCase):
         self.assertEqual(num_eos, 30.0)
         self.assertEqual(clean_eos, "30")
 
+        # 6.1 En importaciones CSV la unidad /µL es explícita: los valores
+        # decimales deben conservarse y no inferirse como x10^3/µL.
+        for codigo, valor in [
+            ("MONOCITOS_ABS", "0.35"),
+            ("EOSINOFILOS_ABS", "0.12"),
+            ("BASOFILOS_ABS", "0.04"),
+        ]:
+            num_csv, _, unidad_csv, _ = standardize_medicion(codigo, valor, "/µL")
+            self.assertEqual(num_csv, float(valor))
+            self.assertEqual(unidad_csv, "/µL")
+
         # 7. Homogeneización basada en comparación de rangos de referencia (ref_ratio)
         # 7.1. Basófilos con rango en /L (ratio ~ 0.001): 40000 con ref 0 - 200000 /L -> 40 /µL, 0 - 200 /µL
         num_b_l, clean_b_l, unit_b_l, ref_b_l = standardize_medicion("BASOFILOS_ABS", "40000", "/L", "0 - 200000 /L")

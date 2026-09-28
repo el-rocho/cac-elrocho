@@ -1298,6 +1298,15 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             nota=""
         ))
 
+    # Los resúmenes generados al importar CSV ya contienen la información
+    # clínica relevante. Las alertas almacenadas por versiones anteriores
+    # repetían sus referencias inmediatamente después en la cabecera.
+    dictamen_subtitulo = ultimo_informe.observaciones_ia or "Parámetros analizados por el sistema"
+    if (ultimo_informe.archivo_pdf or "").startswith("CSV:") and ultimo_informe.dictamen_global != "Importado desde archivo CSV":
+        # DashboardSummaryResponse exige una cadena; la interfaz ya oculta
+        # este marcador en lugar de renderizar un segundo texto.
+        dictamen_subtitulo = "Parámetros analizados por el sistema"
+
     return DashboardSummaryResponse(
         paciente={
             "nombre": (paciente.nombre_completo if paciente and paciente.nombre_completo else "").strip(),
@@ -1310,7 +1319,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         periodo_historico=periodo,
         ultima_fecha=ultima_fecha,
         dictamen_global=ultimo_informe.dictamen_global or "Favorable",
-        dictamen_subtitulo=ultimo_informe.observaciones_ia or "Parámetros analizados por el sistema",
+        dictamen_subtitulo=dictamen_subtitulo,
         kpis=kpis,
         otros_valores=otros_valores,
         motor_llm_info=motor_info,

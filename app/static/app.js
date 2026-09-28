@@ -1407,7 +1407,98 @@ async function applyAllAuditCriteria() {
   }
 }
 
-// 7. Lógica de Subida y Revisión de Analíticas (Drag & Drop + Modal)
+// 7. Importación del historial tabular en CSV
+async function copyCsvTransformationPrompt() {
+  const source = document.getElementById('csvTransformationPrompt');
+  const button = document.getElementById('copyCsvPromptButton');
+  if (!source) return;
+
+  try {
+    await navigator.clipboard.writeText(source.value);
+  } catch (_) {
+    const fallback = document.createElement('textarea');
+    fallback.value = source.value;
+    fallback.style.position = 'fixed';
+    fallback.style.opacity = '0';
+    document.body.appendChild(fallback);
+    fallback.select();
+    document.execCommand('copy');
+    fallback.remove();
+  }
+
+  if (button) {
+    const originalText = button.textContent;
+    button.textContent = 'Copiado al portapapeles';
+    button.classList.add('text-slate-700');
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.classList.remove('text-slate-700');
+    }, 1800);
+  }
+}
+
+function openCsvUploadModal() {
+  document.getElementById('csvUploadModal').classList.remove('hidden');
+}
+
+function closeCsvUploadModal() {
+  document.getElementById('csvUploadModal').classList.add('hidden');
+  document.getElementById('csvInput').value = '';
+}
+
+function handleCsvFileSelected(event) {
+  if (event.target.files?.[0] && !event.target.files[0].name.toLowerCase().endsWith('.csv')) {
+    alert('Por favor selecciona un archivo CSV válido.');
+    event.target.value = '';
+  }
+}
+
+async function uploadCsvFile() {
+  const file = document.getElementById('csvInput').files?.[0];
+  if (!file) {
+    alert('Selecciona un archivo CSV para importar.');
+    return;
+  }
+  const button = document.getElementById('btnCsvUpload');
+  button.disabled = true;
+  button.textContent = 'Importando…';
+  try {
+    const sendCsv = async (confirmarCoincidencias = false) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('confirmar_coincidencias', String(confirmarCoincidencias));
+      return fetch('/api/v1/upload/csv', { method: 'POST', body: formData });
+    };
+
+    let res = await sendCsv();
+    if (res.status === 409) {
+      const conflict = await res.json().catch(() => ({}));
+      const total = conflict.detail?.total_coincidencias || 'una o varias';
+      const continuar = confirm(
+        `Ya existen ${total} analítica(s) para fechas incluidas en este CSV.\n\n` +
+        'Si continúas, los parámetros incluidos se actualizarán o añadirán; los parámetros que no estén en el CSV se conservarán.'
+      );
+      if (!continuar) return;
+      res = await sendCsv(true);
+    }
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo importar el CSV'));
+    const data = await res.json();
+    alert(data.message || 'CSV importado correctamente.');
+    closeCsvUploadModal();
+    await loadSummary();
+    await loadTables();
+    await loadAuditFiles();
+    chartsRendered = false;
+    if (!document.getElementById('tab-charts').classList.contains('hidden')) await loadCharts();
+  } catch (err) {
+    alert(`Error al importar CSV: ${err.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Importar CSV';
+  }
+}
+
+// 7.1 Lógica de Subida y Revisión de Analíticas PDF (Drag & Drop + Modal)
 function openUploadModal() {
   document.getElementById('uploadModal').classList.remove('hidden');
   document.getElementById('uploadStep1').classList.remove('hidden');

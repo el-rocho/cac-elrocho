@@ -3,8 +3,11 @@ import uuid
 import shutil
 import hashlib
 import logging
+import csv
+import io
+from datetime import datetime
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -24,6 +27,247 @@ def sanitize_filename(name: str) -> str:
     return clean[:80] if clean else "laboratorio"
 
 router = APIRouter(prefix="/upload", tags=["Carga de Analíticas"])
+
+
+def _fecha_csv(value: str) -> str | None:
+    """Convierte las cabeceras de fecha del historial a ISO."""
+    value = (value or "").strip()
+    for pattern in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(value, pattern).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _etiqueta_corta(fecha: str) -> str:
+    partes = fecha.split("-")
+    return f"{partes[2]}/{partes[1]}/{partes[0][2:]}" if len(partes) == 3 else fecha
+
+
+def _es_formula_leucocitaria_relativa(nombre: str, unidad: str, referencia: str) -> bool:
+    """Reconoce filas porcentuales del hemograma cuando el CSV no incluye unidad.
+
+    Algunos laboratorios llaman a estas filas solo ``MONOCITOS`` o
+    ``SEGMENTADOS`` y dejan la unidad vacía. Sus rangos característicos (1-10,
+    0-5, 0-4, 20-40, 45-70) evitan confundirlas con recuentos absolutos.
+    """
+    nombre_limpio = (nombre or "").lower()
+    unidad_limpia = (unidad or "").strip().lower()
+    if "%" in unidad_limpia or "relativ" in nombre_limpio or "%" in nombre_limpio:
+        return True
+    if unidad_limpia:
+        return False
+    numeros = [float(n.replace(",", ".")) for n in re.findall(r"\d+(?:[\.,]\d+)?", referencia or "")]
+    max_ref = max(numeros) if numeros else None
+    rangos_porcentuales = {
+        "linfocito": (15, 50),
+        "monocito": (5, 20),
+        "eosin": (2, 12),
+        "baso": (1, 8),
+        "basó": (1, 8),
+        "segmentado": (35, 85),
+        "neutro": (35, 85),
+    }
+    return bool(max_ref is not None and any(minimo <= max_ref <= maximo for clave, (minimo, maximo) in rangos_porcentuales.items() if clave in nombre_limpio))
+
+
+def _guardar_medicion_csv(db: Session, informe: Informe, nombre: str, valor: str,
+                          unidad: str, referencia: str) -> None:
+    """Guarda una celda del CSV aplicando la misma normalización que el PDF."""
+    # La tabla del usuario deja la unidad vacía en la fórmula leucocitaria.
+    # Marcamos explícitamente el porcentaje antes de normalizarla.
+    nombre_normalizacion = f"{nombre} %" if _es_formula_leucocitaria_relativa(nombre, unidad, referencia) else nombre
+    code, nombre_normalizado, categoria, unidad_normalizada = normalize_analito(
+        nombre_normalizacion, unidad=unidad, valor=valor
+    )
+    analito = db.query(Analito).filter_by(codigo=code).first()
+    if not analito:
+        from app.services.analito_normalizer import get_analito_order
+        analito = Analito(
+            codigo=code, nombre_visible=nombre_normalizado, categoria=categoria,
+            unidad_estandar=unidad_normalizada, ref_texto_defecto=referencia,
+            orden=get_analito_order(code)
+        )
+        db.add(analito)
+        db.flush()
+
+    numero, texto, unidad_estandar, referencia_estandar = standardize_medicion(
+        code, valor, unidad, referencia
+    )
+    referencia_final = referencia_estandar or referencia
+    estado = evaluar_estado_semaforo(numero, referencia_final) if numero is not None else "Normal"
+    medicion = db.query(Medicion).filter_by(informe_id=informe.id, analito_id=analito.id).first()
+    if not medicion:
+        medicion = Medicion(informe_id=informe.id, analito_id=analito.id, unidad=unidad_estandar or unidad_normalizada)
+        db.add(medicion)
+    medicion.valor_numerico = numero
+    medicion.valor_texto = texto if numero is None else None
+    medicion.unidad = unidad_estandar or unidad_normalizada
+    medicion.ref_texto = referencia_final
+    medicion.estado_semaforo = estado
+
+    # Corrige importaciones CSV anteriores que clasificaron erróneamente una
+    # fila porcentual como absoluta. Solo se toca un informe cuyo origen sea
+    # CSV, para no eliminar un recuento absoluto procedente de un PDF.
+    codigo_absoluto_previo = {
+        "LINFOCITOS_PCT": "LINFOCITOS_ABS",
+        "NEUTROFILOS_PCT": "NEUTROFILOS_ABS",
+        "MONOCITOS_PCT": "MONOCITOS_ABS",
+        "EOSINOFILOS_PCT": "EOSINOFILOS_ABS",
+        "BASOFILOS_PCT": "BASOFILOS_ABS",
+    }.get(code)
+    if codigo_absoluto_previo and (informe.archivo_pdf or "").startswith("CSV:"):
+        anterior = db.query(Medicion).join(Analito).filter(
+            Medicion.informe_id == informe.id, Analito.codigo == codigo_absoluto_previo
+        ).first()
+        if anterior:
+            db.delete(anterior)
+
+
+@router.post("/csv")
+async def upload_history_csv(
+    file: UploadFile = File(...),
+    confirmar_coincidencias: bool = Form(False),
+    db: Session = Depends(get_db)
+):
+    """Importa la tabla ancha del panel Historial: analitos en filas y fechas en columnas."""
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Solo se admiten archivos en formato CSV.")
+    try:
+        raw = await file.read()
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("latin-1")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="El archivo CSV debe estar codificado en UTF-8 o Latin-1.")
+
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=";,")
+    except csv.Error:
+        dialect = csv.excel
+        dialect.delimiter = ";"
+    rows = list(csv.reader(io.StringIO(text), dialect))
+    if len(rows) < 2:
+        raise HTTPException(status_code=400, detail="El CSV debe incluir una cabecera y al menos una fila de parámetros.")
+
+    header = [cell.strip() for cell in rows[0]]
+    if len(header) < 4:
+        raise HTTPException(status_code=400, detail="Se requieren las columnas Parámetro, Unidad, Referencia y al menos una fecha.")
+    date_columns = [(index, _fecha_csv(name)) for index, name in enumerate(header[3:], start=3)]
+    date_columns = [(index, fecha) for index, fecha in date_columns if fecha]
+    if not date_columns:
+        raise HTTPException(status_code=400, detail="No se encontró ninguna fecha válida en la cabecera. Usa AAAA-MM-DD o DD/MM/AAAA.")
+
+    # Una coincidencia se define por la fecha de la analítica, igual que en el
+    # historial. El usuario decide explícitamente si desea complementar esos
+    # informes antes de que se modifique ningún dato.
+    fechas_csv = [fecha for _, fecha in date_columns]
+    coincidencias = [
+        fecha for (fecha,) in db.query(Informe.fecha).filter(Informe.fecha.in_(fechas_csv)).all()
+    ]
+    if coincidencias and not confirmar_coincidencias:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "El CSV contiene fechas que ya existen en el historial.",
+                "total_coincidencias": len(coincidencias)
+            }
+        )
+
+    paciente = db.query(Paciente).first()
+    if not paciente:
+        paciente = Paciente(nombre_completo="", sexo="No especificado")
+        db.add(paciente)
+        db.flush()
+
+    importados = 0
+    actualizados = 0
+    try:
+        for column, fecha in date_columns:
+            filas_con_valor = []
+            for row in rows[1:]:
+                if len(row) <= column:
+                    continue
+                nombre = row[0].strip() if row else ""
+                valor = row[column].strip()
+                if not nombre or not valor:
+                    continue
+                unidad = row[1].strip() if len(row) > 1 else ""
+                referencia = row[2].strip() if len(row) > 2 else ""
+                filas_con_valor.append((nombre, valor, unidad, referencia))
+            if not filas_con_valor:
+                continue
+
+            informe = db.query(Informe).filter_by(fecha=fecha).first()
+            if informe:
+                actualizados += 1
+            else:
+                informe = Informe(
+                    paciente_id=paciente.id, fecha=fecha, etiqueta_corta=_etiqueta_corta(fecha),
+                    laboratorio="Importado desde CSV", facultativo="No especificado",
+                    archivo_pdf=f"CSV: {sanitize_filename(file.filename)}",
+                    dictamen_global="Importado desde archivo CSV", estado="confirmado"
+                )
+                db.add(informe)
+                db.flush()
+                importados += 1
+
+            for nombre, valor, unidad, referencia in filas_con_valor:
+                _guardar_medicion_csv(db, informe, nombre, valor, unidad, referencia)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Error al importar CSV", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"No se pudo importar el CSV: {exc}")
+
+    if not importados and not actualizados:
+        raise HTTPException(status_code=400, detail="El CSV no contiene valores para importar.")
+    # El encabezado refleja la analítica más reciente disponible. Generamos un
+    # resumen conciso solo con un LLM activo; no se inventa una interpretación
+    # clínica cuando ningún modelo está configurado o puede responder.
+    resumen_generado = False
+    try:
+        ultimo_informe = db.query(Informe).order_by(Informe.fecha.desc()).first()
+        mediciones_ultima = db.query(Medicion).filter_by(informe_id=ultimo_informe.id).all() if ultimo_informe else []
+        datos_resumen = [
+            {
+                "nombre": med.analito.nombre_visible if med.analito else "Analito",
+                "valor": med.valor_numerico if med.valor_numerico is not None else (med.valor_texto or ""),
+                "unidad": med.unidad or "",
+                "rango_referencia": med.ref_texto or ""
+            }
+            for med in mediciones_ultima
+            if med.analito and (med.valor_numerico is not None or med.valor_texto)
+        ]
+        resultado_resumen = await generate_clinical_summary_from_measurements(
+            mediciones=datos_resumen,
+            fecha=ultimo_informe.fecha,
+            laboratorio=ultimo_informe.laboratorio or "Importado desde CSV",
+            facultativo=ultimo_informe.facultativo,
+            paciente_nombre=paciente.nombre_completo if paciente else "Paciente",
+            modo="resumido"
+        )
+        if resultado_resumen.get("llm_utilizado"):
+            ultimo_informe.dictamen_global = resultado_resumen.get("dictamen_global") or "Resumen de salud actualizado."
+            # El resumen conciso ya incorpora las alteraciones y sus rangos.
+            # No repetimos las alertas como subtítulo en la cabecera.
+            ultimo_informe.observaciones_ia = None
+            resumen_generado = True
+        else:
+            ultimo_informe.dictamen_global = "Informe resumen de salud actual no generado. Active la funcionalidad LLM."
+            ultimo_informe.observaciones_ia = None
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("No se pudo generar el resumen tras importar CSV: %s", exc)
+
+    return {
+        "message": f"CSV importado: {importados} analítica(s) nueva(s) y {actualizados} actualizada(s).",
+        "nuevas": importados, "actualizadas": actualizados,
+        "resumen_generado": resumen_generado
+    }
 
 @router.post("/regenerate-dictamen", response_model=RegenerateDictamenResponse)
 async def regenerate_dictamen_endpoint(req: RegenerateDictamenRequest, db: Session = Depends(get_db)):

@@ -1581,7 +1581,8 @@ async def generate_clinical_summary_from_measurements(
             parsed = json.loads(cleaned.strip())
             return {
                 "dictamen_global": parsed.get("dictamen_global", "Dictamen actualizado con las mediciones vigentes."),
-                "alertas_ia": parsed.get("alertas_ia", [])
+                "alertas_ia": parsed.get("alertas_ia", []),
+                "llm_utilizado": True
             }
         except Exception as e:
             logger.warning(f"Error al regenerar dictamen con Slot {slot.get('slot')} ({slot.get('model')}): {e}")
@@ -1589,5 +1590,6 @@ async def generate_clinical_summary_from_measurements(
     # Fallback si no hay slots LLM disponibles
     return {
         "dictamen_global": f"Analítica del {fecha} en {laboratorio}. Parámetros revisados y consolidados por el usuario.",
-        "alertas_ia": []
+        "alertas_ia": [],
+        "llm_utilizado": False
     }
