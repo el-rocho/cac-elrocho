@@ -17,6 +17,7 @@ Todas las modificaciones notables de este proyecto están documentadas en este a
 * **Release v0.9.7 preparada**: se actualizan la versión de la aplicación, el instalador de Windows y la documentación de publicación.
 * **GitHub Pages al día**: la tarjeta de Windows ofrece enlaces directos a los instaladores de v0.9.7, v0.9.6 y v0.9.5.
 * **Leyenda de la tabla simplificada**: se eliminan las etiquetas redundantes de resultados altos y bajos; permanece únicamente el aviso de resultado en rango próximo al límite.
+* **Indicadores direccionales refinados**: los valores altos y bajos emplean triángulos ▲ y ▼ en tarjetas, detalle e histórico para distinguirlos claramente de la tendencia longitudinal.
 
 ## [v0.9.6] - 2026-09-28
 

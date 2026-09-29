@@ -259,7 +259,7 @@ async function loadSummary() {
         ? `<div class="text-[11px] font-medium text-slate-500 mt-1 truncate" title="${kpi.main_label}">${kpi.main_label}</div>` 
         : '';
       const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-800 font-semibold' : 'text-slate-800 font-semibold');
-      const mainStatusSymbol = kpi.main_display_status === 'Alto' ? ' ↑' : (kpi.main_display_status === 'Bajo' ? ' ↓' : '');
+      const mainStatusSymbol = kpi.main_display_status === 'Alto' ? ' ▲' : (kpi.main_display_status === 'Bajo' ? ' ▼' : '');
       
       const mainVarBadgeHtml = kpi.main_var_delta ? `
         <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight" title="Variación vs control anterior">
@@ -702,7 +702,7 @@ async function loadTables() {
             displayStatus = stText;
           }
 
-          const statusSymbol = displayStatus === 'Alto' ? ' ↑' : (displayStatus === 'Bajo' ? ' ↓' : '');
+          const statusSymbol = displayStatus === 'Alto' ? ' ▲' : (displayStatus === 'Bajo' ? ' ▼' : '');
           cells += `<td class="p-3 text-center"><span class="${cellCls}" title="${escapeHtml(title)}">${v}${statusSymbol}</span></td>`;
         }
       });
@@ -728,7 +728,7 @@ async function loadTables() {
         }
         cells += `
           <td class="p-3 text-center bg-blue-50/70 border-l border-r border-blue-200">
-            <span class="${avgCls}" title="${escapeHtml(avgTitle)}">${row.recentAvg}${avgSt === 'Alto' ? ' ↑' : (avgSt === 'Bajo' ? ' ↓' : '')}</span>
+            <span class="${avgCls}" title="${escapeHtml(avgTitle)}">${row.recentAvg}${avgSt === 'Alto' ? ' ▲' : (avgSt === 'Bajo' ? ' ▼' : '')}</span>
           </td>
         `;
       } else {
@@ -3225,7 +3225,7 @@ function openKpiModal(index) {
   if (titleEl) titleEl.textContent = kpi.title;
 
   const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-800 font-semibold' : 'text-slate-800 font-semibold');
-  const mainStatusSymbol = kpi.main_display_status === 'Alto' ? ' ↑' : (kpi.main_display_status === 'Bajo' ? ' ↓' : '');
+  const mainStatusSymbol = kpi.main_display_status === 'Alto' ? ' ▲' : (kpi.main_display_status === 'Bajo' ? ' ▼' : '');
 
   let mainDotClass = 'bg-slate-300';
   let mainTrendTitle = 'No evaluable';
@@ -3265,7 +3265,7 @@ function openKpiModal(index) {
             const valClass = f.display_status === 'Límite'
               ? 'text-amber-900 font-bold'
               : (isAltered ? 'text-rose-800 font-bold' : (isUndetermined ? 'text-slate-400 font-medium' : 'text-slate-800 font-semibold'));
-            const statusSymbol = f.display_status === 'Alto' ? ' ↑' : (f.display_status === 'Bajo' ? ' ↓' : '');
+            const statusSymbol = f.display_status === 'Alto' ? ' ▲' : (f.display_status === 'Bajo' ? ' ▼' : '');
             
             let dotClass = 'bg-slate-300';
             let trendTitle = 'No evaluable';

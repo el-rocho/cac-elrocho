@@ -24,7 +24,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 ---
 
 ## ✨ Novedades de la Versión `v0.9.7`
-* 🩺 **Resultados más claros y coherentes**: los valores altos y bajos se señalan con flechas y una misma semántica visual en tarjetas, detalle e histórico; la tabla reserva su leyenda para el aviso útil de proximidad al límite y las tendencias sin base suficiente se muestran como «No evaluable».
+* 🩺 **Resultados más claros y coherentes**: los valores altos y bajos se señalan con triángulos direccionales y una misma semántica visual en tarjetas, detalle e histórico; la tabla reserva su leyenda para el aviso útil de proximidad al límite y las tendencias sin base suficiente se muestran como «No evaluable».
 * 🧪 **Cálculo renal prudente**: el eGFR calculado con CKD-EPI 2021 solo se muestra cuando constan edad y sexo biológico válidos, evitando estimaciones por datos de perfil incompletos.
 * 🔬 **PSA visible cuando está informado**: los marcadores de próstata se incluyen siempre que existan en la analítica, sin ocultarlos por un campo editable del perfil.
 * 🤖 **Diagnóstico de Gemini transparente**: al comprobar una credencial se muestra el detalle devuelto por el proveedor, incluido el código de error, para facilitar su corrección.
