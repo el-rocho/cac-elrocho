@@ -51,6 +51,14 @@ def _slot_secret_name(slot: int) -> str:
     return f"gemini_api_key_{slot}"
 
 
+def _gemini_error_detail(exc: Exception) -> str:
+    """Conserva literalmente el diagnóstico que entrega el SDK de Gemini."""
+    error_text = str(exc)
+    # Algunas excepciones de red no tienen texto. En ese caso el nombre de la
+    # excepción sigue ofreciendo un diagnóstico útil (p. ej. ``TimeoutError``).
+    return error_text or type(exc).__name__
+
+
 @router.put("/ai/credentials/{slot}", status_code=204)
 def save_ai_credential(payload: AICredentialsUpdate, slot: int = Path(ge=1, le=3)):
     try:
@@ -91,23 +99,13 @@ async def test_ai_connection(slot: int = Path(ge=1, le=3)):
     except TimeoutError as exc:
         raise HTTPException(
             status_code=504,
-            detail="Gemini tardó más de 20 segundos en responder. Revisa la conectividad o inténtalo de nuevo.",
+            detail=(
+                "TIMEOUT: Gemini tardó más de 20 segundos en responder. "
+                f"Error exacto: {_gemini_error_detail(exc)}"
+            ),
         ) from exc
     except Exception as exc:
-        # No exponemos el texto completo del proveedor (puede incluir detalles
-        # operativos), pero sí distinguimos cuota de indisponibilidad temporal.
-        provider_error = str(exc).lower()
-        if "429" in provider_error or "resourceexhausted" in provider_error or "quota" in provider_error:
-            raise HTTPException(
-                status_code=429,
-                detail="La cuota de Gemini para este modelo está agotada. Prueba otro slot o espera a su renovación.",
-            ) from exc
-        if "503" in provider_error or "unavailable" in provider_error or "overloaded" in provider_error:
-            raise HTTPException(
-                status_code=503,
-                detail="Gemini tiene alta demanda temporal. Espera unos minutos o prueba otro modelo o credencial.",
-            ) from exc
         raise HTTPException(
             status_code=502,
-            detail="No se pudo validar Gemini. Revisa la credencial, el modelo, la cuota y la conectividad.",
+            detail=f"Gemini devolvió el siguiente error: {_gemini_error_detail(exc)}",
         ) from exc

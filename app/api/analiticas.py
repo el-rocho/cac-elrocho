@@ -61,16 +61,24 @@ def calcular_egfr(creat_mg_dl: float, edad_anos: Any, sexo: str) -> Any:
     if not creat_mg_dl or creat_mg_dl <= 0:
         return None
     try:
-        es_mujer = bool(sexo and "fem" in str(sexo).lower())
+        sexo_normalizado = (sexo or "").strip().lower()
+        if sexo_normalizado not in {"femenino", "mujer", "f", "masculino", "varon", "varón", "hombre", "m"}:
+            return None
+
+        age = None
+        if isinstance(edad_anos, (int, float)) and 18 <= edad_anos <= 120:
+            age = float(edad_anos)
+        elif isinstance(edad_anos, str) and edad_anos.replace("años", "").strip().isdigit():
+            possible_age = float(edad_anos.replace("años", "").strip())
+            if 18 <= possible_age <= 120:
+                age = possible_age
+        if age is None:
+            return None
+
+        es_mujer = sexo_normalizado in {"femenino", "mujer", "f"}
         k = 0.7 if es_mujer else 0.9
         alpha = -0.241 if es_mujer else -0.302
         mult = 1.012 if es_mujer else 1.0
-        age = 50
-        if edad_anos is not None:
-            if isinstance(edad_anos, (int, float)) and 18 <= edad_anos <= 120:
-                age = float(edad_anos)
-            elif isinstance(edad_anos, str) and edad_anos.replace("años", "").strip().isdigit():
-                age = float(edad_anos.replace("años", "").strip())
         scr_k = creat_mg_dl / k
         egfr = 142.0 * (min(scr_k, 1.0) ** alpha) * (max(scr_k, 1.0) ** -1.200) * (0.9938 ** age) * mult
         return round(egfr, 1)
@@ -223,13 +231,44 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 
         return es_medicion_alterada(val_num, ref_str, estado_semaforo)
 
+    def get_display_status(cod: str, val_str: Any, is_altered: bool, fallback_ref: Optional[str] = None) -> str:
+        """Estado visual común para valores de KPI y sus filas de detalle."""
+        if val_str is None or val_str == "" or val_str == "-":
+            return "Normal"
+
+        med_obj, an_obj = get_analyte_record(cod)
+        ref_str = (med_obj.ref_texto if med_obj else None) or (an_obj.ref_texto_defecto if an_obj else None) or fallback_ref
+        val_num = parse_num(val_str)
+        calculated = evaluar_estado_semaforo(val_num, ref_str) if ref_str else "Normal"
+        if calculated in ("Alto", "Bajo"):
+            return calculated
+
+        raw_status = (med_obj.estado_semaforo if med_obj else "") or ""
+        status_key = raw_status.strip().lower()
+        if "bajo" in status_key:
+            return "Bajo"
+        if "alto" in status_key:
+            return "Alto"
+        if "límite" in status_key or "limite" in status_key:
+            return "Límite"
+        if is_altered:
+            return "Atención"
+        return "Normal"
+
+    def get_value_class(display_status: str) -> str:
+        if display_status == "Límite":
+            return "text-amber-900 font-semibold"
+        if display_status in ("Alto", "Bajo", "Atención"):
+            return "text-rose-800 font-semibold"
+        return "text-slate-800 font-semibold"
+
 
     # Helper para formatear valores con resaltado en rojo si están fuera de rango
     def fmt_val(v, decimals=None, is_altered=False):
         res = fmt(v, decimals)
         if res == "-" or not is_altered:
             return res
-        return f"<span class='text-rose-600 font-bold'>{res}</span>"
+        return f"<span class='text-rose-800 font-bold'>{res}</span>"
 
     def get_clean_badge(is_atencion: bool, is_seguimiento: bool):
         if is_atencion:
@@ -291,7 +330,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 fn_d = parse_date_safe(paciente.fecha_nacimiento)
                 if fn_d:
                     edad_inf = inf_d.year - fn_d.year - ((inf_d.month, inf_d.day) < (fn_d.month, fn_d.day))
-            sexo_p = paciente.sexo if paciente else "Masculino"
+            sexo_p = paciente.sexo if paciente else ""
             c_calc = calcular_egfr(m_loc["CREATININE"], edad_inf, sexo_p)
             if c_calc is not None:
                 if "EGFR" not in hist_series:
@@ -371,6 +410,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     ) -> Tuple[AnalitoFila, str, Optional[str]]:
         var_sym, var_delta, trend_sym, clin_trend = get_analyte_trend_info(cod, val_str)
         is_undetermined = not val_str or val_str == "-"
+        display_status = get_display_status(cod, val_str, is_altered)
 
         fila = AnalitoFila(
             codigo=cod,
@@ -378,6 +418,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             val=fmt(val_str, decimals),
             unit=unit if not is_undetermined else "",
             is_altered=is_altered if not is_undetermined else False,
+            display_status=display_status if not is_undetermined else "Normal",
             var_symbol=var_sym,
             var_delta=var_delta,
             trend_symbol=trend_sym,
@@ -484,8 +525,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Glucosa en ayunas",
         main_value=fmt(glu),
         unit="mg/dL",
-        main_value_class="text-rose-600 font-semibold" if glu_alt else "text-slate-900 font-semibold",
+        main_value_class=get_value_class(get_display_status("GLUCOSE", glu, glu_alt, "60 - 100")),
         is_altered=glu_alt,
+        main_display_status=get_display_status("GLUCOSE", glu, glu_alt, "60 - 100"),
         main_var_symbol=glu_v_sym,
         main_var_delta=glu_v_delta,
         main_trend_symbol=glu_tr_sym,
@@ -652,8 +694,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Colesterol Total",
         main_value=fmt(col_t),
         unit="mg/dL",
-        main_value_class="text-rose-600 font-semibold" if col_alt else "text-slate-900 font-semibold",
+        main_value_class=get_value_class(get_display_status("CHOLESTEROL_TOTAL", col_t, col_alt)),
         is_altered=col_alt,
+        main_display_status=get_display_status("CHOLESTEROL_TOTAL", col_t, col_alt),
         main_var_symbol=col_v_sym,
         main_var_delta=col_v_delta,
         main_trend_symbol=col_tr_sym,
@@ -702,7 +745,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
                 e_str = calcular_edad(paciente.fecha_nacimiento)
                 if e_str and e_str != "-":
                     edad_anios = e_str.split()[0]
-        sexo_p = paciente.sexo if paciente else "Masculino"
+        sexo_p = paciente.sexo if paciente else ""
         c_calc = calcular_egfr(creat_num, edad_anios, sexo_p)
         if c_calc is not None:
             egfr = str(c_calc)
@@ -754,8 +797,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Creatinina sérica",
         main_value=fmt(creat, 2),
         unit="mg/dL",
-        main_value_class="text-rose-600 font-semibold" if creat_alt else "text-slate-900 font-semibold",
+        main_value_class=get_value_class(get_display_status("CREATININE", creat, creat_alt)),
         is_altered=creat_alt,
+        main_display_status=get_display_status("CREATININE", creat, creat_alt),
         main_var_symbol=creat_v_sym,
         main_var_delta=creat_v_delta,
         main_trend_symbol=creat_tr_sym,
@@ -861,8 +905,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="GPT / ALT",
         main_value=fmt(alt) if alt != "-" else fmt(ast),
         unit="U/L",
-        main_value_class="text-rose-600 font-semibold" if (alt_alt if alt != "-" else ast_alt) else "text-slate-900 font-semibold",
+        main_value_class=get_value_class(get_display_status("GPT_ALT" if alt != "-" else "GOT_AST", alt if alt != "-" else ast, alt_alt if alt != "-" else ast_alt)),
         is_altered=(alt_alt if alt != "-" else ast_alt),
+        main_display_status=get_display_status("GPT_ALT" if alt != "-" else "GOT_AST", alt if alt != "-" else ast, alt_alt if alt != "-" else ast_alt),
         main_var_symbol=hep_v_sym,
         main_var_delta=hep_v_delta,
         main_trend_symbol=hep_tr_sym,
@@ -949,8 +994,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Hemoglobina (Hb)",
         main_value=fmt(hb, 1),
         unit="g/dL",
-        main_value_class="text-rose-600 font-semibold" if hb_alt else "text-slate-900 font-semibold",
+        main_value_class=get_value_class(get_display_status("HEMOGLOBINA", hb, hb_alt)),
         is_altered=hb_alt,
+        main_display_status=get_display_status("HEMOGLOBINA", hb, hb_alt),
         main_var_symbol=hb_v_sym,
         main_var_delta=hb_v_delta,
         main_trend_symbol=hb_tr_sym,
@@ -1079,8 +1125,9 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         main_label="Hormona TSH",
         main_value=fmt(tsh, 2),
         unit="µUI/mL",
-        main_value_class="text-rose-600 font-semibold" if tsh_alt else "text-slate-900 font-semibold",
+        main_value_class=get_value_class(get_display_status("TSH", tsh, tsh_alt)),
         is_altered=tsh_alt,
+        main_display_status=get_display_status("TSH", tsh, tsh_alt),
         main_var_symbol=tsh_v_sym,
         main_var_delta=tsh_v_delta,
         main_trend_symbol=tsh_tr_sym,
@@ -1108,13 +1155,12 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     # =========================================================================
     otros_valores: List[OtrosValoresSeccion] = []
 
-    # A) PRÓSTATA: Solo varones con determinación de PSA
-    sexo_p = (paciente.sexo or "").strip().lower() if paciente else ""
-    es_varon = sexo_p in ["masculino", "varon", "varón", "hombre", "m"] or (sexo_p not in ["femenino", "mujer", "f"])
+    # A) PRÓSTATA: mostrar cuando el informe contenga una determinación de PSA.
+    # La disponibilidad clínica del marcador no debe depender de un dato de perfil editable.
     psa_t = get_v("PSA_TOTAL", "-")
     psa_f = get_v("PSA_FREE", "-")
 
-    if es_varon and (psa_t != "-" or psa_f != "-"):
+    if psa_t != "-" or psa_f != "-":
         psa_num = parse_num(psa_t)
         psa_f_num = parse_num(psa_f)
         ratio_psa_calc = None
@@ -1512,7 +1558,7 @@ def get_tables(db: Session = Depends(get_db)):
         creat_row = next((r for r in bio_rows if r.name == "Creatinina"), None)
         if creat_row and any(v is not None for v in creat_row.vals):
             paciente = db.query(Paciente).first()
-            sexo_p = paciente.sexo if paciente else "Masculino"
+            sexo_p = paciente.sexo if paciente else ""
             fn_d = parse_date_safe(paciente.fecha_nacimiento) if paciente and paciente.fecha_nacimiento else None
 
             egfr_vals = []
@@ -1521,7 +1567,7 @@ def get_tables(db: Session = Depends(get_db)):
                 c_val = creat_row.vals[idx] if idx < len(creat_row.vals) else None
                 if c_val is not None:
                     inf_d = parse_date_safe(inf.fecha)
-                    edad_inf = 50
+                    edad_inf = None
                     if fn_d and inf_d:
                         edad_inf = inf_d.year - fn_d.year - ((inf_d.month, inf_d.day) < (fn_d.month, fn_d.day))
                     egfr_calc = calcular_egfr(float(c_val), edad_inf, sexo_p)
@@ -1733,7 +1779,7 @@ def get_charts_data(db: Session = Depends(get_db)):
     # eGFR informado por el laboratorio o calculado con CKD-EPI 2021 desde creatinina.
     paciente = db.query(Paciente).first()
     birth_date = parse_date_safe(paciente.fecha_nacimiento) if paciente and paciente.fecha_nacimiento else None
-    sex = paciente.sexo if paciente else "Masculino"
+    sex = paciente.sexo if paciente else ""
     egfr_vals = []
     for idx, informe in enumerate(informes):
         value = raw_egfr_vals[idx]

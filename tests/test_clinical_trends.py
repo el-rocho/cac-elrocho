@@ -7,6 +7,7 @@ from tests.test_support import initialize_test_environment
 initialize_test_environment()
 
 from app.main import app
+from app.api.analiticas import calcular_egfr
 from app.services.clinical_trends import (
     calcular_variacion_reciente,
     calcular_tendencia_longitudinal,
@@ -21,6 +22,17 @@ from app.services.clinical_trends import (
 )
 
 class TestClinicalTrends(unittest.TestCase):
+
+    def test_egfr_calculado_requiere_edad_y_sexo_biologico(self):
+        """Evita estimaciones ficticias hasta que el perfil del paciente esté completo."""
+        self.assertIsNone(calcular_egfr(1.0, None, "Masculino"))
+        self.assertIsNone(calcular_egfr(1.0, 50, "No especificado"))
+
+        egfr_hombre = calcular_egfr(1.0, 50, "Masculino")
+        egfr_mujer = calcular_egfr(1.0, 50, "Femenino")
+        self.assertIsNotNone(egfr_hombre)
+        self.assertIsNotNone(egfr_mujer)
+        self.assertNotEqual(egfr_hombre, egfr_mujer)
 
     def test_regresion_ols_ejemplo_usuario(self):
         # Determinaciones de HbA1c del ejemplo de la especificación

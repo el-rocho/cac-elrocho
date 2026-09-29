@@ -9,6 +9,43 @@ let expandedChartInstance = null;
 let currentKpisData = [];
 let activeKpiIndex = 0;
 
+// El lanzador nativo invoca esta función tras consultar la última release. Se
+// mantiene en el frontend para que el aviso sea accesible y no bloquee el hilo
+// de arranque de la aplicación.
+window.showUpdateAvailable = function showUpdateAvailable(update) {
+  if (!update || typeof update.version !== 'string' || typeof update.url !== 'string') return;
+
+  const dialog = document.createElement('dialog');
+  dialog.className = 'rounded-2xl p-0 shadow-2xl max-w-md w-[calc(100%-2rem)] border border-slate-200 text-slate-800';
+  dialog.innerHTML = `
+    <div class="p-6">
+      <div class="flex items-start gap-3">
+        <div class="text-2xl" aria-hidden="true">✨</div>
+        <div>
+          <h2 class="text-lg font-bold">Hay una actualización disponible</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-600">La versión <strong>v${escapeHtml(update.version)}</strong> está disponible. Puedes descargarla desde la página oficial de versiones.</p>
+        </div>
+      </div>
+      <div class="mt-8 flex justify-end gap-3">
+        <button type="button" class="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900">Más tarde</button>
+        <button type="button" class="px-4 py-2 rounded-lg bg-blue-600 text-sm font-bold text-white hover:bg-blue-700">Ver actualización</button>
+      </div>
+    </div>`;
+
+  const [dismissButton, openButton] = dialog.querySelectorAll('button');
+  dismissButton.addEventListener('click', () => dialog.close());
+  openButton.addEventListener('click', () => window.open(update.url, '_blank', 'noopener'));
+  dialog.addEventListener('close', () => dialog.remove());
+  document.body.appendChild(dialog);
+
+  if (typeof dialog.showModal === 'function') {
+    dialog.showModal();
+  } else {
+    window.alert(`Hay una actualización disponible: v${update.version}.\n\n${update.url}`);
+    dialog.remove();
+  }
+};
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -221,7 +258,8 @@ async function loadSummary() {
       const labelHtml = kpi.main_label 
         ? `<div class="text-[11px] font-medium text-slate-500 mt-1 truncate" title="${kpi.main_label}">${kpi.main_label}</div>` 
         : '';
-      const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-semibold' : 'text-slate-900 font-semibold');
+      const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-800 font-semibold' : 'text-slate-800 font-semibold');
+      const mainStatusSymbol = kpi.main_display_status === 'Alto' ? ' ↑' : (kpi.main_display_status === 'Bajo' ? ' ↓' : '');
       
       const mainVarBadgeHtml = kpi.main_var_delta ? `
         <span class="inline-block px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/80 text-slate-900 font-mono font-bold text-[10px] leading-tight" title="Variación vs control anterior">
@@ -229,16 +267,16 @@ async function loadSummary() {
         </span>
       ` : '';
       let mainDotClass = 'bg-slate-300';
-      let mainTrendTitle = 'Sin tendencia';
+      let mainTrendTitle = 'No evaluable';
       if (kpi.main_clinical_trend === 'FAVORABLE') {
         mainDotClass = 'bg-emerald-500';
-        mainTrendTitle = 'Tendencia favorable';
+        mainTrendTitle = 'Favorable';
       } else if (kpi.main_clinical_trend === 'DESFAVORABLE') {
         mainDotClass = 'bg-rose-500';
-        mainTrendTitle = 'Tendencia desfavorable';
+        mainTrendTitle = 'Desfavorable';
       } else if (kpi.main_clinical_trend === 'ESTABLE') {
-        mainDotClass = 'bg-blue-500';
-        mainTrendTitle = 'Tendencia estable';
+        mainDotClass = 'bg-white border border-slate-400';
+        mainTrendTitle = 'Estable';
       }
 
       const mainFootnoteHtml = (kpi.main_is_historical && kpi.main_footnote_symbol) ? `
@@ -257,7 +295,7 @@ async function loadSummary() {
       ` : '';
 
       const trendLabel = (kpi.trend_badge_text === 'SIN TENDENCIA' || kpi.trend_badge_text === 'Sin tendencia')
-        ? 'Tendencia: Sin datos'
+        ? 'Tendencia: No evaluable'
         : `Tendencia: ${kpi.trend_badge_text}`;
 
       const trendBadgeHtml = kpi.trend_badge_text ? `
@@ -273,7 +311,7 @@ async function loadSummary() {
           </div>
           ${labelHtml}
           <div class="text-xl ${valColorClass} ${kpi.main_label ? 'mt-0.5' : 'mt-1'} flex items-baseline flex-wrap">
-            <span>${kpi.main_value}</span>
+            <span>${kpi.main_value}${mainStatusSymbol}</span>
             <span class="text-xs font-normal text-slate-500 ml-1">${kpi.unit}</span>
             ${mainFootnoteHtml}
             ${mainIndicatorsHtml}
@@ -502,7 +540,7 @@ function getCellFormatClient(name, v, ref = null) {
   if (!ref) return { cls: 'text-slate-800 font-medium', title: 'Normal' };
   const st = evaluateStatusClient(num, ref);
   if (st === 'Alto') return { cls: 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm', title: `Alto (${ref})` };
-  if (st === 'Bajo') return { cls: 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm', title: `Bajo (${ref})` };
+  if (st === 'Bajo') return { cls: 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm', title: `Bajo (${ref})` };
   const b = evaluateBorderlineClient(num, ref, name);
   if (b && b.isBorderline) return { cls: 'text-amber-900 bg-amber-50/80 border border-amber-200 font-medium px-1.5 py-0.5 rounded shadow-sm', title: `Límite (${b.reason})` };
   return { cls: 'text-slate-800 font-medium', title: 'Normal' };
@@ -597,6 +635,7 @@ async function loadTables() {
         } else {
           let cellCls = 'text-slate-800 font-medium';
           let title = `${row.name}: ${v} ${row.unit || ''}`;
+          let displayStatus = 'Normal';
 
           if (cellObj) {
             const cRef = cellObj.ref || row.ref || 'Sin referencia';
@@ -614,14 +653,14 @@ async function loadTables() {
 
             if (isAltered) {
               if (cStatus === 'Bajo') {
-                cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+                cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
               } else if (cStatus === 'Alto' || cStatus === 'Atencion' || cStatus === 'Alerta' || cStatus === 'Alérgeno') {
                 cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
               } else {
                 if (!isNaN(numVal) && cRef) {
                   const bounds = parseReferenceBoundsClient(cRef);
                   if (bounds.low !== null && numVal < bounds.low) {
-                    cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+                    cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
                     cStatus = 'Bajo';
                   } else {
                     cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
@@ -641,12 +680,13 @@ async function loadTables() {
               }
             }
             title = `${row.name}: ${v} ${row.unit || ''} | Rango del informe: ${cRef} (${cStatus}) | Ref. vigente: ${row.ref || '-'}`;
+            displayStatus = cStatus;
           } else {
             const num = parseFloat(String(v).replace(',', '.'));
             const st = (!isNaN(num) && row.ref) ? evaluateStatusClient(num, row.ref) : 'Normal';
             let stText = st;
             if (st === 'Bajo') {
-              cellCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
+              cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
             } else if (st === 'Alto') {
               cellCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm';
             } else {
@@ -659,9 +699,11 @@ async function loadTables() {
               }
             }
             title = `${row.name}: ${v} ${row.unit || ''} | Estado: ${stText} | Ref. vigente: ${row.ref || '-'}`;
+            displayStatus = stText;
           }
 
-          cells += `<td class="p-3 text-center"><span class="${cellCls}" title="${escapeHtml(title)}">${v}</span></td>`;
+          const statusSymbol = displayStatus === 'Alto' ? ' ↑' : (displayStatus === 'Bajo' ? ' ↓' : '');
+          cells += `<td class="p-3 text-center"><span class="${cellCls}" title="${escapeHtml(title)}">${v}${statusSymbol}</span></td>`;
         }
       });
 
@@ -675,7 +717,7 @@ async function loadTables() {
           avgCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm text-xs';
           avgTitle += ' - Alto';
         } else if (avgSt === 'Bajo') {
-          avgCls = 'text-blue-800 bg-blue-50 border border-blue-300 font-bold px-1.5 py-0.5 rounded shadow-sm text-xs';
+          avgCls = 'text-rose-800 bg-rose-50 border border-rose-300 font-bold px-1.5 py-0.5 rounded shadow-sm text-xs';
           avgTitle += ' - Bajo';
         } else {
           const avgBorder = evaluateBorderlineClient(numAvg, row.ref, row.name);
@@ -686,7 +728,7 @@ async function loadTables() {
         }
         cells += `
           <td class="p-3 text-center bg-blue-50/70 border-l border-r border-blue-200">
-            <span class="${avgCls}" title="${escapeHtml(avgTitle)}">${row.recentAvg}</span>
+            <span class="${avgCls}" title="${escapeHtml(avgTitle)}">${row.recentAvg}${avgSt === 'Alto' ? ' ↑' : (avgSt === 'Bajo' ? ' ↓' : '')}</span>
           </td>
         `;
       } else {
@@ -2834,7 +2876,7 @@ async function testAiConnection(slot) {
     setAiStatus(`Conexión del slot ${slot} verificada`, 'success');
   } catch (error) {
     const message = error.name === 'AbortError'
-      ? 'La comprobación superó 25 segundos. Revisa la conectividad e inténtalo de nuevo.'
+      ? 'TIMEOUT: la comprobación superó 25 segundos. Revisa la conectividad e inténtalo de nuevo.'
       : error.message;
     setAiStatus(message, 'error');
   } finally {
@@ -3182,19 +3224,20 @@ function openKpiModal(index) {
 
   if (titleEl) titleEl.textContent = kpi.title;
 
-  const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-600 font-semibold' : 'text-slate-900 font-semibold');
+  const valColorClass = kpi.main_value_class ? kpi.main_value_class : (kpi.is_altered ? 'text-rose-800 font-semibold' : 'text-slate-800 font-semibold');
+  const mainStatusSymbol = kpi.main_display_status === 'Alto' ? ' ↑' : (kpi.main_display_status === 'Bajo' ? ' ↓' : '');
 
   let mainDotClass = 'bg-slate-300';
-  let mainTrendTitle = 'Sin tendencia evaluable';
+  let mainTrendTitle = 'No evaluable';
   if (kpi.main_clinical_trend === 'FAVORABLE') {
     mainDotClass = 'bg-emerald-500';
-    mainTrendTitle = 'Tendencia favorable';
+    mainTrendTitle = 'Favorable';
   } else if (kpi.main_clinical_trend === 'DESFAVORABLE') {
     mainDotClass = 'bg-rose-500';
-    mainTrendTitle = 'Tendencia desfavorable';
+    mainTrendTitle = 'Desfavorable';
   } else if (kpi.main_clinical_trend === 'ESTABLE') {
-    mainDotClass = 'bg-blue-500';
-    mainTrendTitle = 'Tendencia estable';
+    mainDotClass = 'bg-white border border-slate-400';
+    mainTrendTitle = 'Estable';
   }
 
   const mainTrendBadge = kpi.main_clinical_trend ? `
@@ -3219,14 +3262,13 @@ function openKpiModal(index) {
             ` : '';
             const isAltered = f.is_altered;
             const isUndetermined = f.val === '-' || !f.val;
-            const valClass = isAltered 
-              ? 'text-rose-600 font-bold' 
-              : (isUndetermined ? 'text-slate-400 font-medium' : 'text-slate-900 font-semibold');
+            const valClass = f.display_status === 'Límite'
+              ? 'text-amber-900 font-bold'
+              : (isAltered ? 'text-rose-800 font-bold' : (isUndetermined ? 'text-slate-400 font-medium' : 'text-slate-800 font-semibold'));
+            const statusSymbol = f.display_status === 'Alto' ? ' ↑' : (f.display_status === 'Bajo' ? ' ↓' : '');
             
             let dotClass = 'bg-slate-300';
-            let trendTitle = isUndetermined 
-              ? 'No determinado' 
-              : 'Sin tendencia';
+            let trendTitle = 'No evaluable';
             if (f.clinical_trend === 'FAVORABLE') {
               dotClass = 'bg-emerald-500';
               trendTitle = 'Favorable';
@@ -3234,7 +3276,7 @@ function openKpiModal(index) {
               dotClass = 'bg-rose-500';
               trendTitle = 'Desfavorable';
             } else if (f.clinical_trend === 'ESTABLE') {
-              dotClass = 'bg-blue-500';
+              dotClass = 'bg-white border border-slate-400';
               trendTitle = 'Estable';
             }
 
@@ -3260,7 +3302,7 @@ function openKpiModal(index) {
                 </div>
                 <div class="flex items-center gap-2 sm:gap-3 shrink-0">
                   <span class="${valClass} text-xs sm:text-sm min-w-[55px] text-right">
-                    ${f.val} <span class="text-[11px] font-normal text-slate-500">${f.unit || ''}</span>
+                    ${f.val}${statusSymbol} <span class="text-[11px] font-normal text-slate-500">${f.unit || ''}</span>
                   </span>
                   <div class="min-w-[44px] flex justify-end">
                     ${varBadgeHtml}
@@ -3299,7 +3341,7 @@ function openKpiModal(index) {
   }
 
   const trendLabel = (kpi.trend_badge_text === 'SIN TENDENCIA' || kpi.trend_badge_text === 'Sin tendencia')
-    ? 'Tendencia: Sin datos'
+    ? 'Tendencia: No evaluable'
     : `Tendencia: ${kpi.trend_badge_text}`;
 
   const trendBadgeHtml = kpi.trend_badge_text ? `
@@ -3321,7 +3363,7 @@ function openKpiModal(index) {
             ${kpi.main_is_historical ? `<span class="text-[10px] font-semibold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-200 shrink-0">Histórico ${kpi.main_fecha_origen || ''}</span>` : ''}
           </div>
           <div class="text-2xl sm:text-3xl ${valColorClass} mt-0.5 flex items-baseline flex-wrap">
-            <span>${kpi.main_value}</span>
+            <span>${kpi.main_value}${mainStatusSymbol}</span>
             <span class="text-sm font-semibold text-slate-500 ml-1.5">${kpi.unit}</span>
           </div>
         </div>

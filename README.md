@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.9.6`
+# cac-elrocho 🩺 `v0.9.7`
 
 <img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
@@ -23,7 +23,12 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.6`
+## ✨ Novedades de la Versión `v0.9.7`
+* 🩺 **Resultados más claros y coherentes**: los valores altos y bajos se señalan con flechas y una misma semántica visual en tarjetas, detalle e histórico; los valores límite se distinguen de los alterados y las tendencias sin base suficiente se muestran como «No evaluable».
+* 🧪 **Cálculo renal prudente**: el eGFR calculado con CKD-EPI 2021 solo se muestra cuando constan edad y sexo biológico válidos, evitando estimaciones por datos de perfil incompletos.
+* 🔬 **PSA visible cuando está informado**: los marcadores de próstata se incluyen siempre que existan en la analítica, sin ocultarlos por un campo editable del perfil.
+* 🤖 **Diagnóstico de Gemini transparente**: al comprobar una credencial se muestra el detalle devuelto por el proveedor, incluido el código de error, para facilitar su corrección.
+* 🪟 **Aviso de actualización en Windows**: la aplicación de escritorio comprueba en segundo plano las releases estables y ofrece un acceso a la descarga cuando existe una versión posterior, sin impedir el uso sin conexión.
 * 📊 **Importación de historiales CSV**: incorpora analíticas completas desde una tabla con parámetros en filas y fechas en columnas; admite archivos UTF-8/Latin-1, separadores `;` o `,` y fechas ISO o españolas.
 * 🔄 **Actualización segura de fechas existentes**: antes de complementar una fecha ya presente, la aplicación pide confirmación y conserva los parámetros que no estén incluidos en el CSV.
 * 🧬 **Fórmula leucocitaria precisa**: diferencia porcentajes y recuentos absolutos de linfocitos, neutrófilos, monocitos, eosinófilos y basófilos, incluso cuando la unidad no figura en la tabla de origen.
@@ -231,6 +236,8 @@ uvicorn app.main:app --reload --port 8000
 ## 🪟 Aplicación de escritorio para Windows
 
 Descarga `cac-elrocho-vX.Y.Z.exe` desde la [última versión publicada](https://github.com/el-rocho/cac-elrocho/releases/latest) y ejecútalo en Windows 10/11 de 64 bits. No requiere Docker ni cuenta de usuario. El instalador crea los accesos directos opcionales y no elimina tus datos clínicos al desinstalar; estos se mantienen en `%LOCALAPPDATA%\AnaliticasClinicas`. Como precaución habitual, crea una copia de seguridad desde la aplicación antes de actualizar o desinstalar.
+
+Al abrir la aplicación de escritorio, se consulta en segundo plano la última release estable publicada en GitHub. Si es más reciente que la instalada, aparece un aviso con acceso a su página de descarga. Si no hay conexión o GitHub no responde, la aplicación continúa abriéndose con normalidad.
 
 ---
 

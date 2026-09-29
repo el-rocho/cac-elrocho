@@ -793,12 +793,12 @@ def evaluar_tendencia_eje_tiroideo(
         if (tsh_clin == CLINICAL_FAVORABLE and (t4l_clin in (CLINICAL_FAVORABLE, CLINICAL_ESTABLE, None))) or \
            (t4l_clin == CLINICAL_FAVORABLE and (tsh_clin in (CLINICAL_FAVORABLE, CLINICAL_ESTABLE, None))):
             return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
-        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+        return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
 
     # 3. Discordancia atípica (ambas hormonas moviéndose en la misma dirección cuando hay alteración)
     if (tsh_sym == "↗" and t4l_sym == "↗") or (tsh_sym == "↘" and t4l_sym == "↘"):
         if tsh_alt or t4l_alt:
-            return "mixta", CLINICAL_MIXTA, "bg-purple-50 text-purple-700 border-purple-200"
+            return "mixta", CLINICAL_MIXTA, "bg-amber-50 text-amber-800 border-amber-200"
 
     # 4. Mejoría / Recuperación hacia la normalidad
     # Recuperación de hipotiroidismo: TSH elevada que desciende (↘) hacia rango normal
@@ -837,25 +837,25 @@ def evaluar_tendencia_eje_tiroideo(
     # 7. Si solo TSH tiene datos longitudinales
     if tsh_sym and not t4l_sym:
         if not tsh_alt:
-            return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+            return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
         if tsh_clin == CLINICAL_FAVORABLE:
             return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
         elif tsh_clin == CLINICAL_DESFAVORABLE:
             return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
-        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+        return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
 
     # 8. Si solo T4L tiene datos longitudinales
     if t4l_sym and not tsh_sym:
         if not t4l_alt:
-            return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+            return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
         if t4l_clin == CLINICAL_FAVORABLE:
             return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
         elif t4l_clin == CLINICAL_DESFAVORABLE:
             return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
-        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+        return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
 
     # Por defecto, estado estable. T3 libre y anticuerpos no arrastran a desfavorable.
-    return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+    return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
 
 
 def evaluar_tendencia_global_tarjeta(
@@ -880,7 +880,7 @@ def evaluar_tendencia_global_tarjeta(
         has_fav = CLINICAL_FAVORABLE in prim_trends
         has_desfav = CLINICAL_DESFAVORABLE in prim_trends
         if has_fav and has_desfav:
-            return "mixta", CLINICAL_MIXTA, "bg-purple-50 text-purple-700 border-purple-200"
+            return "mixta", CLINICAL_MIXTA, "bg-amber-50 text-amber-800 border-amber-200"
         elif has_fav and not has_desfav:
             return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
         elif has_desfav and not has_fav:
@@ -889,7 +889,7 @@ def evaluar_tendencia_global_tarjeta(
             # Primarios estables: T3 libre y anticuerpos secundarios NUNCA pueden determinar desfavorable
             if sec_trends and (CLINICAL_FAVORABLE in sec_trends) and (CLINICAL_DESFAVORABLE not in sec_trends):
                 return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
-            return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+            return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"
 
     if not prim_trends:
         if not sec_trends:
@@ -901,7 +901,7 @@ def evaluar_tendencia_global_tarjeta(
     has_desfav = CLINICAL_DESFAVORABLE in prim_trends
 
     if has_fav and has_desfav:
-        return "mixta", CLINICAL_MIXTA, "bg-purple-50 text-purple-700 border-purple-200"
+        return "mixta", CLINICAL_MIXTA, "bg-amber-50 text-amber-800 border-amber-200"
     elif has_fav and not has_desfav:
         return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
     elif has_desfav and not has_fav:
@@ -912,10 +912,10 @@ def evaluar_tendencia_global_tarjeta(
             sec_has_desfav = CLINICAL_DESFAVORABLE in sec_trends
 
             if sec_has_fav and sec_has_desfav:
-                return "mixta", CLINICAL_MIXTA, "bg-purple-50 text-purple-700 border-purple-200"
+                return "mixta", CLINICAL_MIXTA, "bg-amber-50 text-amber-800 border-amber-200"
             elif sec_has_fav and not sec_has_desfav:
                 return "favorable", CLINICAL_FAVORABLE, "bg-emerald-50 text-emerald-700 border-emerald-200"
             elif sec_has_desfav and not sec_has_fav:
                 return "desfavorable", CLINICAL_DESFAVORABLE, "bg-rose-50 text-rose-700 border-rose-200"
 
-        return "estable", CLINICAL_ESTABLE, "bg-blue-50 text-blue-700 border-blue-200"
+        return "estable", CLINICAL_ESTABLE, "bg-white text-slate-800 border-slate-400"

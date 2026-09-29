@@ -9,6 +9,7 @@ class AnalitoFila(BaseModel):
     val: str
     unit: Optional[str] = ""
     is_altered: Optional[bool] = False
+    display_status: Optional[str] = "Normal"  # 'Normal', 'Límite', 'Alto', 'Bajo' o 'Atención'
     var_symbol: Optional[str] = None      # '↑', '↓', '→'
     var_delta: Optional[str] = None       # '+0.3', '-6', ''
     trend_symbol: Optional[str] = None    # '↗', '↘', '→'
@@ -29,6 +30,7 @@ class KpiCard(BaseModel):
     unit: str
     main_value_class: Optional[str] = "text-slate-900"
     is_altered: Optional[bool] = False
+    main_display_status: Optional[str] = "Normal"
     main_var_symbol: Optional[str] = None
     main_var_delta: Optional[str] = None
     main_trend_symbol: Optional[str] = None
@@ -44,7 +46,7 @@ class KpiCard(BaseModel):
     badge_text: str
     badge_class: str
     trend_global: Optional[str] = "sin_tendencia"
-    trend_badge_text: Optional[str] = "Sin tendencia"
+    trend_badge_text: Optional[str] = "No evaluable"
     trend_badge_class: Optional[str] = "bg-slate-100 text-slate-600 border-slate-200"
     notas_pie: Optional[List[Dict[str, str]]] = []
 

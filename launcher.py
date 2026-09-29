@@ -8,13 +8,14 @@ del backend y los despliegues Docker no necesiten dependencias gráficas.
 
 from __future__ import annotations
 
+import json
 import logging
 import socket
 import threading
 import time
 from dataclasses import dataclass
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import uvicorn
 
@@ -27,10 +28,85 @@ WINDOW_INITIAL_WIDTH = 1280
 WINDOW_INITIAL_HEIGHT = 840
 WINDOW_MINIMUM_SIZE = (960, 640)
 WINDOW_TITLE = f"CAC El Rocho v{__version__}"
+GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/el-rocho/cac-elrocho/releases/latest"
+UPDATE_INFORMATION_URL = "https://cac.elrocho.es/"
+UPDATE_CHECK_TIMEOUT_SECONDS = 3
 
 
 class ServerStartupError(RuntimeError):
     """El backend local no llegó a estar disponible a tiempo."""
+
+
+@dataclass(frozen=True)
+class AvailableUpdate:
+    """Datos mínimos de una actualización publicada para mostrar al usuario."""
+
+    version: str
+    url: str
+
+
+def version_components(version: str) -> tuple[int, ...] | None:
+    """Convierte versiones de releases como ``v0.9.7`` en una tupla comparable."""
+    normalized = version.strip().removeprefix("v")
+    parts = normalized.split(".")
+    if not parts or len(parts) > 4 or any(not part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def find_available_update() -> AvailableUpdate | None:
+    """Consulta GitHub y devuelve solo releases estables más nuevas.
+
+    Un fallo de red, una instalación sin Internet o una respuesta no esperada
+    no afectan al uso normal de la aplicación: simplemente no se muestra aviso.
+    """
+    installed_version = version_components(__version__)
+    if installed_version is None:
+        LOGGER.warning("La versión instalada no tiene un formato comparable: %s", __version__)
+        return None
+
+    request = Request(
+        GITHUB_LATEST_RELEASE_URL,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "CAC-El-Rocho-update-check"},
+    )
+    try:
+        with urlopen(request, timeout=UPDATE_CHECK_TIMEOUT_SECONDS) as response:  # noqa: S310 - URL fija de releases.
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, URLError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        LOGGER.info("No se pudo comprobar si hay actualizaciones: %s", error)
+        return None
+
+    if not isinstance(payload, dict) or payload.get("draft") or payload.get("prerelease"):
+        return None
+
+    published_version = payload.get("tag_name")
+    if not isinstance(published_version, str):
+        return None
+
+    available_version = version_components(published_version)
+    if available_version is None or available_version <= installed_version:
+        return None
+    return AvailableUpdate(version=published_version.removeprefix("v"), url=UPDATE_INFORMATION_URL)
+
+
+def notify_available_update(window, update: AvailableUpdate) -> None:
+    """Pide al frontend que muestre el aviso, una vez que ya está cargado."""
+    payload = json.dumps({"version": update.version, "url": update.url})
+    try:
+        window.evaluate_js(f"window.showUpdateAvailable({payload});")
+    except Exception as error:
+        # La ventana puede haberse cerrado mientras terminaba la consulta.
+        LOGGER.info("No se pudo mostrar el aviso de actualización: %s", error)
+
+
+def check_for_update_after_window_load(window) -> None:
+    """Lanza la consulta en segundo plano para no retrasar la ventana principal."""
+    def worker() -> None:
+        update = find_available_update()
+        if update is not None:
+            notify_available_update(window, update)
+
+    threading.Thread(target=worker, name="analiticas-update-check", daemon=True).start()
 
 
 def reserve_loopback_port() -> int:
@@ -113,6 +189,9 @@ def run_desktop() -> None:
             resizable=True,
         )
         window.events.closed += local_server.stop
+        # La consulta se inicia después de cargar la interfaz y en un hilo
+        # independiente; sin conexión, la aplicación se abre exactamente igual.
+        window.events.loaded += lambda: check_for_update_after_window_load(window)
         webview.start()
     except Exception:
         local_server.stop()

@@ -1,6 +1,22 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.7] - 2026-09-29
+
+### 🩺 Interpretación y presentación clínica
+* **Estados de resultados unificados**: tarjetas KPI, filas de detalle e histórico emplean una semántica común para resultados altos, bajos, límite y de atención; los altos y bajos incluyen indicadores direccionales y el estado límite se diferencia visualmente.
+* **Tendencias más legibles**: los estados sin datos suficientes se presentan como «No evaluable», las tendencias estables adoptan una apariencia neutra y las mixtas se señalan como situaciones que requieren atención.
+* **eGFR sin estimaciones ficticias**: el cálculo CKD-EPI 2021 exige creatinina, edad adulta válida y sexo biológico reconocido; si falta alguno de esos datos, no se infiere un filtrado glomerular estimado.
+* **PSA independiente del perfil**: los resultados de PSA total, libre y su ratio se muestran cuando aparecen en el informe, sin depender del sexo indicado en la ficha editable.
+
+### 🤖 Configuración y escritorio
+* **Errores de Gemini accionables**: la comprobación de credenciales conserva el mensaje y código exactos devueltos por el proveedor, incluidos los tiempos de espera.
+* **Comprobación de actualizaciones para Windows**: el lanzador consulta en segundo plano la última release estable de GitHub y muestra un aviso con enlace a la descarga si hay una versión más reciente; los fallos de red no bloquean el arranque.
+
+### 📦 Distribución y documentación
+* **Release v0.9.7 preparada**: se actualizan la versión de la aplicación, el instalador de Windows y la documentación de publicación.
+* **GitHub Pages al día**: la tarjeta de Windows ofrece enlaces directos a los instaladores de v0.9.7, v0.9.6 y v0.9.5.
+
 ## [v0.9.6] - 2026-09-28
 
 ### 📥 Importación de historiales tabulares
