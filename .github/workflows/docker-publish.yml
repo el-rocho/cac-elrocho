@@ -154,7 +154,7 @@ jobs:
 
       - name: Download Windows installer for release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cac-elrocho-windows-installer
           path: release-assets
