@@ -8,9 +8,9 @@ contexto inicial para un agente que vaya a continuar el desarrollo.
 
 - Repositorio remoto: `https://github.com/el-rocho/cac-elrocho.git`.
 - En el momento de actualizar esta guía, la rama `main` local está sincronizada
-  con GitHub en el commit `e4f17a8` (`Add OpenAI and DeepSeek LLM providers`).
-  El soporte de Gemini, OpenAI y DeepSeek, incluida su documentación en el
-  README, forma parte ya del código publicado.
+  con GitHub. El soporte de Gemini, OpenAI y DeepSeek se publicó en
+  `e4f17a8` (`Add OpenAI and DeepSeek LLM providers`), incluida su
+  documentación en el README.
 - La aplicación es FastAPI con SQLite, interfaz estática y Docker Compose.
   El comando de validación habitual es `python -m unittest discover -s tests`.
 - En Docker, la raíz persistente es `/app` y los volúmenes del repositorio se
