@@ -7,10 +7,10 @@ contexto inicial para un agente que vaya a continuar el desarrollo.
 ## Estado de partida
 
 - Repositorio remoto: `https://github.com/el-rocho/cac-elrocho.git`.
-- El árbol de trabajo local contiene cambios **sin confirmar** en `README.md`,
-  la configuración de LLM, la API de ajustes, el esquema, la interfaz y sus
-  pruebas. El trabajo amplía la configuración de IA a Gemini, OpenAI y
-  DeepSeek. No debe asumirse que GitHub contiene esos cambios.
+- En el momento de actualizar esta guía, la rama `main` local está sincronizada
+  con GitHub en el commit `e4f17a8` (`Add OpenAI and DeepSeek LLM providers`).
+  El soporte de Gemini, OpenAI y DeepSeek, incluida su documentación en el
+  README, forma parte ya del código publicado.
 - La aplicación es FastAPI con SQLite, interfaz estática y Docker Compose.
   El comando de validación habitual es `python -m unittest discover -s tests`.
 - En Docker, la raíz persistente es `/app` y los volúmenes del repositorio se
@@ -24,7 +24,7 @@ cifrada.
 
 | Pieza | Contenido | Finalidad |
 | --- | --- | --- |
-| `source` | Clon de GitHub y un parche binario de los cambios locales | Código exacto, incluido el trabajo no publicado. |
+| `source` | Clon de GitHub en la rama `main` | Código publicado y documentación técnica. |
 | `data` | Directorios `data/`, `inbox/`, `backups/` y `logs/` | Base SQLite, adjuntos, PDFs de referencia y material de prueba. |
 | `config` | `config/config.json` | Selección de proveedores/modelos sin claves. |
 
@@ -58,21 +58,27 @@ capturas de pantalla.
    docker compose stop app
    ```
 
-2. Captura los cambios locales, incluidos los cambios binarios si los hubiera:
+2. Comprueba que no haya trabajo local pendiente:
 
    ```powershell
-   git diff --binary | Set-Content -Encoding utf8 local-changes.patch
    git status --short
    ```
 
-   Si hubiera ficheros de código nuevos no rastreados, cópialos al paquete
-   `source` o añádelos explícitamente al control de versiones antes de crear
-   el parche. El comando anterior sólo cubre archivos ya rastreados.
+   Una salida vacía significa que basta con clonar GitHub. Si hubiera cambios
+   sin confirmar en el futuro, publícalos con commit y push antes del traspaso.
+   Sólo si no se pueden publicar, crea un parche adicional:
+
+   ```powershell
+   git diff --binary | Set-Content -Encoding utf8 local-changes.patch
+   ```
+
+   Los ficheros nuevos no rastreados no entran en ese parche: añádelos a Git o
+   cópialos explícitamente junto a él.
 
 3. Copia a un medio protegido los directorios `data`, `inbox`, `backups`,
-   `logs`, el archivo `config/config.json`, `local-changes.patch` y este
-   documento. Conserva juntos `analiticas.db`, `analiticas.db-wal` y
-   `analiticas.db-shm` cuando existan.
+   `logs`, el archivo `config/config.json` y este documento. Conserva juntos
+   `analiticas.db`, `analiticas.db-wal` y `analiticas.db-shm` cuando existan.
+   Incluye `local-changes.patch` solamente en el caso excepcional anterior.
 
 4. Cuando la copia esté verificada, vuelve a levantar el servicio si procede:
 
@@ -80,9 +86,8 @@ capturas de pantalla.
    docker compose start app
    ```
 
-> Una alternativa más limpia para llevar sólo el historial publicado es
-> `git bundle create cac-elrocho.bundle --all`. Aun así se necesita
-> `local-changes.patch` para transportar el trabajo que no está en GitHub.
+> Si la VM no puede acceder a GitHub, crea un archivo portable del historial
+> publicado con `git bundle create cac-elrocho.bundle --all`.
 
 ## Restauración en la VM
 
@@ -91,8 +96,6 @@ En Debian/Ubuntu con Docker:
 ```bash
 git clone https://github.com/el-rocho/cac-elrocho.git cac-elrocho
 cd cac-elrocho
-git apply --check /ruta/segura/local-changes.patch
-git apply /ruta/segura/local-changes.patch
 cp /ruta/segura/config.json config/config.json
 cp -a /ruta/segura/data /ruta/segura/inbox /ruta/segura/backups /ruta/segura/logs .
 cp .env.example .env
@@ -100,7 +103,9 @@ docker compose up -d --build
 ```
 
 Si se usa un `git bundle`, sustituye el clonado por `git clone
-cac-elrocho.bundle cac-elrocho`. Comprueba el estado tras aplicar el parche:
+cac-elrocho.bundle cac-elrocho`. Si excepcionalmente existe un parche local,
+aplícalo después del clonado con `git apply --check` y `git apply`.
+Comprueba el estado al terminar:
 
 ```bash
 git status --short
@@ -133,14 +138,17 @@ Después de transferir, compara hashes de las piezas sensibles desde ambos
 equipos (sin publicar los archivos):
 
 ```powershell
-Get-FileHash data\analiticas.db, local-changes.patch -Algorithm SHA256
+Get-FileHash data\analiticas.db -Algorithm SHA256
 ```
 
 ```bash
-sha256sum data/analiticas.db local-changes.patch
+sha256sum data/analiticas.db
 ```
 
+Si se ha creado excepcionalmente `local-changes.patch`, calcula también su
+hash por separado.
+
 Si el objetivo es sólo que Hermes revise o continúe el código, basta con el
-clon y `local-changes.patch`; no entregues los datos clínicos. Si debe
-reproducir problemas de extracción o cambios de esquema, entrégale también
-el paquete de datos en un canal cifrado y controlado.
+clon de GitHub; no entregues los datos clínicos. Si debe reproducir problemas
+de extracción o cambios de esquema, entrégale también el paquete de datos en
+un canal cifrado y controlado.
