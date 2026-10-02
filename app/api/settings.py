@@ -47,8 +47,8 @@ def update_ai_settings(payload: AIConfigurationUpdate):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-def _slot_secret_name(slot: int) -> str:
-    return f"gemini_api_key_{slot}"
+def _slot_secret_name(slot: int, provider: str) -> str:
+    return f"{provider}_api_key_{slot}"
 
 
 def _gemini_error_detail(exc: Exception) -> str:
@@ -62,7 +62,7 @@ def _gemini_error_detail(exc: Exception) -> str:
 @router.put("/ai/credentials/{slot}", status_code=204)
 def save_ai_credential(payload: AICredentialsUpdate, slot: int = Path(ge=1, le=3)):
     try:
-        secret_store.set_secret(_slot_secret_name(slot), payload.api_key)
+        secret_store.set_secret(_slot_secret_name(slot, payload.provider), payload.api_key)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -71,8 +71,11 @@ def save_ai_credential(payload: AICredentialsUpdate, slot: int = Path(ge=1, le=3
 
 @router.delete("/ai/credentials/{slot}", status_code=204)
 def remove_ai_credential(slot: int = Path(ge=1, le=3)):
+    provider = configuration_service.get_ai_config()["slots"][slot - 1]["provider"]
+    if provider not in {"gemini", "openai", "deepseek"}:
+        raise HTTPException(status_code=400, detail="Selecciona un proveedor antes de eliminar su credencial.")
     try:
-        secret_store.delete_secret(_slot_secret_name(slot))
+        secret_store.delete_secret(_slot_secret_name(slot, provider))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -81,31 +84,38 @@ def remove_ai_credential(slot: int = Path(ge=1, le=3)):
 async def test_ai_connection(slot: int = Path(ge=1, le=3)):
     ai = configuration_service.get_ai_config()
     selected_slot = ai["slots"][slot - 1]
-    if not selected_slot["enabled"] or selected_slot["provider"] != "gemini":
-        raise HTTPException(status_code=400, detail="Activa Gemini en este slot antes de comprobarlo.")
-    api_key = secret_store.get_secret(_slot_secret_name(slot))
+    provider = selected_slot["provider"]
+    provider_label = {"gemini": "Gemini", "openai": "OpenAI", "deepseek": "DeepSeek"}.get(provider, provider)
+    if not selected_slot["enabled"] or provider not in {"gemini", "openai", "deepseek"}:
+        raise HTTPException(status_code=400, detail="Activa un proveedor de IA en este slot antes de comprobarlo.")
+    api_key = secret_store.get_secret(_slot_secret_name(slot, provider))
     if not api_key:
-        raise HTTPException(status_code=400, detail="No hay una credencial de Gemini configurada para este slot.")
+        raise HTTPException(status_code=400, detail=f"No hay una credencial de {provider_label} configurada para este slot.")
     try:
         # Una instrucción muy corta limita el coste y evita devolver contenido
         # de la respuesta del proveedor a la interfaz. Este límite es propio
         # de la comprobación: una extracción de PDF puede requerir más tiempo.
-        from app.services.llm_service import check_gemini_connection
+        from app.services.llm_service import check_deepseek_connection, check_gemini_connection, check_openai_connection
+        check_connection = {
+            "gemini": check_gemini_connection,
+            "openai": check_openai_connection,
+            "deepseek": check_deepseek_connection,
+        }[provider]
         await asyncio.wait_for(
-            asyncio.to_thread(check_gemini_connection, selected_slot["model"], api_key, 15_000),
+            asyncio.to_thread(check_connection, selected_slot["model"], api_key, 15_000),
             timeout=20,
         )
-        return {"status": "ok", "message": f"Conexión con Gemini verificada para el slot {slot}."}
+        return {"status": "ok", "message": f"Conexión con {provider_label} verificada para el slot {slot}."}
     except TimeoutError as exc:
         raise HTTPException(
             status_code=504,
             detail=(
-                "TIMEOUT: Gemini tardó más de 20 segundos en responder. "
+                f"TIMEOUT: {provider_label} tardó más de 20 segundos en responder. "
                 f"Error exacto: {_gemini_error_detail(exc)}"
             ),
         ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"Gemini devolvió el siguiente error: {_gemini_error_detail(exc)}",
+            detail=f"{provider_label} devolvió el siguiente error: {_gemini_error_detail(exc)}",
         ) from exc

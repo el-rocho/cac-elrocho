@@ -8,12 +8,12 @@
 >
 > Aplicación de escritorio gratuita y de código abierto que permite organizar, consultar y visualizar la evolución de tus analíticas.
 >
-> Opcionalmente, utiliza inteligencia artificial de Google Gemini para interpretar los documentos PDF y extraer automáticamente los parámetros analíticos.
+> Opcionalmente, utiliza inteligencia artificial de Google Gemini, OpenAI o DeepSeek para interpretar los documentos PDF y extraer automáticamente los parámetros analíticos.
 >
 > La información obtenida se almacena localmente en tu ordenador, sin necesidad de crear una cuenta ni utilizar un servicio de almacenamiento en la nube.
 
 > [!IMPORTANT]
-> Para utilizar las funciones de inteligencia artificial, únicamente necesitas configurar tu propia clave API de Google Gemini. Los documentos enviados a Gemini están sujetos a las condiciones de tratamiento de datos de Google, que pueden variar según se utilice la modalidad gratuita o de pago de su API.
+> Para utilizar las funciones de inteligencia artificial, configura tu propia clave API de Gemini, OpenAI o DeepSeek. La facturación de API de OpenAI es independiente de una suscripción ChatGPT Plus o Pro; DeepSeek también requiere saldo. Los documentos enviados a cada proveedor están sujetos a sus condiciones de tratamiento de datos.
 
 `cac-elrocho` es una aplicación web integral y soberana diseñada para la digitalización, seguimiento evolutivo y supervisión longitudinal de analíticas médicas y controles de laboratorio. 
 
@@ -119,7 +119,7 @@ APP_DATA_DIR=/app
 
 ### 3. Configurar los modelos LLM desde la aplicación
 
-Después de iniciar la aplicación, abre **⚙️ Configuración y Datos → Inteligencia Artificial**. En una instalación nueva, los tres slots aparecen desactivados y con **Sin IA** como proveedor: el usuario decide si configura alguno. La aplicación está preparada actualmente para modelos de **Google Gemini** y permite configurar hasta tres slots, en este orden:
+Después de iniciar la aplicación, abre **⚙️ Configuración y Datos → Inteligencia Artificial**. En una instalación nueva, los tres slots aparecen desactivados y con **Sin IA** como proveedor: el usuario decide si configura alguno. La aplicación admite modelos de **Google Gemini**, **OpenAI** y **DeepSeek** y permite configurar hasta tres slots, en este orden:
 
 | Slot | Uso recomendado | Comportamiento |
 | --- | --- | --- |
@@ -127,7 +127,9 @@ Después de iniciar la aplicación, abre **⚙️ Configuración y Datos → Int
 | 2. Respaldo | Modelo alternativo con otra cuota o menor latencia | Se usa si falla el slot 1. |
 | 3. Razonamiento avanzado | Modelo de mayor capacidad | Se usa si fallan los anteriores. |
 
-En cada slot puedes activar o desactivar Gemini, indicar el identificador de modelo, actualizar su clave y comprobar la conexión. La conmutación ocurre automáticamente en el orden **1 → 2 → 3**. Si no existe una clave válida, los modelos fallan o no hay conexión a internet, la aplicación utiliza el extractor local basado en expresiones regulares sin interrumpir el servicio.
+En cada slot puedes activar o desactivar el proveedor, indicar el identificador de modelo, actualizar su clave y comprobar la conexión. Para Gemini recomendamos **`gemini-3.8-flash`**, **`gemini-3.7-flash`** o **`gemini-3.6-flash`**; sus claves gratuitas pueden saturarse temporalmente por exceso de solicitudes. Para OpenAI recomendamos **`gpt-5.6-luna`** por su coste bajo y entrada nativa de PDF; usa **`gpt-5.6-terra`** sólo cuando necesites más capacidad. Ambos requieren una API Key de OpenAI con facturación API, independiente de ChatGPT Plus o Pro. Para DeepSeek recomendamos **`deepseek-flash`** (DeepSeek V4.1 Flash): ofrece visión y es muy económico, pero requiere una API Key y saldo cargado. La conmutación ocurre automáticamente en el orden **1 → 2 → 3**. Si no existe una clave válida, los modelos fallan o no hay conexión a internet, la aplicación utiliza el extractor local basado en expresiones regulares sin interrumpir el servicio.
+
+Gemini y OpenAI reciben el PDF original mediante su entrada documental nativa. OpenAI usa la Responses API con detalle visual `high`, que incorpora al modelo tanto el texto extraído como las imágenes de sus páginas. DeepSeek Flash recibe las páginas del informe rasterizadas a 288 DPI, con calidad JPEG alta y control de detalle visual `high`, porque su API visual no acepta PDF directamente. Por ello, antes de convertir DeepSeek en el modelo principal, conviene contrastar ambos proveedores con las analíticas habituales, especialmente las que contengan tablas o diseños complejos.
 
 Los modelos, su orden y su estado se guardan en `APP_DATA_DIR/config/config.json`. Las claves se guardan por separado para cada slot:
 

@@ -83,12 +83,12 @@ class ConfigurationService:
         if isinstance(raw_ai, dict) and not isinstance(raw_ai.get("slots"), list):
             legacy_provider = raw_ai.get("provider")
             legacy_model = str(raw_ai.get("model") or "").strip()
-            if legacy_provider in {"gemini", "none"}:
+            if legacy_provider in {"gemini", "openai", "deepseek", "none"}:
                 configured = [
                     {
                         "provider": legacy_provider,
                         "model": legacy_model,
-                        "enabled": legacy_provider == "gemini" and bool(legacy_model),
+                        "enabled": legacy_provider in {"gemini", "openai", "deepseek"} and bool(legacy_model),
                     },
                     *DEFAULT_CONFIG["ai"]["slots"][1:],
                 ]
@@ -107,7 +107,7 @@ class ConfigurationService:
         ai = self.get_config()["ai"]
         slots = []
         for slot in self._configured_slots():
-            status = secret_store.status(f"gemini_api_key_{slot['slot']}")
+            status = secret_store.status(self._secret_name(slot["provider"], slot["slot"]))
             slots.append({
                 **slot,
                 "credential_configured": status.configured,
@@ -131,6 +131,10 @@ class ConfigurationService:
     def _empty_slot(index: int) -> Dict[str, Any]:
         return {"slot": index, "provider": "none", "model": "", "enabled": False}
 
+    @staticmethod
+    def _secret_name(provider: str, slot: int) -> str:
+        return f"{provider}_api_key_{slot}"
+
     def _normalize_slots(self, slots: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         """Normaliza las preferencias de los slots sin borrar su configuración.
 
@@ -144,10 +148,10 @@ class ConfigurationService:
         for index, slot in enumerate(slots, start=1):
             provider = slot.get("provider")
             model = str(slot.get("model") or "").strip()
-            if provider == "gemini" and model:
+            if provider in {"gemini", "openai", "deepseek"} and model:
                 normalized.append({
                     "slot": index,
-                    "provider": "gemini",
+                    "provider": provider,
                     "model": model,
                     "enabled": bool(slot.get("enabled")),
                 })
@@ -165,14 +169,14 @@ class ConfigurationService:
             if len(slots) != 3:
                 raise ValueError("Deben configurarse exactamente tres slots de IA.")
             for index, slot in enumerate(slots, start=1):
-                if slot.get("provider") not in {"gemini", "none"}:
+                if slot.get("provider") not in {"gemini", "openai", "deepseek", "none"}:
                     raise ValueError(f"El proveedor del slot {index} no es válido.")
         # Compatibilidad con la API antigua: sus campos afectan exclusivamente
         # al primer slot hasta que todos los clientes usen `slots`.
         if "provider" in changes or "model" in changes:
             slots = self._configured_slots()
             slots[0].update({key: changes[key] for key in ("provider", "model") if key in changes})
-            slots[0]["enabled"] = slots[0]["provider"] == "gemini" and bool(str(slots[0]["model"]).strip())
+            slots[0]["enabled"] = slots[0]["provider"] in {"gemini", "openai", "deepseek"} and bool(str(slots[0]["model"]).strip())
             changes["slots"] = slots
             changes.pop("provider", None)
             changes.pop("model", None)
@@ -189,9 +193,9 @@ class ConfigurationService:
 
     def get_configured_llm_slots(self) -> list[Dict[str, Any]]:
         return [
-            {**slot, "api_key": secret_store.get_secret(f"gemini_api_key_{slot['slot']}") or ""}
+            {**slot, "api_key": secret_store.get_secret(self._secret_name(slot["provider"], slot["slot"])) or ""}
             for slot in self._configured_slots()
-            if slot["enabled"] and slot["provider"] == "gemini"
+            if slot["enabled"] and slot["provider"] in {"gemini", "openai", "deepseek"}
         ]
 
 

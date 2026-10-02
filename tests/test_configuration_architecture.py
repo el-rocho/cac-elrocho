@@ -177,3 +177,53 @@ class TestConfigurationService(unittest.TestCase):
             self.assertTrue(saved["slots"][1]["enabled"])
             self.assertEqual(saved["slots"][1]["model"], "missing-token")
             self.assertEqual(saved["slots"][2]["model"], "")
+
+    def test_deepseek_slot_uses_its_own_credential(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = AppPaths(Path(temporary))
+            paths.ensure_directories()
+            fake_settings = SimpleNamespace(paths=paths)
+            requested_secret_names = []
+            fake_secret_store = SimpleNamespace(
+                status=lambda name: SecretStatus(name == "deepseek_api_key_1", "keyring", False),
+                get_secret=lambda name: requested_secret_names.append(name) or "deepseek-secret",
+            )
+            service = ConfigurationService()
+            with patch("app.services.configuration_service.settings", fake_settings), patch(
+                "app.services.configuration_service.secret_store", fake_secret_store
+            ):
+                service.update_ai_config({"slots": [
+                    {"provider": "deepseek", "model": "deepseek-flash", "enabled": True},
+                    {"provider": "none", "model": "", "enabled": False},
+                    {"provider": "none", "model": "", "enabled": False},
+                ]})
+                resolved = service.get_configured_llm_slots()
+
+            self.assertEqual(resolved[0]["provider"], "deepseek")
+            self.assertEqual(resolved[0]["api_key"], "deepseek-secret")
+            self.assertEqual(requested_secret_names, ["deepseek_api_key_1"])
+
+    def test_openai_slot_uses_its_own_credential(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = AppPaths(Path(temporary))
+            paths.ensure_directories()
+            fake_settings = SimpleNamespace(paths=paths)
+            fake_secret_store = SimpleNamespace(
+                status=lambda name: SecretStatus(name == "openai_api_key_1", "keyring", False),
+                get_secret=lambda name: "openai-secret" if name == "openai_api_key_1" else "",
+            )
+            service = ConfigurationService()
+            with patch("app.services.configuration_service.settings", fake_settings), patch(
+                "app.services.configuration_service.secret_store", fake_secret_store
+            ):
+                service.update_ai_config({"slots": [
+                    {"provider": "openai", "model": "gpt-5.6-luna", "enabled": True},
+                    {"provider": "none", "model": "", "enabled": False},
+                    {"provider": "none", "model": "", "enabled": False},
+                ]})
+                resolved = service.get_configured_llm_slots()
+
+            self.assertEqual(resolved, [{
+                "slot": 1, "provider": "openai", "model": "gpt-5.6-luna",
+                "enabled": True, "api_key": "openai-secret",
+            }])

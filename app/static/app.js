@@ -2768,12 +2768,12 @@ function renderAiSlots(slots) {
           <label class="flex items-center gap-2 text-xs text-slate-700 font-semibold"><input class="cfg-ai-enabled rounded border-slate-300 text-violet-600 focus:ring-violet-500" type="checkbox" ${slot.enabled ? 'checked' : ''}> Activar slot</label>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(8rem,0.75fr)_minmax(10rem,1fr)_minmax(12rem,1.6fr)_auto_auto_auto] gap-2.5 items-end text-xs">
-          <div><label class="block font-semibold text-slate-700 mb-1">Proveedor</label><select class="cfg-ai-provider w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-violet-500 focus:outline-none"><option value="gemini" ${slot.provider === 'gemini' ? 'selected' : ''}>Gemini</option><option value="none" ${slot.provider === 'none' ? 'selected' : ''}>Sin IA</option></select></div>
-          <div><label class="block font-semibold text-slate-700 mb-1">Modelo</label><input class="cfg-ai-model w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none" type="text" maxlength="200" value="${escapeHtml(slot.model || '')}" placeholder="gemini-2.5-flash"></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Proveedor</label><select class="cfg-ai-provider w-full border border-slate-300 rounded-xl p-2.5 bg-white focus:ring-2 focus:ring-violet-500 focus:outline-none"><option value="gemini" ${slot.provider === 'gemini' ? 'selected' : ''}>Gemini</option><option value="openai" ${slot.provider === 'openai' ? 'selected' : ''}>OpenAI</option><option value="deepseek" ${slot.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option><option value="none" ${slot.provider === 'none' ? 'selected' : ''}>Sin IA</option></select></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Modelo</label><input class="cfg-ai-model w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none" type="text" maxlength="200" value="${escapeHtml(slot.model || '')}" placeholder="gpt-5.6-luna, deepseek-flash…"></div>
           <div><label class="block font-semibold text-slate-700 mb-1">Token</label><input class="cfg-ai-key w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 focus:ring-violet-500 focus:outline-none" type="password" autocomplete="new-password" placeholder="Clave o token" ${managed ? 'disabled' : ''}></div>
           <button onclick="saveAiCredential(${number})" ${managed ? 'disabled' : ''} class="px-3 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white font-bold rounded-xl text-xs whitespace-nowrap">Actualizar clave</button>
           <button onclick="deleteAiCredential(${number})" ${managed || !slot.credential_configured ? 'disabled' : ''} class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold border border-slate-300 rounded-xl text-xs whitespace-nowrap">Eliminar</button>
-          <button onclick="testAiConnection(${number})" ${!slot.credential_configured || !slot.enabled || slot.provider !== 'gemini' ? 'disabled' : ''} class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-700 border border-blue-200 font-semibold rounded-xl text-xs whitespace-nowrap">Comprobar</button>
+          <button onclick="testAiConnection(${number})" ${!slot.credential_configured || !slot.enabled || slot.provider === 'none' ? 'disabled' : ''} class="px-3 py-2.5 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 text-blue-700 border border-blue-200 font-semibold rounded-xl text-xs whitespace-nowrap">Comprobar</button>
         </div>
       </section>`;
   }).join('');
@@ -2813,7 +2813,7 @@ async function saveAiConfiguration() {
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudieron guardar las preferencias'));
     const saved = await res.json();
     const resetSlots = payload.slots
-      .map((slot, index) => slot.provider === 'gemini' && saved.slots?.[index]?.provider === 'none' ? index + 1 : null)
+      .map((slot, index) => slot.provider !== 'none' && saved.slots?.[index]?.provider === 'none' ? index + 1 : null)
       .filter(Boolean);
     setAiStatus(
       resetSlots.length
@@ -2831,29 +2831,53 @@ async function saveAiConfiguration() {
 }
 
 async function saveAiCredential(slot) {
-  const input = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"] .cfg-ai-key`);
+  const slotElement = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"]`);
+  const input = slotElement?.querySelector('.cfg-ai-key');
+  const provider = slotElement?.querySelector('.cfg-ai-provider')?.value;
   const value = input ? input.value.trim() : '';
   if (!value) {
     setAiStatus('Introduce una clave antes de guardarla.', 'warning');
     return;
   }
+  if (provider === 'none') {
+    setAiStatus('Selecciona Gemini, OpenAI o DeepSeek antes de guardar la clave.', 'warning');
+    return;
+  }
   try {
+    // Guardar primero el estado visible del formulario hace que el flujo
+    // natural «proveedor/modelo → actualizar clave → comprobar» sea atómico
+    // desde el punto de vista del usuario. Sin ello, la clave podía ser de
+    // DeepSeek mientras el servidor aún probaba Gemini.
+    const configuration = {
+      slots: Array.from(document.querySelectorAll('.cfg-ai-slot')).map(item => ({
+        provider: item.querySelector('.cfg-ai-provider').value,
+        model: item.querySelector('.cfg-ai-model').value.trim(),
+        enabled: item.querySelector('.cfg-ai-enabled').checked
+      })),
+      fallback_enabled: document.getElementById('cfg-ai-fallback').checked
+    };
+    const configRes = await fetch('/api/v1/settings/ai', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(configuration)
+    });
+    if (!configRes.ok) throw new Error(await getErrorMessage(configRes, 'No se pudo guardar la configuración del slot'));
+
     const res = await fetch(`/api/v1/settings/ai/credentials/${slot}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: value })
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: value, provider })
     });
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo guardar la clave'));
     input.value = '';
-    // No se recarga toda la configuración aquí: proveedor, modelo y activación
-    // pueden estar todavía sin guardar en el formulario. Recargar los borraría
-    // y haría que el usuario perdiese el slot justo después de guardar su clave.
-    setAiStatus(`Credencial del slot ${slot} guardada. Ahora guarda la configuración de los tres slots.`, 'success');
+    setAiStatus(`Configuración y credencial del slot ${slot} guardadas. Ya puedes comprobar la conexión.`, 'success');
+    await loadAiConfiguration();
+    await loadSummary();
   } catch (error) {
     setAiStatus(error.message, 'error');
   }
 }
 
 async function deleteAiCredential(slot) {
-  if (!confirm(`¿Eliminar la credencial de Gemini del slot ${slot}?`)) return;
+  const provider = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"] .cfg-ai-provider`)?.value || 'proveedor';
+  const providerName = { gemini: 'Gemini', openai: 'OpenAI', deepseek: 'DeepSeek' }[provider] || 'este proveedor';
+  if (!confirm(`¿Eliminar la credencial de ${providerName} del slot ${slot}?`)) return;
   try {
     const res = await fetch(`/api/v1/settings/ai/credentials/${slot}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo eliminar la clave'));
@@ -2866,13 +2890,27 @@ async function deleteAiCredential(slot) {
 
 async function testAiConnection(slot) {
   const btn = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"] button:last-child`);
+  const slotElement = document.querySelector(`.cfg-ai-slot[data-slot="${slot}"]`);
+  const selectedProvider = slotElement?.querySelector('.cfg-ai-provider')?.value;
+  const selectedModel = slotElement?.querySelector('.cfg-ai-model')?.value.trim();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 25000);
   try {
     if (btn) btn.disabled = true;
+    // La comprobación se ejecuta en el servidor y sólo conoce la
+    // configuración persistida. Evitamos que un cambio aún visible en el
+    // formulario parezca haberse aplicado al proveedor remoto.
+    const settingsRes = await fetch('/api/v1/settings/ai');
+    if (!settingsRes.ok) throw new Error(await getErrorMessage(settingsRes, 'No se pudo consultar la configuración IA'));
+    const persisted = await settingsRes.json();
+    const persistedSlot = persisted.slots?.[slot - 1];
+    if (!persistedSlot || persistedSlot.provider !== selectedProvider || persistedSlot.model !== selectedModel) {
+      const persistedName = { gemini: 'Gemini', openai: 'OpenAI', deepseek: 'DeepSeek' }[persistedSlot?.provider] || 'Sin IA';
+      throw new Error(`Guarda primero la configuración del slot ${slot}. La comprobación usaría actualmente ${persistedName}, no la selección actual.`);
+    }
     setAiStatus('Comprobando conexión…');
     const res = await fetch(`/api/v1/settings/ai/test/${slot}`, { method: 'POST', signal: controller.signal });
-    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo comprobar Gemini'));
+    if (!res.ok) throw new Error(await getErrorMessage(res, 'No se pudo comprobar el proveedor'));
     setAiStatus(`Conexión del slot ${slot} verificada`, 'success');
   } catch (error) {
     const message = error.name === 'AbortError'

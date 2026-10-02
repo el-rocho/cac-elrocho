@@ -272,14 +272,14 @@ class PacienteUpdateRequest(BaseModel):
 # --- Configuración de la aplicación ---
 
 class AIModelSlotUpdate(BaseModel):
-    provider: str = Field(pattern="^(gemini|none)$")
+    provider: str = Field(pattern="^(gemini|openai|deepseek|none)$")
     model: str = Field(default="", max_length=200)
     enabled: bool = False
 
 
 class AIConfigurationUpdate(BaseModel):
     slots: Optional[list[AIModelSlotUpdate]] = Field(default=None, min_length=3, max_length=3)
-    provider: Optional[str] = Field(default=None, pattern="^(gemini|none)$")
+    provider: Optional[str] = Field(default=None, pattern="^(gemini|openai|deepseek|none)$")
     model: Optional[str] = Field(default=None, min_length=1, max_length=200)
     fallback_enabled: Optional[bool] = None
     local_endpoint: Optional[str] = Field(default=None, max_length=500)
@@ -288,5 +288,6 @@ class AIConfigurationUpdate(BaseModel):
 
 class AICredentialsUpdate(BaseModel):
     api_key: str = Field(min_length=1, max_length=4096)
+    provider: str = Field(default="gemini", pattern="^(gemini|openai|deepseek)$")
 
 

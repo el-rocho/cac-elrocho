@@ -1526,11 +1526,11 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-violet-100 pb-3">
           <div class="flex items-center gap-3">
             <div class="p-2.5 bg-violet-100 text-violet-800 rounded-xl font-bold text-lg">✨</div>
-            <div class="flex items-center gap-3 flex-wrap">
+            <div class="flex items-center gap-5 flex-wrap">
               <h3 class="text-base font-bold text-slate-900">Inteligencia Artificial</h3>
-              <button type="button" onclick="openGoogleApiKeyModal()" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-transparent px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2" aria-haspopup="dialog" aria-controls="googleApiKeyModal">
+              <button type="button" onclick="openGoogleApiKeyModal()" class="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-100 px-3 py-1.5 text-xs font-bold text-violet-700 transition-colors hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2" aria-haspopup="dialog" aria-controls="googleApiKeyModal">
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-width="2" /><path stroke-linecap="round" stroke-width="2" d="M12 10v6m0-9h.01" /></svg>
-                Cómo obtener clave API
+                Guía de configuración API Keys
               </button>
             </div>
           </div>
@@ -1672,15 +1672,15 @@
     </div>
   </dialog>
 
-  <!-- GUÍA PARA OBTENER UNA CLAVE API DE GOOGLE GEMINI -->
-  <dialog id="googleApiKeyModal" closedby="any" aria-labelledby="googleApiKeyModalTitle" class="fixed inset-0 m-auto max-w-2xl w-[92vw] max-h-[88vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
+  <!-- GUÍA PARA CONFIGURAR PROVEEDORES DE IA -->
+  <dialog id="googleApiKeyModal" closedby="any" aria-labelledby="googleApiKeyModalTitle" class="fixed inset-0 m-auto max-w-4xl w-[92vw] max-h-[88vh] bg-white rounded-2xl shadow-2xl p-0 border border-slate-200 z-50 overflow-hidden focus:outline-none">
     <div class="flex flex-col max-h-[88vh]">
       <div class="flex items-center justify-between gap-4 px-5 py-4 border-b border-violet-100 bg-violet-50">
         <div class="flex items-center gap-3">
           <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-lg" aria-hidden="true">✨</div>
           <div>
-            <p class="text-[11px] font-bold uppercase tracking-wide text-violet-700">Google AI Studio</p>
-            <h2 id="googleApiKeyModalTitle" class="text-lg font-bold text-slate-900">Cómo obtener una Clave API gratuita de Google Gemini</h2>
+            <p class="text-[11px] font-bold uppercase tracking-wide text-violet-700">Proveedores de IA</p>
+            <h2 id="googleApiKeyModalTitle" class="text-lg font-bold text-slate-900">Cómo configurar una clave API</h2>
           </div>
         </div>
         <button type="button" onclick="closeGoogleApiKeyModal()" class="text-slate-400 hover:text-slate-700 hover:bg-white p-2 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500" aria-label="Cerrar guía para obtener la clave API">
@@ -1688,34 +1688,42 @@
         </button>
       </div>
       <div class="p-5 overflow-y-auto space-y-5 text-sm leading-relaxed text-slate-700">
-        <p>Esta aplicación utiliza inteligencia artificial de Google para procesar e interpretar tus analíticas clínicas.</p>
-        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          <p>En concreto, emplea modelos <strong class="text-slate-800">Gemini</strong> para aprovechar su capacidad de lectura multimodal nativa de documentos PDF, lo que ayuda a interpretar directamente tablas, estructura y contenido de tus analíticas.</p>
-        </div>
-        <p>Puedes obtener gratuitamente una clave personal de acceso siguiendo estos pasos:</p>
+        <p>La aplicación permite escoger Gemini, OpenAI o DeepSeek para procesar e interpretar tus analíticas clínicas (los datos se procesan en sus servidores antes de ser guardados en la aplicación).</p>
+        <p>La aplicación utiliza por defecto el LLM configurado en el Slot principal. Si éste falla, usará el Slot de respaldo y, si también falla, activará el Slot de emergencia.</p>
+        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3" aria-labelledby="api-key-steps-title">
+          <h3 id="api-key-steps-title" class="text-sm font-bold text-slate-800">Pasos generales</h3>
+          <ol class="space-y-3 text-xs">
+            <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700">1</span><span>Elige un proveedor y abre su página de claves API con el botón correspondiente.</span></li>
+            <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700">2</span><span>Inicia sesión o crea una cuenta en la plataforma del proveedor.</span></li>
+            <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700">3</span><span>Busca el apartado <strong>API Keys</strong> o <strong>Claves API</strong>.</span></li>
+            <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700">4</span><span>Crea una clave nueva; algunos proveedores pueden pedir seleccionar un proyecto.</span></li>
+            <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700">5</span><span>Copia la clave y pégala en el slot correspondiente de la configuración de la aplicación.</span></li>
+          </ol>
+        </section>
 
-        <ol class="space-y-3">
-          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">1</span><span>Accede a <strong>Google AI Studio</strong> con tu cuenta de Google.</span></li>
-          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">2</span><span>Abre el apartado <strong>API Keys</strong> (Claves de API).</span></li>
-          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">3</span><span>Pulsa <strong>Create API Key</strong> (Crear clave de API).</span></li>
-          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">4</span><span>Selecciona un proyecto existente o crea uno nuevo.</span></li>
-          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">5</span><span>Copia la clave generada y pégala en el apartado de configuración de esta aplicación.</span></li>
-        </ol>
-
-        <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2">
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 3h7v7m0-7L10 14" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" /></svg>
-          Obtener mi API Key
-        </a>
-
-        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <h3 class="mb-2 flex items-center gap-2 text-sm font-bold text-amber-900"><span aria-hidden="true">ℹ️</span> Consideraciones</h3>
-          <ul class="space-y-2 text-xs leading-relaxed text-amber-900">
-            <li>Google permite utilizar determinados modelos Gemini gratuitamente, con límites de solicitudes y tokens que dependen del modelo elegido.</li>
-            <li>No es necesario contratar Google AI Pro ni activar la facturación para utilizar estos modelos.</li>
-            <li>Los modelos disponibles gratuitamente (Free Tier) cambiarán según avanza el desarrollo.</li>
-            <li>Al utilizar el servicio, los datos enviados a la IA se procesan en los servidores de Google.</li>
-          </ul>
-        </div>
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" aria-label="Proveedores disponibles">
+          <div class="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-3">
+            <h3 class="text-sm font-bold text-violet-800">Gemini</h3>
+            <p class="text-xs text-slate-700">Gemini puede recibir el PDF original y aprovechar su lectura multimodal nativa para interpretar tablas y estructura.</p>
+            <p class="text-xs text-slate-700">Algunos modelos tienen modalidad gratuita, con límites de solicitudes y tokens que pueden variar; las claves gratuitas pueden saturarse temporalmente por exceso de solicitudes.</p>
+            <p class="text-xs text-slate-700">Recomendación: modelos gratuitos <code class="font-semibold">gemini-3.8-flash</code>, <code class="font-semibold">gemini-3.7-flash</code> o <code class="font-semibold">gemini-3.6-flash</code>.</p>
+            <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 whitespace-nowrap">Crear API Key Gemini</a>
+          </div>
+          <div class="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-3">
+            <h3 class="text-sm font-bold text-violet-800">OpenAI</h3>
+            <p class="text-xs text-slate-700">OpenAI recibe el PDF original, extrae el texto y analiza visualmente sus páginas de forma nativa.</p>
+            <p class="text-xs text-slate-700">Su API se factura por uso mediante una API Key propia; la suscripción a ChatGPT Plus o Pro no cubre este consumo.</p>
+            <p class="text-xs text-slate-700">Recomendación: <code class="font-semibold">gpt-5.6-luna</code> como principal o reserva por su bajo coste, o <code class="font-semibold">gpt-5.6-terra</code> como emergencia.</p>
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 whitespace-nowrap">Crear API Key OpenAI</a>
+          </div>
+          <div class="rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-3">
+            <h3 class="text-sm font-bold text-violet-800">DeepSeek</h3>
+            <p class="text-xs text-slate-700">DeepSeek analiza visualmente las páginas del PDF convertidas a imágenes; el texto extraído localmente se envía como referencia adicional.</p>
+            <p class="text-xs text-slate-700">Su API es de pago por uso: además de crear la clave, debes añadir saldo antes de comenzar a utilizarla.</p>
+            <p class="text-xs text-slate-700">Recomendación: <code class="font-semibold">deepseek-flash</code> como reserva o emergencia, capacidad menor de procesamiento de PDFs a muy bajo coste.</p>
+            <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 whitespace-nowrap">Crear API Key DeepSeek</a>
+          </div>
+        </section>
       </div>
     </div>
   </dialog>

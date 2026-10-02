@@ -3,6 +3,7 @@ import re
 import random
 import asyncio
 import logging
+import base64
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 import httpx
@@ -317,6 +318,173 @@ def check_gemini_connection(model_name: str, api_key: str, request_timeout_ms: i
     )
     if not response or not response.text:
         raise ValueError("Respuesta vacía de Gemini API")
+
+
+def _deepseek_pdf_content(pdf_path: Path, prompt: str) -> list[Dict[str, Any]]:
+    """Rasteriza el PDF para la entrada visual de DeepSeek.
+
+    DeepSeek Flash admite imágenes, no archivos PDF. Se conservan hasta diez
+    páginas a 288 DPI, con compresión JPEG de alta calidad y detalle visual
+    ``high``. Se limita el volumen total para no superar el máximo de la API
+    al enviar informes extensos.
+    """
+    try:
+        import pymupdf as fitz
+
+        content: list[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+        total_bytes = 0
+        with fitz.open(str(pdf_path)) as document:
+            for page_number, page in enumerate(document, start=1):
+                if page_number > 10:
+                    break
+                # Un PDF usa 72 puntos por pulgada: escala 4 equivale a 288
+                # DPI, suficiente para preservar caracteres pequeños, tablas
+                # y anotaciones manuscritas sin el reescalado agresivo previo.
+                image = page.get_pixmap(matrix=fitz.Matrix(4, 4), alpha=False)
+                image_bytes = image.tobytes("jpeg", jpg_quality=95)
+                # El límite de DeepSeek es 48 MiB para el cuerpo completo;
+                # base64 añade aproximadamente un tercio. Reservamos margen
+                # para el prompt y las estructuras JSON.
+                if total_bytes + len(image_bytes) > 30 * 1024 * 1024:
+                    logger.warning("PDF truncado a %s páginas para respetar el límite visual de DeepSeek.", page_number - 1)
+                    break
+                total_bytes += len(image_bytes)
+                encoded = base64.b64encode(image_bytes).decode("ascii")
+                content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{encoded}",
+                        "detail": "high",
+                    },
+                })
+        return content
+    except Exception as exc:
+        logger.warning("No se pudo rasterizar el PDF para DeepSeek; se usará texto: %s", exc)
+        return [{"type": "text", "text": prompt}]
+
+
+async def call_deepseek_model(
+    content: Union[str, List[Dict[str, Any]]], model_name: str, api_key: str, request_timeout_ms: int = 90_000
+) -> str:
+    """Invoca DeepSeek mediante su endpoint compatible con Chat Completions."""
+    user_content = content if isinstance(content, list) else [{"type": "text", "text": content}]
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": user_content}],
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+    }
+    timeout = httpx.Timeout(request_timeout_ms / 1000)
+    last_error: Optional[Exception] = None
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}"}, json=payload,
+                )
+            if response.status_code >= 400:
+                raise RuntimeError(f"HTTP {response.status_code}: {response.text[:1000]}")
+            result = response.json()
+            text = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if text:
+                return text
+            raise ValueError("Respuesta vacía de DeepSeek API")
+        except Exception as exc:
+            last_error = exc
+            transient = any(code in str(exc) for code in ("429", "500", "502", "503", "504", "timeout"))
+            if transient and attempt == 0:
+                await asyncio.sleep(1 + random.uniform(0.3, 0.8))
+                continue
+            raise
+    raise last_error or RuntimeError("Error desconocido de DeepSeek API")
+
+
+def check_deepseek_connection(model_name: str, api_key: str, request_timeout_ms: int = 15_000) -> None:
+    response = httpx.post(
+        "https://api.deepseek.com/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": model_name, "messages": [{"role": "user", "content": "Responde solo OK."}], "max_tokens": 8},
+        timeout=request_timeout_ms / 1000,
+    )
+    if response.status_code >= 400:
+        raise RuntimeError(f"HTTP {response.status_code}: {response.text[:1000]}")
+
+
+def _openai_response_text(response: httpx.Response) -> str:
+    """Extrae el texto de una respuesta REST de la Responses API."""
+    if response.status_code >= 400:
+        raise RuntimeError(f"HTTP {response.status_code}: {response.text[:1000]}")
+    data = response.json()
+    if data.get("status") == "incomplete":
+        raise RuntimeError(f"Respuesta de OpenAI incompleta: {data.get('incomplete_details', {})}")
+    if data.get("output_text"):
+        return data["output_text"]
+    for item in data.get("output", []):
+        for content in item.get("content", []):
+            if content.get("type") == "output_text" and content.get("text"):
+                return content["text"]
+            if content.get("type") == "refusal":
+                raise RuntimeError(f"OpenAI rechazó la solicitud: {content.get('refusal', '')}")
+    raise ValueError("Respuesta vacía de OpenAI API")
+
+
+async def call_openai_model(
+    prompt: str, model_name: str, api_key: str, request_timeout_ms: int = 90_000
+) -> str:
+    """Invoca OpenAI Responses para una tarea de texto con salida JSON."""
+    return await _call_openai_response(prompt, model_name, api_key, request_timeout_ms)
+
+
+async def call_openai_pdf_model(
+    pdf_bytes: bytes, filename: str, prompt: str, model_name: str, api_key: str,
+    request_timeout_ms: int = 90_000,
+) -> str:
+    """Envía el PDF original a OpenAI sin rasterizarlo localmente.
+
+    La Responses API extrae por sí misma texto y representaciones visuales de
+    cada página. ``high`` preserva la lectura de tablas y tipografía pequeña.
+    """
+    encoded_pdf = base64.b64encode(pdf_bytes).decode("ascii")
+    content = [{
+        "type": "input_file",
+        "filename": filename,
+        "file_data": f"data:application/pdf;base64,{encoded_pdf}",
+        "detail": "high",
+    }, {
+        "type": "input_text",
+        "text": prompt,
+    }]
+    return await _call_openai_response([{"role": "user", "content": content}], model_name, api_key, request_timeout_ms)
+
+
+async def _call_openai_response(
+    input_data: Union[str, List[Dict[str, Any]]], model_name: str, api_key: str, request_timeout_ms: int,
+) -> str:
+    payload = {
+        "model": model_name,
+        "input": input_data,
+        "text": {"format": {"type": "json_object"}},
+        # Los informes clínicos no deben conservarse como respuestas remotas.
+        "store": False,
+    }
+    timeout = httpx.Timeout(request_timeout_ms / 1000)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(
+            "https://api.openai.com/v1/responses",
+            headers={"Authorization": f"Bearer {api_key}"}, json=payload,
+        )
+    return _openai_response_text(response)
+
+
+def check_openai_connection(model_name: str, api_key: str, request_timeout_ms: int = 15_000) -> None:
+    response = httpx.post(
+        "https://api.openai.com/v1/responses",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": model_name, "input": "Responde solo OK.", "store": False},
+        timeout=request_timeout_ms / 1000,
+    )
+    _openai_response_text(response)
 
 SYSTEM_PROMPT = """
 Eres un especialista médico y bioanalista experto en análisis clínicos de laboratorio en España (Megalab, Recoletas, Quirón, Centro Médico Magdala, etc.).
@@ -697,11 +865,18 @@ async def analyze_pdf_with_llm(
     """
     text = extract_text_from_pdf(pdf_path)
 
-    # Preparar entrada multimodal pasando el archivo PDF original para visión directa (detecta marcas a mano, círculos, etc.)
+    # OpenAI acepta archivos PDF de hasta 50 MiB de forma nativa. Conservamos
+    # el documento original para ese proveedor; Gemini mantiene su umbral
+    # histórico más conservador.
     pdf_bytes = None
+    pdf_size = 0
     try:
-        if pdf_path and pdf_path.exists() and pdf_path.stat().st_size < 20 * 1024 * 1024:
-            pdf_bytes = pdf_path.read_bytes()
+        if pdf_path and pdf_path.exists():
+            pdf_size = pdf_path.stat().st_size
+            if pdf_size <= 50 * 1024 * 1024:
+                pdf_bytes = pdf_path.read_bytes()
+            else:
+                logger.warning("El PDF supera 50 MiB; OpenAI recibirá la extracción textual local.")
     except Exception as e:
         logger.warning(f"No se pudo leer el archivo PDF para modo multimodal: {e}")
 
@@ -714,7 +889,7 @@ async def analyze_pdf_with_llm(
         f"TEXTO DE REFERENCIA EXTRAÍDO DEL DOCUMENTO:\n{text[:25000]}"
     )
 
-    if pdf_bytes:
+    if pdf_bytes and pdf_size < 20 * 1024 * 1024:
         gemini_contents = [
             types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
             prompt_content
@@ -741,18 +916,28 @@ async def analyze_pdf_with_llm(
         slot_num = slot["slot"]
         model_name = slot["model"]
         api_key = slot["api_key"]
+        provider = slot["provider"]
         logger.info(f"Iniciando extracción con Slot {slot_num}: modelo '{model_name}'...")
 
         try:
-            try:
-                raw_text = await call_gemini_model(gemini_contents, model_name, api_key)
-            except Exception as gem_err:
-                # Si falló con PDF multimodal por incompatibilidad puntual, reintentar con capa de texto
-                if pdf_bytes and ("400" in str(gem_err) or "unsupported" in str(gem_err).lower()):
-                    logger.warning(f"Fallo en entrada multimodal con {model_name}. Reintentando con texto: {gem_err}")
-                    raw_text = await call_gemini_model(prompt_content, model_name, api_key)
-                else:
-                    raise gem_err
+            if provider == "openai":
+                raw_text = await (
+                    call_openai_pdf_model(pdf_bytes, pdf_path.name, prompt_content, model_name, api_key)
+                    if pdf_bytes else call_openai_model(prompt_content, model_name, api_key)
+                )
+            elif provider == "deepseek":
+                deepseek_content = _deepseek_pdf_content(pdf_path, prompt_content) if pdf_path.exists() else prompt_content
+                raw_text = await call_deepseek_model(deepseek_content, model_name, api_key)
+            else:
+                try:
+                    raw_text = await call_gemini_model(gemini_contents, model_name, api_key)
+                except Exception as gem_err:
+                    # Si falló con PDF multimodal por incompatibilidad puntual, reintentar con capa de texto
+                    if pdf_bytes and ("400" in str(gem_err) or "unsupported" in str(gem_err).lower()):
+                        logger.warning(f"Fallo en entrada multimodal con {model_name}. Reintentando con texto: {gem_err}")
+                        raw_text = await call_gemini_model(prompt_content, model_name, api_key)
+                    else:
+                        raise gem_err
 
             # Limpiar bloques markdown si vinieran incluidos
             cleaned = raw_text.strip()
@@ -1570,7 +1755,12 @@ async def generate_clinical_summary_from_measurements(
 
     for slot in llm_slots:
         try:
-            raw_text = await call_gemini_model(content, slot["model"], slot["api_key"])
+            if slot["provider"] == "openai":
+                raw_text = await call_openai_model(content, slot["model"], slot["api_key"])
+            elif slot["provider"] == "deepseek":
+                raw_text = await call_deepseek_model(content, slot["model"], slot["api_key"])
+            else:
+                raw_text = await call_gemini_model(content, slot["model"], slot["api_key"])
             cleaned = raw_text.strip()
             if cleaned.startswith("```json"):
                 cleaned = cleaned[7:]
