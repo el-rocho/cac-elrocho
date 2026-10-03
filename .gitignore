@@ -7,13 +7,32 @@ config/llm-credentials.key
 config/config.json
 
 # Base de datos y volúmenes de datos
+# La base SQLite y sus ficheros auxiliares NUNCA deben publicarse: contienen
+# datos clínicos e identificativos del paciente. Los patrones son amplios a
+# propósito para cubrir cualquier nombre de fichero y cualquier ubicación.
 data/
 inbox/
+backups/
+logs/
 *.db
 *.db-wal
 *.db-shm
+*.db-journal
+*.db3
+*.db3-wal
+*.db3-shm
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+
+# Copias de seguridad de la aplicación (JSON en claro o cifrado)
+cac-elrocho-backup-*.json
+*-backup-*.json
 
 # Documentos clínicos y personales (privacidad estricta)
 *.pdf

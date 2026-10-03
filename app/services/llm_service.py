@@ -59,7 +59,7 @@ def normalizar_dni(dni: str) -> str:
 def verificar_coincidencia_flexible(paciente_cfg, paciente_pdf: Optional[str], dni_pdf: Optional[str]) -> Optional[str]:
     """
     Comprueba de forma tolerante si los datos del informe discrepan del paciente configurado.
-    Permite variaciones de orden (ej: 'Huerta, Javier' vs 'Francisco Javier Huerta')
+    Permite variaciones de orden (ej: 'Apellido1, Nombre' vs 'Nombre Apellido1 Apellido2')
     y diferencias de formato de DNI (ceros a la izquierda, puntos o guiones).
     Si el usuario aún no ha configurado sus datos, no genera advertencia.
     """
@@ -198,7 +198,7 @@ def sanitizar_facultativo_y_laboratorio(raw_fac: Optional[str], raw_lab: Optiona
     if (es_tipo_revision or not fac or fac == "No especificado") and doc_en_texto:
         fac = doc_en_texto
 
-    # 3. Comprobar si el laboratorio tiene el médico entre paréntesis (ej: 'Recoletas Cuenca (Quiñones)' o '(Urología)')
+    # 3. Comprobar si el laboratorio tiene el médico entre paréntesis (ej: 'Recoletas Cuenca (Garcia)' o '(Urología)')
     m_parentesis = re.search(r'\(([^)]+)\)', lab)
     if m_parentesis:
         contenido_parentesis = m_parentesis.group(1).strip()
@@ -554,12 +554,12 @@ NORMAS CRÍTICAS DE EXTRACCIÓN Y DESAMBIGUACIÓN CLÍNICA:
    - IGE_TOTAL, IGE_CYNODON_DACTYLON, IGE_LOLIUM_PERENNE, IGE_CUPRESSUS_ARIZONICA, IGE_OLEA_EUROPAEA, IGE_<ALERGENO>
 
 6. EXTRACCIÓN ESTRICTA DE FACULTATIVO (MÉDICO) Y LABORATORIO:
-   - "facultativo": Debe ser el NOMBRE Y APELLIDOS DEL MÉDICO / DOCTOR solicitante que figure explícitamente en el informe (ej: "Dr. ALVAREZ VIEITEZ, ANTONIO", "Dr. QUIÑONES PEREZ, MIGUEL A.", "Dr. SAMBLAS GARCIA, RAMON J.", "Dr. DE BENITO CORDON, LUIS", etc.).
+   - "facultativo": Debe ser el NOMBRE Y APELLIDOS DEL MÉDICO / DOCTOR solicitante que figure explícitamente en el informe (ej: "Dr. GARCIA LOPEZ, ANTONIO", "Dr. PEREZ RUIZ, MIGUEL A.", "Dr. SANCHEZ MARTIN, RAMON J.", "Dr. MORENO SALAS, LUIS", etc.).
      * Si no figura un médico concreto pero aparece la procedencia, clínica o centro solicitante (ej: "Procedencia: CLINICA ALMED", "Centro: Clínica Almed", "Solicitante: Hospital Virgen de la Luz"), utiliza el nombre de esa clínica o centro como facultativo (ej: "Clínica Almed").
      * ¡BAJO NINGÚN CONCEPTO pongas aquí el motivo de consulta o tipo de revisión (como "Control anual", "Seguimiento cardiológico", "Revisión especialista", "Control rutinario", "Último control integral")!
      * Solo si no aparece ni médico ni clínica/procedencia, pon "No especificado".
    - "laboratorio": Debe ser exclusivamente el NOMBRE DEL CENTRO O LABORATORIO emisor (ej: "Hospital Recoletas Cuenca", "Recoletas Laboratorios Clínicos", "Laboratorio Megalab", "Clínica Almed").
-     ¡NUNCA incluyas el nombre del médico ni su especialidad entre paréntesis dentro del laboratorio (ej: NUNCA pongas "Recoletas Cuenca (Quiñones)", sino "Hospital Recoletas Cuenca")!
+     ¡NUNCA incluyas el nombre del médico ni su especialidad entre paréntesis dentro del laboratorio (ej: NUNCA pongas "Recoletas Cuenca (Garcia)", sino "Hospital Recoletas Cuenca")!
    - "dictamen_preliminar": Aquí es donde debes colocar cualquier resumen, comentario clínico o tipo de revisión médica si procede.
 
 7. BIOQUÍMICA BÁSICA, IONES Y DISTINCIÓN DE CALCIO:

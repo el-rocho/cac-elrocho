@@ -37,7 +37,7 @@ class TestUnificacionReferencias(unittest.TestCase):
         texto1 = "LABORATORIO RECOLETAS\nNº Petición / Referencia: 22598017\nFecha: 10/01/2026"
         self.assertEqual(extraer_referencia_de_texto(texto1), "22598017")
 
-        texto2 = "Informe Clínico - Ref: 98472011 - Paciente: Javier"
+        texto2 = "Informe Clínico - Ref: 98472011 - Paciente: elrocho"
         self.assertEqual(extraer_referencia_de_texto(texto2), "98472011")
 
         texto3 = "Muestra Sanguínea\nNúmero de Informe: REF-2026-ABC\nFecha: 2026-02-01"
