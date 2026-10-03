@@ -2,6 +2,8 @@
 Datos demostrativos sintéticos para la inicialización en 'Modo Demo' de cac-elrocho.
 No contiene ningún dato personal ni clínico real.
 """
+import math
+
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, init_db
 from app.models import Paciente, Informe, Analito, Medicion, AuditoriaRango
@@ -64,6 +66,73 @@ def run_recent_synthetic_seed(db: Session = None):
         if close_db:
             db.close()
 
+DEMO_FACULTATIVO = "Dr. Demo"
+DEMO_LABORATORIO = "Laboratorio Central Demo"
+
+# 15 controles trimestrales anteriores a la serie reciente. Con 20 informes en
+# total, el registro de la pestaña «Gestión» muestra el paginador en marcha.
+DEMO_FECHAS_ANTERIORES = [
+    "2019-04-15", "2019-07-15", "2019-10-15",
+    "2020-01-15", "2020-04-15", "2020-07-15", "2020-10-15",
+    "2021-01-15", "2021-04-15", "2021-07-15", "2021-10-15",
+    "2022-01-15", "2022-04-15", "2022-07-15", "2022-10-15",
+]
+DEMO_FECHAS_RECIENTES = [
+    "2023-01-15", "2023-09-20", "2024-06-10", "2025-03-05", "2026-06-15",
+]
+
+
+def _controles_demo() -> list:
+    """20 controles sintéticos, todos con el mismo facultativo ficticio."""
+    controles = []
+    por_anio = {}
+    for fecha_iso in DEMO_FECHAS_ANTERIORES + DEMO_FECHAS_RECIENTES:
+        anio = fecha_iso[:4]
+        por_anio[anio] = por_anio.get(anio, 0) + 1
+        etiqueta = f"{fecha_iso[8:10]}/{fecha_iso[5:7]}/{fecha_iso[2:4]}"
+        controles.append((
+            fecha_iso,
+            etiqueta,
+            DEMO_LABORATORIO,
+            DEMO_FACULTATIVO,
+            f"DEMO-{anio}-{por_anio[anio]:03d}",
+        ))
+    return controles
+
+
+def _completar_valores_demo(valores_recientes: list, total_controles: int) -> list:
+    """Extiende una serie analítica hacia atrás hasta ``total_controles``.
+
+    Los valores declarados (los más recientes) se conservan literalmente; los
+    anteriores oscilan de forma determinista alrededor de la media de la serie y
+    se mantienen dentro de su banda observada, de modo que los gráficos de la
+    demo muestren una evolución creíble y sin valores atípicos inventados.
+    """
+    faltantes = total_controles - len(valores_recientes)
+    if faltantes <= 0:
+        return list(valores_recientes)
+
+    media = sum(valores_recientes) / len(valores_recientes)
+    minimo, maximo = min(valores_recientes), max(valores_recientes)
+    amplitud = max((maximo - minimo) * 0.35, abs(media) * 0.02)
+    desviacion_inicial = valores_recientes[0] - media
+    decimales = max(
+        len(str(valor).split(".")[1]) if "." in str(valor) else 0
+        for valor in valores_recientes
+    )
+
+    anteriores = []
+    for k in range(faltantes, 0, -1):
+        # El pasado se acerca progresivamente a la media de los controles
+        # declarados y añade una oscilación suave y reproducible.
+        deriva = desviacion_inicial * (0.35 + 0.6 * k / faltantes)
+        oscilacion = amplitud * math.sin(k * 1.1)
+        valor = media + deriva + oscilacion
+        valor = min(max(valor, minimo - amplitud), maximo + amplitud)
+        anteriores.append(round(valor, decimales))
+    return anteriores + list(valores_recientes)
+
+
 def run_seed(db: Session = None):
     close_db = False
     if db is None:
@@ -79,25 +148,21 @@ def run_seed(db: Session = None):
         # 1. Paciente Demostrativo
         paciente = Paciente(
             nombre_completo="Paciente Ejemplo (Modo Demo)",
-            fecha_nacimiento="1975-05-15",
+            fecha_nacimiento="1989-07-02",
             dni="00000000T",
-            sexo="Masculino",
+            sexo="No especificado",
             centro_referencia="Hospital Universitario Central (Demo)"
         )
         db.add(paciente)
         db.flush()
 
-        # 2. Controles Demostrativos (5 controles cronológicos sintéticos)
-        controles_meta = [
-            ("2023-01-15", "15/01/23", "Laboratorio Central Demo", "Dra. Elena Ramos"),
-            ("2023-09-20", "20/09/23", "Laboratorio Central Demo", "Dr. Carlos Mendoza"),
-            ("2024-06-10", "10/06/24", "Laboratorio Central Demo", "Dra. Elena Ramos"),
-            ("2025-03-05", "05/03/25", "Laboratorio Central Demo", "Dr. Antonio Álvarez"),
-            ("2026-06-15", "15/06/26", "Laboratorio Central Demo", "Dr. Miguel Quiñones")
-        ]
+        # 2. Controles Demostrativos (20 controles cronológicos sintéticos)
+        controles_meta = _controles_demo()
+        if len({c[1] for c in controles_meta}) != len(controles_meta):
+            raise ValueError("Etiquetas de control duplicadas en la demo")
 
         informes_map = {}
-        for idx, (fecha_iso, etiq, lab, fac) in enumerate(controles_meta):
+        for idx, (fecha_iso, etiq, lab, fac, ref) in enumerate(controles_meta):
             dictamen = "Favorable con Puntos de Atención (Demo)" if idx == len(controles_meta) - 1 else "Control favorable"
             inf = Informe(
                 paciente_id=paciente.id,
@@ -105,6 +170,7 @@ def run_seed(db: Session = None):
                 etiqueta_corta=etiq,
                 laboratorio=lab,
                 facultativo=fac,
+                referencia=ref,
                 dictamen_global=dictamen,
                 observaciones_ia="Control de muestra generado para el modo demostración.",
                 estado="confirmado"
@@ -150,7 +216,8 @@ def run_seed(db: Session = None):
             db.flush()
             orden += 1
 
-            for col_idx, val in enumerate(vals):
+            valores_demo = _completar_valores_demo(vals, len(controles_meta))
+            for col_idx, val in enumerate(valores_demo):
                 etiq = controles_meta[col_idx][1]
                 inf = informes_map[etiq]
                 med = Medicion(

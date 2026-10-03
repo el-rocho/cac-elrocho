@@ -10,7 +10,7 @@ class Paciente(Base):
     nombre_completo = Column(String(200), nullable=False)
     fecha_nacimiento = Column(String(50), nullable=True) # YYYY-MM-DD
     dni = Column(String(50), nullable=True)
-    sexo = Column(String(20), nullable=True)
+    sexo = Column(String(20), nullable=True, default="No especificado")
     centro_referencia = Column(String(200), nullable=True)
 
     informes = relationship("Informe", back_populates="paciente", cascade="all, delete-orphan")

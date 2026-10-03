@@ -144,8 +144,8 @@
 
       <!-- FILA 2: Nombre del Usuario -->
       <div class="border-t border-slate-100 pt-3">
-        <h1 id="paciente-nombre" class="text-lg md:text-xl font-semibold text-slate-900 tracking-tight truncate">
-          Usuario (paciente)
+        <h1 class="flex items-baseline gap-2 text-lg md:text-xl font-semibold text-slate-900 tracking-tight">
+          <span id="paciente-nombre" class="truncate">Usuario (paciente)</span><span id="paciente-meta" class="hidden shrink-0 whitespace-nowrap text-base md:text-lg font-normal text-slate-500" aria-live="polite"></span>
         </h1>
       </div>
 
@@ -260,13 +260,9 @@
                 <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
                 <span><strong>Triglicéridos:</strong> se interpretan junto con el resto del perfil lipídico.</span>
               </li>
-              <li class="flex items-start gap-1.5">
-                <span class="text-blue-600 font-bold leading-none mt-0.5">•</span>
-                <span><strong>Colesterol no-HDL:</strong> colesterol total − HDL; objetivo secundario junto con ApoB.</span>
-              </li>
             </ul>
-            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
-              + 5 determinaciones
+            <div data-contador-determinaciones class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+              + 4 determinaciones
             </div>
           </div>
 
@@ -304,7 +300,7 @@
                 <span><strong>Urea y Ácido úrico:</strong> desechos del metabolismo de proteínas y purinas.</span>
               </li>
             </ul>
-            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+            <div data-contador-determinaciones class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
               + 2 determinaciones
             </div>
           </div>
@@ -343,7 +339,7 @@
                 <span><strong>GGT y FA:</strong> afectación de vías biliares, alcohol o fármacos.</span>
               </li>
             </ul>
-            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+            <div data-contador-determinaciones class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
               + 5 determinaciones
             </div>
           </div>
@@ -382,7 +378,7 @@
                 <span><strong>Ferritina y Hierro sérico:</strong> estado de reservas de hierro.</span>
               </li>
             </ul>
-            <div class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
+            <div data-contador-determinaciones class="text-[11px] font-medium text-slate-500 mt-1 pl-3.5">
               + 4 determinaciones
             </div>
           </div>
@@ -1468,6 +1464,18 @@
             </tbody>
           </table>
         </div>
+        <div id="audit-pager" class="hidden items-center justify-between gap-3 pt-3 text-xs">
+          <span id="audit-pager-range" class="text-slate-500 font-medium"></span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="audit-pager-prev" onclick="irAPaginaAudit(auditPage - 1)" class="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Página anterior de informes">
+              ◀ Anterior
+            </button>
+            <span id="audit-pager-pages" class="px-3 py-1 bg-slate-100 text-slate-700 font-bold rounded-xl" aria-live="polite"></span>
+            <button type="button" id="audit-pager-next" onclick="irAPaginaAudit(auditPage + 1)" class="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Página siguiente de informes">
+              Siguiente ▶
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1643,7 +1651,7 @@
 
     <!-- FOOTER -->
     <footer class="text-center text-xs text-slate-400 pt-6 pb-12">
-      cac-elrocho <span id="footer-app-version">v0.9.7</span> • Control de Analíticas Clínicas personal y privado •
+      cac-elrocho <span id="footer-app-version">v0.9.8</span> • Control de Analíticas Clínicas personal y privado •
       <button type="button" onclick="openCreditsModal()" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Diseño del icono</button> •
       <a href="https://github.com/el-rocho/cac-elrocho" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline underline-offset-2">Repositorio GitHub</a>
     </footer>

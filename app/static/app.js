@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupBioTableScrollSync();
   setupChartCategoryFilters();
   setupExpandedChartModal();
+  syncClinicalCards();
 });
 
 // 1. Gestión de Pestañas y Scroll Horizontal Sincronizado
@@ -221,9 +222,7 @@ async function loadSummary() {
       }
     }
 
-    const p = data.paciente || {};
-    const nombre = (p.nombre || '').trim();
-    document.getElementById('paciente-nombre').textContent = nombre || 'Usuario (paciente)';
+    renderPatientHeader(data.paciente);
 
     document.getElementById('dictamen-titulo').textContent = data.dictamen_global || 'Control favorable';
     const subEl = document.getElementById('dictamen-sub');
@@ -1529,7 +1528,7 @@ async function uploadCsvFile() {
     closeCsvUploadModal();
     await loadSummary();
     await loadTables();
-    await loadAuditFiles();
+    await loadAuditFiles({ reiniciarPagina: true });
     chartsRendered = false;
     if (!document.getElementById('tab-charts').classList.contains('hidden')) await loadCharts();
   } catch (err) {
@@ -2183,7 +2182,7 @@ async function confirmUploadData() {
     // Recargar componentes dinámicamente
     await loadSummary();
     await loadTables();
-    await loadAuditFiles();
+    await loadAuditFiles({ reiniciarPagina: true });
     chartsRendered = false;
     if (!document.getElementById('tab-charts').classList.contains('hidden')) {
       await loadCharts();
@@ -3054,6 +3053,7 @@ async function uploadBackupFile() {
     await loadSummary();
     await loadTables();
     chartsRendered = false;
+    await loadAuditFiles({ reiniciarPagina: true });
     setTab('eval');
 
   } catch (err) {
@@ -3075,7 +3075,7 @@ async function confirmWipeDatabase() {
     alert(data.message);
     await loadSummary();
     await loadTables();
-    await loadAuditFiles();
+    await loadAuditFiles({ reiniciarPagina: true });
     chartsRendered = false;
     setTab('eval');
   } catch (err) {
@@ -3097,7 +3097,7 @@ async function confirmResetDemo() {
     alert(data.message);
     await loadSummary();
     await loadTables();
-    await loadAuditFiles();
+    await loadAuditFiles({ reiniciarPagina: true });
     chartsRendered = false;
     setTab('eval');
   } catch (err) {
@@ -3106,60 +3106,132 @@ async function confirmResetDemo() {
 }
 
 // 8. Auditoría Documental de Archivos
-async function loadAuditFiles() {
+// ============================================================================
+// Pestaña 4: registro de informes paginado (15 por página)
+// ============================================================================
+// La lista completa se descarga una sola vez y se conserva en memoria; el
+// paginador solo decide qué tramo se pinta. La página se mantiene al actualizar,
+// editar o borrar (con ajuste si queda fuera de rango) y vuelve a la primera
+// tras importar o restaurar datos.
+const AUDIT_PAGE_SIZE = 15;
+let auditFilesCache = [];
+let auditPage = 1;
+
+function totalPaginasAudit() {
+  return Math.max(1, Math.ceil(auditFilesCache.length / AUDIT_PAGE_SIZE));
+}
+
+function ajustarPaginaAudit() {
+  const total = totalPaginasAudit();
+  const pagina = Number.isFinite(auditPage) ? Math.trunc(auditPage) : 1;
+  auditPage = Math.min(Math.max(pagina, 1), total);
+}
+
+function irAPaginaAudit(pagina) {
+  const destino = Number(pagina);
+  if (!Number.isFinite(destino)) return;
+  auditPage = destino;
+  ajustarPaginaAudit();
+  renderAuditTable();
+}
+
+function syncAuditPager() {
+  const pager = document.getElementById('audit-pager');
+  if (!pager) return;
+  const total = auditFilesCache.length;
+  const totalPaginas = totalPaginasAudit();
+  if (total === 0 || totalPaginas <= 1) {
+    pager.classList.add('hidden');
+    pager.classList.remove('flex');
+    const rangoOculto = document.getElementById('audit-pager-range');
+    const paginasOculto = document.getElementById('audit-pager-pages');
+    if (rangoOculto) rangoOculto.textContent = '';
+    if (paginasOculto) paginasOculto.textContent = '';
+    return;
+  }
+  pager.classList.remove('hidden');
+  pager.classList.add('flex');
+
+  const inicio = (auditPage - 1) * AUDIT_PAGE_SIZE + 1;
+  const fin = Math.min(auditPage * AUDIT_PAGE_SIZE, total);
+  const rango = document.getElementById('audit-pager-range');
+  if (rango) rango.textContent = `Mostrando ${inicio}-${fin} de ${total} informes`;
+  const etiqueta = document.getElementById('audit-pager-pages');
+  if (etiqueta) etiqueta.textContent = `Página ${auditPage} de ${totalPaginas}`;
+  const prev = document.getElementById('audit-pager-prev');
+  const next = document.getElementById('audit-pager-next');
+  if (prev) prev.disabled = auditPage <= 1;
+  if (next) next.disabled = auditPage >= totalPaginas;
+}
+
+function renderAuditTable() {
+  const tbody = document.getElementById('auditFilesTableBody');
+  if (!tbody) return;
+  ajustarPaginaAudit();
+
+  if (auditFilesCache.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">No hay informes cargados en el historial. Sube un PDF para comenzar.</td></tr>`;
+    syncAuditPager();
+    return;
+  }
+
+  const inicio = (auditPage - 1) * AUDIT_PAGE_SIZE;
+  const pagina = auditFilesCache.slice(inicio, inicio + AUDIT_PAGE_SIZE);
+  tbody.innerHTML = '';
+  pagina.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-50 transition-colors';
+    const refHtml = f.referencia
+      ? `<div class="text-[11px] font-medium text-slate-500 font-mono mt-0.5">Ref: ${escapeHtml(f.referencia)}</div>`
+      : `<div class="text-[11px] font-normal text-slate-400 font-mono mt-0.5">Ref: -</div>`;
+
+    tr.innerHTML = `
+      <td class="p-3">
+        <div class="font-bold text-slate-900">${escapeHtml(f.fecha)}</div>
+        ${refHtml}
+      </td>
+      <td class="p-3 font-medium text-slate-800">${escapeHtml(f.laboratorio)}</td>
+      <td class="p-3 text-slate-600">${escapeHtml(f.facultativo || 'No especificado')}</td>
+      <td class="p-3 font-mono text-[11px] text-slate-500">${escapeHtml(f.archivo_pdf || '-')}</td>
+      <td class="p-3 text-center"><span class="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-full">${f.total_mediciones}</span></td>
+      <td class="p-3 text-slate-600 max-w-xs truncate" title="${escapeHtml(f.dictamen_global || '')}">${escapeHtml(f.dictamen_global || '-')}</td>
+      <td class="p-3 text-center">
+        <div class="flex items-center justify-center gap-1.5">
+          <button onclick="openEditInformeModal(${f.id})" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="Editar analítica y recalcular">
+            <span>✏️</span> Editar
+          </button>
+          <button onclick="deleteAuditFile(${f.id}, '${escapeHtml(f.fecha)}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="Eliminar del historial">
+            <span>🗑️</span>
+          </button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  syncAuditPager();
+}
+
+async function loadAuditFiles(opciones = {}) {
   const tbody = document.getElementById('auditFilesTableBody');
   try {
     const res = await fetch('/api/v1/analiticas/files');
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    const files = await res.json();
+    auditFilesCache = await res.json();
     const countEl = document.getElementById('audit-files-count');
-    if (countEl) countEl.textContent = `${files.length} Informes`;
+    if (countEl) countEl.textContent = `${auditFilesCache.length} Informes`;
 
-    if (!tbody) return;
-    if (files.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">No hay informes cargados en el historial. Sube un PDF para comenzar.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = '';
-    files.forEach(f => {
-      const tr = document.createElement('tr');
-      tr.className = 'hover:bg-slate-50 transition-colors';
-      const refHtml = f.referencia
-        ? `<div class="text-[11px] font-medium text-slate-500 font-mono mt-0.5">Ref: ${escapeHtml(f.referencia)}</div>`
-        : `<div class="text-[11px] font-normal text-slate-400 font-mono mt-0.5">Ref: -</div>`;
-
-      tr.innerHTML = `
-        <td class="p-3">
-          <div class="font-bold text-slate-900">${escapeHtml(f.fecha)}</div>
-          ${refHtml}
-        </td>
-        <td class="p-3 font-medium text-slate-800">${escapeHtml(f.laboratorio)}</td>
-        <td class="p-3 text-slate-600">${escapeHtml(f.facultativo || 'No especificado')}</td>
-        <td class="p-3 font-mono text-[11px] text-slate-500">${escapeHtml(f.archivo_pdf || '-')}</td>
-        <td class="p-3 text-center"><span class="px-2 py-0.5 bg-blue-100 text-blue-800 font-bold rounded-full">${f.total_mediciones}</span></td>
-        <td class="p-3 text-slate-600 max-w-xs truncate" title="${escapeHtml(f.dictamen_global || '')}">${escapeHtml(f.dictamen_global || '-')}</td>
-        <td class="p-3 text-center">
-          <div class="flex items-center justify-center gap-1.5">
-            <button onclick="openEditInformeModal(${f.id})" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="Editar analítica y recalcular">
-              <span>✏️</span> Editar
-            </button>
-            <button onclick="deleteAuditFile(${f.id}, '${escapeHtml(f.fecha)}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 shadow-sm" title="Eliminar del historial">
-              <span>🗑️</span>
-            </button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
+    if (opciones.reiniciarPagina) auditPage = 1;
+    renderAuditTable();
   } catch (err) {
     console.error('Fallo al cargar archivos de auditoría:', err);
+    auditFilesCache = [];
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-500 font-medium">⚠️ Error al cargar informes: ${escapeHtml(err.message)}</td></tr>`;
     }
+    syncAuditPager();
   }
 }
-
 async function deleteAuditFile(id, fecha) {
   if (!confirm(`¿Estás seguro de que deseas eliminar la analítica del ${fecha} (ID: ${id}) del historial? Esta acción no se puede deshacer.`)) {
     return;
@@ -3179,6 +3251,68 @@ async function deleteAuditFile(id, fecha) {
   } catch (err) {
     alert('Error al eliminar: ' + err.message);
   }
+}
+
+// ============================================================================
+// Cabecera: nombre, edad y sexo biológico del paciente
+// ============================================================================
+// La edad solo aparece cuando la configuración permite calcularla y el sexo solo
+// cuando consta uno biológico (Masculino/Femenino). Los datos se separan con un
+// punto medio.
+function renderPatientHeader(paciente) {
+  const datos = paciente || {};
+  const nombreEl = document.getElementById('paciente-nombre');
+  const metaEl = document.getElementById('paciente-meta');
+
+  const nombre = (datos.nombre || '').trim();
+  if (nombreEl) nombreEl.textContent = nombre || 'Usuario (paciente)';
+  if (!metaEl) return;
+
+  const partes = [];
+  const edad = String(datos.edad || '').trim();
+  if (/^\d+\s*años?$/.test(edad)) partes.push(edad);
+  const sexo = String(datos.sexo || '').trim();
+  if (['Masculino', 'Femenino'].includes(sexo)) partes.push(sexo);
+
+  metaEl.textContent = partes.length ? `· ${partes.join(' · ')}` : '';
+  metaEl.classList.toggle('hidden', partes.length === 0);
+}
+
+// ============================================================================
+// Tarjetas de valoración clínica: resumen acotado y contador fiel
+// ============================================================================
+// Cada tarjeta muestra como máximo cuatro viñetas; el resto de determinaciones
+// vive en el modal "Ver información completa". El contador "+ N determinaciones"
+// se deriva de la plantilla del modal para que no pueda desincronizarse.
+const MAX_DETERMINACIONES_TARJETA = 4;
+
+function syncClinicalCards() {
+  document.querySelectorAll('#tab-eval [onclick^="openClinicalModal("]').forEach((card) => {
+    const coincidencia = /openClinicalModal\('([^']+)'\)/.exec(card.getAttribute('onclick') || '');
+    if (!coincidencia) return;
+    const key = coincidencia[1];
+    const plantilla = document.getElementById(`eval-tpl-${key}`);
+    const lista = card.querySelector('ul');
+    if (!plantilla || !lista) return;
+
+    const vinietas = Array.from(lista.children);
+    vinietas.slice(MAX_DETERMINACIONES_TARJETA).forEach((li) => li.remove());
+
+    const listaModal = plantilla.content.querySelector('ul');
+    const total = listaModal ? listaModal.children.length : 0;
+    const mostradas = lista.children.length;
+    const restantes = Math.max(total - mostradas, 0);
+
+    const contador = card.querySelector('[data-contador-determinaciones]');
+    if (!contador) return;
+    if (restantes === 0) {
+      contador.textContent = '';
+      contador.classList.add('hidden');
+      return;
+    }
+    contador.classList.remove('hidden');
+    contador.textContent = restantes === 1 ? '+ 1 determinación' : `+ ${restantes} determinaciones`;
+  });
 }
 
 // ============================================================================
