@@ -50,6 +50,16 @@ PATRONES_PROHIBIDOS = (
 )
 
 
+# Ficheros de trabajo de agentes y editores: son locales, no forman parte del
+# proyecto y no deben publicarse, aunque deban seguir existiendo en el árbol.
+FICHEROS_DE_TRABAJO = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    "HERMES_HANDOFF.md",
+    ".cursorrules",
+)
+
+
 def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ("git", *args),
@@ -85,6 +95,21 @@ class TestGitignorePrivacidad(unittest.TestCase):
                         re.search(patron, ruta),
                         f"{ruta} coincide con {patron} y no debería estar en el repositorio",
                     )
+
+    def test_los_ficheros_de_trabajo_no_se_publican(self) -> None:
+        rastreados = set(_git("ls-files").stdout.splitlines())
+        for ruta in FICHEROS_DE_TRABAJO:
+            with self.subTest(ruta=ruta):
+                self.assertEqual(
+                    _git("check-ignore", "-q", ruta).returncode,
+                    0,
+                    f"{ruta} no está cubierto por .gitignore",
+                )
+                self.assertNotIn(
+                    ruta,
+                    rastreados,
+                    f"{ruta} es un fichero de trabajo local y no debe estar en el repositorio",
+                )
 
 
 if __name__ == "__main__":

@@ -89,3 +89,13 @@ scripts/*
 # Dependencias de compilación del frontend; el CSS generado sí se versiona.
 node_modules/
 dist-installer/
+
+# Ficheros de trabajo de agentes y editores: son locales, no forman parte del
+# proyecto. El repositorio público solo contiene lo necesario para ejecutar la
+# aplicación, empaquetarla y publicarla.
+AGENTS.md
+CLAUDE.md
+HERMES_HANDOFF.md
+.cursorrules
+.cursor/
+.continue/

@@ -1,6 +1,12 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+### 🧹 Depuración del repositorio
+* **Solo lo necesario para ejecutar la aplicación**: se retiran del control de versiones los ficheros de trabajo locales de agentes y editores (`AGENTS.md`, `HERMES_HANDOFF.md`), que se añaden a `.gitignore` para que no vuelvan a publicarse.
+* **Guardia de privacidad ampliada**: la prueba de privacidad comprueba también que esos ficheros de trabajo están ignorados y no rastreados por Git.
+
 ## [v0.9.8] - 2026-10-03
 
 ### 🗂️ Registro de informes paginado
@@ -23,7 +29,6 @@ Todas las modificaciones notables de este proyecto están documentadas en este a
 * **Guardia automática de privacidad**: nueva prueba que exige que `.gitignore` cubra la base SQLite y sus auxiliares (`-wal`, `-shm`, `-journal`), las copias de seguridad JSON, los volúmenes `data/`, `inbox/`, `backups/`, `logs/`, `config/` y `.env`, y que ninguno de esos ficheros esté rastreado por Git.
 * **Patrones de exclusión ampliados**: se añaden `backups/`, `logs/`, `*.db3`, los ficheros `-journal` y los nombres de copia de seguridad de la aplicación.
 * **Anonimización de ejemplos**: los nombres de paciente y de facultativo empleados en pruebas, indicaciones internas de extracción y datos de demostración son ficticios; tampoco se publican documentos de identidad.
-* **Guía de trabajo para agentes (`AGENTS.md`)**: se documentan la regla de privacidad no negociable, el mapa de arquitectura, los comandos canónicos y las convenciones del proyecto.
 
 ### 📦 Distribución y documentación
 * **Release v0.9.8 preparada**: se actualizan la versión de la aplicación, el instalador de Windows y la documentación de publicación.
