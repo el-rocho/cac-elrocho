@@ -1,6 +1,6 @@
 ; Inno Setup: compilación desde Windows después de packaging/build-windows.ps1.
 #ifndef MyAppVersion
-  #define MyAppVersion "0.9.7"
+  #define MyAppVersion "0.9.8"
 #endif
 
 #define MyAppName "Control Analíticas Clínicas"

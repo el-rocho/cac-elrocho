@@ -38,13 +38,13 @@ class TestDesktopLauncher(unittest.TestCase):
     @patch("launcher.urlopen")
     def test_finds_a_newer_stable_github_release(self, mock_urlopen):
         response = Mock()
-        response.read.return_value = b'{"tag_name":"v0.9.8"}'
+        response.read.return_value = b'{"tag_name":"v0.9.9"}'
         mock_urlopen.return_value.__enter__.return_value = response
 
         update = launcher.find_available_update()
 
         self.assertEqual(update, launcher.AvailableUpdate(
-            version="0.9.8",
+            version="0.9.9",
             url="https://cac.elrocho.es/",
         ))
         request = mock_urlopen.call_args.args[0]

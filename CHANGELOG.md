@@ -1,6 +1,34 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
+## [v0.9.8] - 2026-10-03
+
+### 🗂️ Registro de informes paginado
+* **Pestaña «Gestión» con paginación**: el listado de informes muestra 15 filas por página, con controles «Anterior» y «Siguiente» y un contador del tramo visible («Mostrando X-Y de N informes»).
+* **Página estable y predecible**: la página actual se conserva al editar o eliminar un informe (con ajuste automático si queda fuera de rango) y vuelve a la primera al importar, restaurar, vaciar o recargar los datos.
+* **Carga única del registro**: la lista completa se descarga una sola vez y el paginador decide qué tramo se pinta, de modo que cambiar de página no repite la consulta al servidor.
+* **Cobertura de regresión**: una prueba comprueba los elementos del paginador, el tamaño de página y que los cuatro flujos de recarga lo reinician.
+
+### 🩺 Presentación clínica
+* **Identificación ampliada en la cabecera**: junto al nombre del paciente se muestran la edad cumplida y el sexo biológico cuando constan en la ficha, separados por un punto medio; si no constan, no se muestra ningún valor inventado.
+* **Tarjetas de valoración acotadas**: cada tarjeta de la pestaña «Información» muestra como máximo cuatro determinaciones y el contador «+ N determinaciones» se calcula a partir de la información completa del modal, de modo que puedan añadirse viñetas sin desincronizar la cifra.
+* **Sexo por defecto explícito**: el perfil del paciente parte de «No especificado», coherente con los cálculos que exigen un sexo biológico reconocido (por ejemplo, el filtrado glomerular estimado CKD-EPI).
+
+### 🧪 Modo demostración
+* **Serie demo de 20 controles**: la demostración cubre de 2019 a 2026, con etapa inicial trimestral y referencias ficticias «DEMO-AAAA-NNN», para mostrar el paginador y una evolución longitudinal larga.
+* **Valores anteriores derivados de la serie declarada**: los controles más recientes se conservan literales y los anteriores se calculan de forma determinista dentro de la banda observada, sin inventar valores atípicos.
+* **Facultativo y laboratorio de muestra**: los 20 controles emplean un facultativo único ficticio y «Laboratorio Central Demo» en lugar de nombres de médicos reales.
+
+### 🔒 Privacidad y control de versiones
+* **Guardia automática de privacidad**: nueva prueba que exige que `.gitignore` cubra la base SQLite y sus auxiliares (`-wal`, `-shm`, `-journal`), las copias de seguridad JSON, los volúmenes `data/`, `inbox/`, `backups/`, `logs/`, `config/` y `.env`, y que ninguno de esos ficheros esté rastreado por Git.
+* **Patrones de exclusión ampliados**: se añaden `backups/`, `logs/`, `*.db3`, los ficheros `-journal` y los nombres de copia de seguridad de la aplicación.
+* **Anonimización de ejemplos**: los nombres de paciente y de facultativo empleados en pruebas, indicaciones internas de extracción y datos de demostración son ficticios; tampoco se publican documentos de identidad.
+* **Guía de trabajo para agentes (`AGENTS.md`)**: se documentan la regla de privacidad no negociable, el mapa de arquitectura, los comandos canónicos y las convenciones del proyecto.
+
+### 📦 Distribución y documentación
+* **Release v0.9.8 preparada**: se actualizan la versión de la aplicación, el instalador de Windows y la documentación de publicación.
+* **GitHub Pages al día**: la tarjeta de Windows ofrece enlaces directos a los instaladores de v0.9.8, v0.9.7 y v0.9.6.
+
 ## [v0.9.7] - 2026-09-29
 
 ### 🩺 Interpretación y presentación clínica
