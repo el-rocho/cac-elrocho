@@ -98,13 +98,30 @@ def get_motor_llm_summary() -> Dict[str, Any]:
         "descripcion": f"{len(llm_slots)} modelo(s) configurado(s)" if len(llm_slots) > 0 else "Extractor RegEx (Sin LLM)"
     }
 
+def _query_informes_filtered(
+    db: Session,
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+) -> List[Informe]:
+    query = db.query(Informe)
+    if fecha_inicio and str(fecha_inicio).strip():
+        query = query.filter(Informe.fecha >= str(fecha_inicio).strip())
+    if fecha_fin and str(fecha_fin).strip():
+        query = query.filter(Informe.fecha <= str(fecha_fin).strip())
+    return query.order_by(Informe.fecha.asc()).all()
+
+
 @router.get("/summary", response_model=DashboardSummaryResponse)
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     """
     Devuelve los datos del paciente, resumen de controles y tarjetas KPI de la última analítica.
     """
     paciente = db.query(Paciente).first()
-    informes = db.query(Informe).order_by(Informe.fecha.asc()).all()
+    informes = _query_informes_filtered(db, fecha_inicio, fecha_fin)
     motor_info = get_motor_llm_summary()
     
     if not informes:
@@ -1426,12 +1443,16 @@ def update_paciente(payload: PacienteUpdateRequest, db: Session = Depends(get_db
     )
 
 @router.get("/tables", response_model=TablesResponse)
-def get_tables(db: Session = Depends(get_db)):
+def get_tables(
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     """
     Devuelve los datos estructurados para las tablas de Bioquímica,
     Hemograma, Coagulación y Enzimas e Iones.
     """
-    informes = db.query(Informe).order_by(Informe.fecha.asc()).all()
+    informes = _query_informes_filtered(db, fecha_inicio, fecha_fin)
     dates = [inf.etiqueta_corta for inf in informes]
     informe_ids = [inf.id for inf in informes]
     
@@ -1642,11 +1663,15 @@ def get_tables(db: Session = Depends(get_db)):
     )
 
 @router.get("/charts", response_model=ChartsResponse)
-def get_charts_data(db: Session = Depends(get_db)):
+def get_charts_data(
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
     """
     Devuelve los datasets para Chart.js configurados para los gráficos evolutivos.
     """
-    informes = db.query(Informe).order_by(Informe.fecha.asc()).all()
+    informes = _query_informes_filtered(db, fecha_inicio, fecha_fin)
     dates = [inf.etiqueta_corta for inf in informes]
     informe_ids = [inf.id for inf in informes]
 

@@ -1,4 +1,4 @@
-# cac-elrocho 🩺 `v0.9.8`
+# cac-elrocho 🩺 `v0.9.9`
 
 <img src="assets/logo2.png" alt="Logotipo de Control de Analíticas Clínicas" width="120">
 
@@ -23,15 +23,16 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 
 ---
 
-## ✨ Novedades de la Versión `v0.9.8`
+## ✨ Novedades de la Versión `v0.9.9`
+* 📊 **Exportación de informes a Excel (`.xlsx`) con filtro de fechas**: nueva tarjeta en la pestaña «5. Configuración» junto a la exportación e importación de copias de seguridad. Permite acotar un rango de fechas (`Desde` / `Hasta`) y descargar un libro Excel estructurado en tres hojas: **`Resumen`** (las 6 tarjetas KPI principales más «Otros valores de interés» con estado clínico y tendencia), **`Datos`** (matriz histórica completa con semáforo de colores y cabeceras fijas) y **`Gráficos`** (gráficos nativos de Excel por áreas clínicas con soporte de doble eje Y).
 * 🗂️ **Paginador en «Gestión de analíticas»**: el registro de informes se pagina a 15 filas por página con controles «Anterior» y «Siguiente» y contador del tramo visible (`Mostrando X-Y de N informes`); la página se conserva al editar o eliminar un informe y vuelve a la primera tras importar, restaurar, vaciar o recargar los datos.
 * 🩺 **Cabecera con edad y sexo**: junto al nombre del paciente se muestran la edad cumplida y el sexo biológico cuando constan en la ficha, sin inventar ni aproximar los datos ausentes.
 * 🔢 **Tarjetas de valoración acotadas**: cada tarjeta de la pestaña «Información» resume como máximo cuatro determinaciones y su contador «+ N determinaciones» se deriva del contenido completo del modal, así que no pueden desincronizarse.
 * 🧪 **Modo demo con 20 controles**: la demostración cubre de 2019 a 2026 con referencias ficticias `DEMO-AAAA-NNN`, valores anteriores derivados de la serie declarada y un facultativo único de muestra, de forma que el paginador y las gráficas se vean en funcionamiento.
-* 🔒 **Guardia de privacidad en la integración continua**: una prueba automática exige que `.gitignore` cubra las bases SQLite y sus auxiliares (`-wal`, `-shm`, `-journal`), las copias de seguridad, los volúmenes de datos y los secretos, y que ninguno de ellos esté rastreado por Git.
+* 🔒 **Guardia de privacidad en la integración continua**: una prueba automática exige que `.gitignore` cubra las bases SQLite y sus auxiliares (`-wal`, `-shm`, `-journal`), las copias de seguridad, los volúmenes de datos, los ficheros de trabajo locales y los secretos, y que ninguno de ellos esté rastreado por Git.
 * 🚫 **Ejemplos anonimizados**: los nombres de paciente y de facultativo usados en pruebas, indicaciones internas de extracción y datos de demostración son ficticios; no se publican nombres de médicos ni documentos de identidad.
 * ⚧️ **Sexo por defecto «No especificado»**: el perfil del paciente parte de ese valor y los cálculos que exigen un sexo biológico reconocido (por ejemplo, el filtrado glomerular estimado) no emiten estimaciones si no consta.
-* 📦 **Release v0.9.8 publicada**: imagen de contenedor en GHCR e instalador `cac-elrocho-v0.9.8.exe` para Windows 10/11 de 64 bits.
+* 📦 **Release v0.9.9 publicada**: imagen de contenedor en GHCR e instalador `cac-elrocho-v0.9.9.exe` para Windows 10/11 de 64 bits.
 * 🩺 **Resultados más claros y coherentes**: los valores altos y bajos se señalan con triángulos direccionales y una misma semántica visual en tarjetas, detalle e histórico; la tabla reserva su leyenda para el aviso útil de proximidad al límite y las tendencias sin base suficiente se muestran como «No evaluable».
 * 🧪 **Cálculo renal prudente**: el eGFR calculado con CKD-EPI 2021 solo se muestra cuando constan edad y sexo biológico válidos, evitando estimaciones por datos de perfil incompletos.
 * 🔬 **PSA visible cuando está informado**: los marcadores de próstata se incluyen siempre que existan en la analítica, sin ocultarlos por un campo editable del perfil.
@@ -80,6 +81,7 @@ Diseñada para ser ejecutada de manera autónoma y multiplataforma mediante **Do
 * 🔐 **Panel de Gestión y Respaldo de Datos**:
   * **Exportación con Marca Temporal**: Descarga copias de seguridad completas en JSON con fecha y hora (`cac-elrocho-backup-YYYYMMDD_HHMMSS.json`) y soporte para **cifrado simétrico AES-256-GCM**.
   * **Importación y Restauración Completa**: Restaura copias de seguridad (planas o cifradas) con sustitución limpia y sin duplicidades.
+  * **Exportación de Informes Excel (`.xlsx`)**: Generación de libros Excel filtrables por rango de fechas con tres hojas (`Resumen` tipo KPI, `Datos` históricos tabulares y `Gráficos` nativos de Excel).
   * **Purga y Modo Demo**: Posibilidad de vaciar la base de datos para empezar de cero o cargar datos sintéticos de prueba.
 * 📁 **Buzón Desatendido (`/inbox`)**: Monitor de carpetas en segundo plano para procesar PDFs subidos vía SFTP, Samba o Nextcloud.
 * 🔒 **Privacidad Total**: Documentos originales, bases de datos SQLite y claves de API estrictamente excluidos del control de versiones (`.gitignore`).

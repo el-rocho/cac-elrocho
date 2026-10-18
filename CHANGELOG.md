@@ -1,11 +1,20 @@
 # Registro de Cambios (Changelog) - `cac-elrocho`
 Todas las modificaciones notables de este proyecto están documentadas en este archivo siguiendo el formato de [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y las convenciones de [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Sin publicar]
+## [v0.9.9] - 2026-10-18
 
-### 🧹 Depuración del repositorio
+### 📊 Exportación de informe Excel (`.xlsx`)
+* **Nueva tarjeta en «5. Configuración»**: la sección de copias de seguridad se organiza en una fila de tres tarjetas (`Exportar copia de seguridad`, `Importar copia de seguridad` y `Exportar informe Excel`), con selectores de fecha `Desde` / `Hasta`, recuento dinámico de analíticas incluidas en el tramo y descarga directa en formato `.xlsx`.
+* **Libro Excel estructurado en 3 hojas**:
+  * **Hoja `Resumen`**: cabecera con datos del paciente, periodo exportado y resumen ejecutivo con los 6 bloques KPI principales y el bloque «7. Otros valores de interés y marcadores complementarios», incluyendo último valor, fecha, estado clínico coloreado (`Normal`, `Límite`, `Alto ▲`, `Bajo ▼`), rango de referencia y tendencia longitudinal dentro del rango seleccionado.
+  * **Hoja `Datos`**: matriz histórica con cabeceras inmovilizadas, bloques clínicos agrupados, promedio reciente (18 meses), rango de referencia, unidades y valores por fecha con formato condicional por estado clínico.
+  * **Hoja `Gráficos`**: tabla auxiliar de series temporales y gráficos vectoriales nativos de Excel (`LineChart` de `openpyxl`, con soporte de doble eje Y) organizados por áreas clínicas en cuadrícula de dos columnas.
+* **Filtrado por fechas en la API**: los endpoints de resumen, tablas y gráficos admiten los parámetros opcionales `fecha_inicio` y `fecha_fin`, utilizados tanto por el generador de Excel como para consultas acotadas.
+
+### 🧹 Depuración del repositorio y distribución
 * **Solo lo necesario para ejecutar la aplicación**: se retiran del control de versiones los ficheros de trabajo locales de agentes y editores (`AGENTS.md`, `HERMES_HANDOFF.md`), que se añaden a `.gitignore` para que no vuelvan a publicarse.
 * **Guardia de privacidad ampliada**: la prueba de privacidad comprueba también que esos ficheros de trabajo están ignorados y no rastreados por Git.
+* **Release v0.9.9 preparada**: se actualizan la versión de la aplicación, el empaquetado con `openpyxl` en PyInstaller, el instalador de Windows y los enlaces de descarga en GitHub Pages (`v0.9.9`, `v0.9.8` y `v0.9.7`).
 
 ## [v0.9.8] - 2026-10-03
 

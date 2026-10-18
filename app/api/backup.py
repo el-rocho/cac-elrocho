@@ -14,6 +14,7 @@ from app.services.backup_service import (
     wipe_database
 )
 from app.services.db_harmonizer import harmonize_database_records
+from app.services.excel_export_service import generate_clinical_excel_bytes
 from app.seed_data import run_seed
 
 router = APIRouter(prefix="/backup", tags=["Gestión y Respaldo de Datos"])
@@ -38,6 +39,37 @@ def export_backup(passphrase: Optional[str] = None, db: Session = Depends(get_db
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.get("/export-excel")
+def export_excel(
+    fecha_inicio: Optional[str] = None,
+    fecha_fin: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    Genera y descarga un archivo Excel (.xlsx) con las hojas Resumen, Datos y Gráficos
+    acotado al rango de fechas indicado.
+    """
+    try:
+        excel_bytes, eff_start, eff_end = generate_clinical_excel_bytes(
+            db, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
+        )
+        start_tag = eff_start.replace("-", "")
+        end_tag = eff_end.replace("-", "")
+        filename = f"cac-elrocho-analiticas-{start_tag}-{end_tag}.xlsx"
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al generar el archivo Excel: {str(exc)}",
+        )
 
 @router.post("/import")
 async def import_backup(

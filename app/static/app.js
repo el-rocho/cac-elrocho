@@ -186,6 +186,7 @@ function setTab(tabId) {
     loadPatientConfig();
     loadAiAuditorias();
     loadAiConfiguration();
+    syncExcelDateBounds();
   }
 }
 
@@ -3212,6 +3213,176 @@ function renderAuditTable() {
   syncAuditPager();
 }
 
+async function downloadExcelReport() {
+  const btn = document.getElementById('btnExportExcel');
+  const startInput = document.getElementById('excelStartDate');
+  const endInput = document.getElementById('excelEndDate');
+  const startDate = startInput ? startInput.value.trim() : '';
+  const endDate = endInput ? endInput.value.trim() : '';
+
+  if (startDate && endDate && startDate > endDate) {
+    alert('La fecha «Desde» no puede ser posterior a la fecha «Hasta».');
+    return;
+  }
+
+  const params = new URLSearchParams();
+  if (startDate) params.set('fecha_inicio', startDate);
+  if (endDate) params.set('fecha_fin', endDate);
+  const queryString = params.toString();
+  const url = '/api/v1/backup/export-excel' + (queryString ? `?${queryString}` : '');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Generando informe Excel...';
+  }
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(await getErrorMessage(res, 'Error al generar el informe Excel'));
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition');
+    let filename = 'cac-elrocho-analiticas.xlsx';
+    if (disposition && disposition.includes('filename=')) {
+      filename = disposition.split('filename=')[1].replace(/["']/g, '').trim();
+    }
+
+    if (window.showSaveFilePicker) {
+      try {
+        const fileHandle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'Libro de Microsoft Excel (.xlsx)',
+            accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
+          }]
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+
+        if (btn) {
+          btn.innerHTML = '<span>✅</span> ¡Informe Excel guardado!';
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<span>📗</span> Generar y descargar informe Excel (.xlsx)';
+          }, 2500);
+        }
+        return;
+      } catch (pickerErr) {
+        if (pickerErr.name === 'AbortError') {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>📗</span> Generar y descargar informe Excel (.xlsx)';
+          }
+          return;
+        }
+      }
+    }
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+
+    if (btn) {
+      btn.innerHTML = '<span>✅</span> Descarga iniciada';
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<span>📗</span> Generar y descargar informe Excel (.xlsx)';
+      }, 2500);
+    }
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>📗</span> Generar y descargar informe Excel (.xlsx)';
+    }
+  }
+}
+
+function syncExcelDateBounds(forceReset = false) {
+  const startInput = document.getElementById('excelStartDate');
+  const endInput = document.getElementById('excelEndDate');
+  if (!startInput || !endInput) return;
+
+  if (!auditFilesCache || auditFilesCache.length === 0) {
+    startInput.value = '';
+    endInput.value = '';
+    updateExcelDateRangeInfo();
+    return;
+  }
+
+  const sortedDates = auditFilesCache
+    .map(f => f.fecha)
+    .filter(Boolean)
+    .sort();
+
+  if (sortedDates.length === 0) return;
+  const minDate = sortedDates[0];
+  const maxDate = sortedDates[sortedDates.length - 1];
+
+  startInput.min = minDate;
+  startInput.max = maxDate;
+  endInput.min = minDate;
+  endInput.max = maxDate;
+
+  if (forceReset || !startInput.value || startInput.value < minDate || startInput.value > maxDate) {
+    startInput.value = minDate;
+  }
+  if (forceReset || !endInput.value || endInput.value < minDate || endInput.value > maxDate) {
+    endInput.value = maxDate;
+  }
+  updateExcelDateRangeInfo();
+}
+
+function updateExcelDateRangeInfo() {
+  const startInput = document.getElementById('excelStartDate');
+  const endInput = document.getElementById('excelEndDate');
+  const countEl = document.getElementById('excelDateRangeCount');
+  const btn = document.getElementById('btnExportExcel');
+  if (!countEl) return;
+
+  if (!auditFilesCache || auditFilesCache.length === 0) {
+    countEl.textContent = '0 controles';
+    countEl.className = 'font-bold text-slate-400';
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  const startVal = startInput?.value?.trim() || '';
+  const endVal = endInput?.value?.trim() || '';
+
+  if (startVal && endVal && startVal > endVal) {
+    countEl.textContent = 'Rango inválido';
+    countEl.className = 'font-bold text-rose-600';
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  const matching = auditFilesCache.filter(f => {
+    if (!f.fecha) return false;
+    if (startVal && f.fecha < startVal) return false;
+    if (endVal && f.fecha > endVal) return false;
+    return true;
+  });
+
+  if (matching.length === 0) {
+    countEl.textContent = '0 controles en rango';
+    countEl.className = 'font-bold text-rose-600';
+    if (btn) btn.disabled = true;
+  } else {
+    countEl.textContent = `${matching.length} de ${auditFilesCache.length} controles`;
+    countEl.className = 'font-bold text-indigo-700';
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function loadAuditFiles(opciones = {}) {
   const tbody = document.getElementById('auditFilesTableBody');
   try {
@@ -3221,11 +3392,13 @@ async function loadAuditFiles(opciones = {}) {
     const countEl = document.getElementById('audit-files-count');
     if (countEl) countEl.textContent = `${auditFilesCache.length} Informes`;
 
+    syncExcelDateBounds(Boolean(opciones.reiniciarPagina));
     if (opciones.reiniciarPagina) auditPage = 1;
     renderAuditTable();
   } catch (err) {
     console.error('Fallo al cargar archivos de auditoría:', err);
     auditFilesCache = [];
+    syncExcelDateBounds(true);
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-500 font-medium">⚠️ Error al cargar informes: ${escapeHtml(err.message)}</td></tr>`;
     }

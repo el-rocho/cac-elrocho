@@ -29,6 +29,7 @@ hiddenimports = (
     # SecretStore importa keyring de forma diferida. Incluir sus backends evita
     # que la versión congelada caiga innecesariamente al respaldo local.
     + collect_submodules("keyring")
+    + collect_submodules("openpyxl")
 )
 
 a = Analysis(
