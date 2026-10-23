@@ -90,7 +90,7 @@ jobs:
           if (-not (Test-Path $static)) { throw "No se empaquetó el frontend: $static" }
 
       - name: Build Windows installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
         with:
           path: packaging/AnaliticasClinicas.iss
 
