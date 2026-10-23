@@ -95,14 +95,14 @@ jobs:
           path: packaging/AnaliticasClinicas.iss
 
       - name: Upload Windows executable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AnaliticasClinicas-Windows
           path: dist/AnaliticasClinicas
           if-no-files-found: error
 
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cac-elrocho-windows-installer
           path: dist-installer/cac-elrocho-v*.exe
